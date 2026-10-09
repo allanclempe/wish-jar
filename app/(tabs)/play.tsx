@@ -5,7 +5,7 @@ import { colors, radius, spacing, typography } from '../../src/theme';
 
 export default function PlayScreen() {
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safe}>
       <View style={styles.container}>
         <Text style={styles.title}>Play 🎮</Text>
         <View style={styles.card}>

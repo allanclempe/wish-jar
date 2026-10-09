@@ -9,7 +9,7 @@ export default function SettingsScreen() {
   const { kids, activeKid } = useActiveKid();
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safe}>
       <View style={styles.container}>
         <Text style={styles.title}>Settings ⚙️</Text>
 

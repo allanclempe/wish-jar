@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { Text } from 'react-native';
 
 import { useActiveKid } from '../../src/kids/ActiveKidProvider';
+import { KidSwitcher } from '../../src/kids/KidSwitcher';
 import { colors } from '../../src/theme';
 
 function TabEmoji({ emoji, focused }: { emoji: string; focused: boolean }) {
@@ -25,7 +26,8 @@ export default function TabsLayout() {
   return (
     <Tabs
       screenOptions={{
-        headerShown: false,
+        headerShown: true,
+        header: () => <KidSwitcher />,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
