@@ -8,7 +8,7 @@ export default function HomeScreen() {
   const { activeKid } = useActiveKid();
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safe}>
       <View style={styles.container}>
         <Text style={styles.title}>
           {activeKid ? `Hi, ${activeKid.name}! 👋` : 'Welcome! 👋'}
