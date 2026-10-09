@@ -30,7 +30,8 @@
     "android": "expo start --android",
     "ios": "expo start --ios",
     "web": "expo start --web",
-    "lint": "expo lint"
+    "lint": "expo lint",
+    "opencode": "export OPENCODE_SERVER_PASSWORD=\"${OPENCODE_SERVER_PASSWORD:-$(sed -n 's/^OPENCODE_SERVER_PASSWORD=//p' ../opencode-slack/.env)}\" && : ${OPENCODE_SERVER_PASSWORD:?set OPENCODE_SERVER_PASSWORD or add it to ../opencode-slack/.env} && (opencode serve --port 4096 & node --env-file=../opencode-slack/.env ../opencode-slack/index.js; kill $!)"
   },
   "private": true
 }
