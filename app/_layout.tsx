@@ -17,6 +17,16 @@ export default function RootLayout() {
           }}
         >
           <Stack.Screen name="(tabs)" />
+          <Stack.Screen
+            name="add-kid"
+            options={{
+              presentation: 'modal',
+              headerShown: true,
+              title: 'Add a kid',
+              headerTintColor: colors.text,
+              headerStyle: { backgroundColor: colors.background },
+            }}
+          />
         </Stack>
       </DatabaseProvider>
     </SafeAreaProvider>
