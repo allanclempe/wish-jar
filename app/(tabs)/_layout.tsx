@@ -1,6 +1,8 @@
-import { Tabs } from 'expo-router';
+import { router, Tabs } from 'expo-router';
+import { useEffect } from 'react';
 import { Text } from 'react-native';
 
+import { useActiveKid } from '../../src/kids/ActiveKidProvider';
 import { colors } from '../../src/theme';
 
 function TabEmoji({ emoji, focused }: { emoji: string; focused: boolean }) {
@@ -8,6 +10,18 @@ function TabEmoji({ emoji, focused }: { emoji: string; focused: boolean }) {
 }
 
 export default function TabsLayout() {
+  const { ready, activeKid, kids } = useActiveKid();
+
+  useEffect(() => {
+    if (ready && !activeKid && kids.length > 0) {
+      router.replace('/choose-kid');
+    }
+  }, [ready, activeKid, kids.length]);
+
+  if (!ready) {
+    return null;
+  }
+
   return (
     <Tabs
       screenOptions={{

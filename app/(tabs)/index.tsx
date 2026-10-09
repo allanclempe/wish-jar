@@ -1,13 +1,18 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useActiveKid } from '../../src/kids/ActiveKidProvider';
 import { colors, radius, spacing, typography } from '../../src/theme';
 
 export default function HomeScreen() {
+  const { activeKid } = useActiveKid();
+
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
-        <Text style={styles.title}>Welcome! 👋</Text>
+        <Text style={styles.title}>
+          {activeKid ? `Hi, ${activeKid.name}! 👋` : 'Welcome! 👋'}
+        </Text>
         <View style={styles.card}>
           <Text style={styles.cardEmoji}>✨</Text>
           <Text style={styles.cardText}>
