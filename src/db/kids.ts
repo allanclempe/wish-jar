@@ -36,3 +36,25 @@ export async function insertKid(
   );
   return result.lastInsertRowId;
 }
+
+export async function setKidPhoto(
+  db: SQLiteDatabase,
+  kidId: number,
+  photoUri: string | null,
+): Promise<string | null> {
+  const previous = await db.getFirstAsync<{ photo_uri: string | null }>(
+    'SELECT photo_uri FROM kids WHERE id = ?',
+    kidId,
+  );
+  await db.runAsync('UPDATE kids SET photo_uri = ? WHERE id = ?', photoUri, kidId);
+  return previous?.photo_uri ?? null;
+}
+
+export async function deleteKid(db: SQLiteDatabase, kidId: number): Promise<string | null> {
+  const row = await db.getFirstAsync<{ photo_uri: string | null }>(
+    'SELECT photo_uri FROM kids WHERE id = ?',
+    kidId,
+  );
+  await db.runAsync('DELETE FROM kids WHERE id = ?', kidId);
+  return row?.photo_uri ?? null;
+}
