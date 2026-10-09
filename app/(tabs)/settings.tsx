@@ -1,20 +1,12 @@
-import { useFocusEffect, router } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { router } from 'expo-router';
 import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { listKids, useDatabase, type Kid } from '../../src/db';
+import { useActiveKid } from '../../src/kids/ActiveKidProvider';
 import { colors, radius, spacing, typography } from '../../src/theme';
 
 export default function SettingsScreen() {
-  const db = useDatabase();
-  const [kids, setKids] = useState<Kid[]>([]);
-
-  useFocusEffect(
-    useCallback(() => {
-      listKids(db).then(setKids);
-    }, [db]),
-  );
+  const { kids, activeKid } = useActiveKid();
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -37,12 +29,21 @@ export default function SettingsScreen() {
                 </View>
               )}
               <Text style={styles.name}>{item.name}</Text>
+              {item.id === activeKid?.id ? <Text style={styles.active}>Playing</Text> : null}
             </View>
           )}
         />
 
         <Pressable
           style={styles.button}
+          onPress={() => router.push('/choose-kid')}
+          accessibilityRole="button"
+        >
+          <Text style={styles.buttonText}>Switch kid</Text>
+        </Pressable>
+
+        <Pressable
+          style={[styles.button, styles.secondaryButton]}
           onPress={() => router.push('/add-kid')}
           accessibilityRole="button"
         >
@@ -79,12 +80,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   avatarEmoji: { fontSize: 28 },
-  name: { ...typography.body, color: colors.text, fontWeight: '600' },
+  name: { ...typography.body, color: colors.text, fontWeight: '600', flex: 1 },
+  active: { ...typography.caption, color: colors.success, fontWeight: '700' },
   button: {
     backgroundColor: colors.primary,
     borderRadius: radius.pill,
     paddingVertical: spacing.md,
     alignItems: 'center',
   },
+  secondaryButton: { backgroundColor: colors.secondary },
   buttonText: { ...typography.heading, color: colors.surface },
 });

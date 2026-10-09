@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-export const DATABASE_VERSION = 1;
+export const DATABASE_VERSION = 2;
 
 const MIGRATIONS: Record<number, string> = {
   1: `
@@ -29,6 +29,12 @@ const MIGRATIONS: Record<number, string> = {
 
     CREATE INDEX IF NOT EXISTS tasks_kid_id_idx ON tasks (kid_id);
     CREATE INDEX IF NOT EXISTS wishes_kid_id_idx ON wishes (kid_id);
+  `,
+  2: `
+    CREATE TABLE IF NOT EXISTS app_settings (
+      key TEXT PRIMARY KEY NOT NULL,
+      value TEXT NOT NULL
+    );
   `,
 };
 

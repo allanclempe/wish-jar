@@ -5,11 +5,13 @@ import { Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from 'reac
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { insertKid, useDatabase } from '../src/db';
+import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { removeKidPhoto, storeKidPhoto } from '../src/photos/kidPhotos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
 export default function AddKidScreen() {
   const db = useDatabase();
+  const { refreshKids } = useActiveKid();
   const [name, setName] = useState('');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -42,6 +44,7 @@ export default function AddKidScreen() {
     try {
       storedPhotoUri = photoUri ? await storeKidPhoto(photoUri) : null;
       await insertKid(db, { name, photoUri: storedPhotoUri });
+      await refreshKids();
       router.back();
     } catch {
       removeKidPhoto(storedPhotoUri);
