@@ -12,9 +12,15 @@ export const DATABASE_NAME = 'wish-jar.db';
 // A second tab — or a worker from a tab that has just closed and not yet
 // released its handles — opening the same files throws
 // NoModificationAllowedError. A Web Lock makes one tab the owner; any other
-// tab gets a retry screen instead of a crash, and a short retry loop absorbs
-// handles that linger briefly after a tab closes.
+// tab gets a retry screen instead of a crash.
+//
+// expo-sqlite runs every database in one worker per page, and that worker
+// cannot recover from a failed open: it keeps its half-initialised SQLite
+// module and answers every later open with "Invalid VFS state". So a retry
+// reloads the page to get a fresh worker, and the attempt count lives in
+// sessionStorage to stop the reloads once the handles stay held.
 const DATABASE_LOCK = 'wish-jar:sqlite-database';
+const RELOAD_ATTEMPTS_KEY = 'wish-jar:sqlite-reload-attempts';
 const RETRY_DELAYS_MS = [300, 700, 1500];
 
 // Worker errors reach the main thread re-wrapped as `new Error(String(e))`,
@@ -23,8 +29,39 @@ function isAccessHandleConflict(error: unknown): boolean {
   return (
     error instanceof Error &&
     (error.message.includes('NoModificationAllowedError') ||
-      error.message.includes('createSyncAccessHandle'))
+      error.message.includes('createSyncAccessHandle') ||
+      error.message.includes('Invalid VFS state'))
   );
+}
+
+// Returns null when sessionStorage is unavailable, so the caller cannot count
+// reloads and must not reload automatically.
+function readReloadAttempts(): number | null {
+  try {
+    return Number(sessionStorage.getItem(RELOAD_ATTEMPTS_KEY) ?? 0) || 0;
+  } catch {
+    return null;
+  }
+}
+
+function writeReloadAttempts(attempts: number): boolean {
+  try {
+    if (attempts === 0) {
+      sessionStorage.removeItem(RELOAD_ATTEMPTS_KEY);
+    } else {
+      sessionStorage.setItem(RELOAD_ATTEMPTS_KEY, String(attempts));
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Module-level so its identity stays stable: SQLiteProvider reopens the
+// database whenever onInit changes.
+async function initDatabase(db: SQLiteDatabase): Promise<void> {
+  await migrateDatabase(db);
+  writeReloadAttempts(0);
 }
 
 export function DatabaseProvider({ children }: PropsWithChildren) {
@@ -33,8 +70,9 @@ export function DatabaseProvider({ children }: PropsWithChildren) {
     () => (typeof navigator === 'undefined' || !navigator.locks ? 'granted' : 'pending'),
   );
   const [lockAttempt, setLockAttempt] = useState(0);
-  const retriesRef = useRef(0);
-  const [providerKey, setProviderKey] = useState(0);
+  // SQLiteProvider calls onError on every render while it holds an error, so
+  // handle the first call only.
+  const errorHandledRef = useRef(false);
   const [unavailable, setUnavailable] = useState(false);
 
   useEffect(() => {
@@ -73,9 +111,8 @@ export function DatabaseProvider({ children }: PropsWithChildren) {
       <DatabaseUnavailable
         message="Could not open the local database. Another tab may still be closing it — try again."
         onRetry={() => {
-          retriesRef.current = 0;
-          setUnavailable(false);
-          setProviderKey((key) => key + 1);
+          writeReloadAttempts(0);
+          window.location.reload();
         }}
       />
     );
@@ -87,20 +124,24 @@ export function DatabaseProvider({ children }: PropsWithChildren) {
 
   return (
     <SQLiteProvider
-      key={providerKey}
       databaseName={DATABASE_NAME}
-      onInit={migrateDatabase}
+      onInit={initDatabase}
       onError={(error) => {
         if (!isAccessHandleConflict(error)) {
           // Match the provider's default handler.
           throw error;
         }
+        if (errorHandledRef.current) return;
+        errorHandledRef.current = true;
         // SQLiteProvider calls onError during render, so defer the state update.
         queueMicrotask(() => {
-          if (retriesRef.current < RETRY_DELAYS_MS.length) {
-            const delay = RETRY_DELAYS_MS[retriesRef.current];
-            retriesRef.current += 1;
-            setTimeout(() => setProviderKey((key) => key + 1), delay);
+          const attempts = readReloadAttempts();
+          if (
+            attempts != null &&
+            attempts < RETRY_DELAYS_MS.length &&
+            writeReloadAttempts(attempts + 1)
+          ) {
+            setTimeout(() => window.location.reload(), RETRY_DELAYS_MS[attempts]);
           } else {
             setUnavailable(true);
           }
