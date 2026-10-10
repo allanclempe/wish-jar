@@ -30,6 +30,15 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
+              name="tasks"
+              options={{
+                headerShown: true,
+                title: 'Tasks',
+                headerTintColor: colors.text,
+                headerStyle: { backgroundColor: colors.background },
+              }}
+            />
+            <Stack.Screen
               name="add-task"
               options={{
                 presentation: 'modal',
