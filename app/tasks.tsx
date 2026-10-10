@@ -38,7 +38,11 @@ export default function TasksScreen() {
             </View>
           }
           renderItem={({ item }) => (
-            <View style={styles.row}>
+            <Pressable
+              style={styles.row}
+              onPress={() => router.push({ pathname: '/edit-task', params: { id: String(item.id) } })}
+              accessibilityRole="button"
+            >
               <View style={styles.icon}>
                 <Text style={styles.iconEmoji}>🧹</Text>
               </View>
@@ -48,7 +52,7 @@ export default function TasksScreen() {
                   🪙 {item.coinAmount} {item.coinAmount === 1 ? 'coin' : 'coins'}
                 </Text>
               </View>
-            </View>
+            </Pressable>
           )}
         />
 

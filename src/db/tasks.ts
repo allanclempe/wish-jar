@@ -25,6 +25,14 @@ export async function listTasks(db: SQLiteDatabase): Promise<Task[]> {
   return rows.map(toTask);
 }
 
+export async function getTask(db: SQLiteDatabase, taskId: number): Promise<Task | null> {
+  const row = await db.getFirstAsync<TaskRow>(
+    'SELECT id, name, coin_amount, created_at FROM tasks WHERE id = ?',
+    taskId,
+  );
+  return row ? toTask(row) : null;
+}
+
 export async function insertTask(
   db: SQLiteDatabase,
   input: { name: string; coinAmount: number },
