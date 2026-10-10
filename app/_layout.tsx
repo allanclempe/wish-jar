@@ -19,7 +19,6 @@ export default function RootLayout() {
             }}
           >
             <Stack.Screen name="(tabs)" />
-            <Stack.Screen name="choose-kid" />
             <Stack.Screen
               name="add-kid"
               options={{
