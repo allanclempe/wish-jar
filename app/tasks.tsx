@@ -39,10 +39,15 @@ export default function TasksScreen() {
           }
           renderItem={({ item }) => (
             <View style={styles.row}>
+              <View style={styles.icon}>
+                <Text style={styles.iconEmoji}>🧹</Text>
+              </View>
               <Text style={styles.name}>{item.name}</Text>
-              <Text style={styles.coins}>
-                {item.coinAmount} {item.coinAmount === 1 ? 'coin' : 'coins'}
-              </Text>
+              <View style={styles.pill}>
+                <Text style={styles.pillText}>
+                  🪙 {item.coinAmount} {item.coinAmount === 1 ? 'coin' : 'coins'}
+                </Text>
+              </View>
             </View>
           )}
         />
@@ -52,7 +57,7 @@ export default function TasksScreen() {
           onPress={() => router.push('/add-task')}
           accessibilityRole="button"
         >
-          <Text style={styles.buttonText}>Add a task</Text>
+          <Text style={styles.buttonText}>＋ Add a task</Text>
         </Pressable>
       </View>
     </SafeAreaView>
@@ -81,18 +86,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.md,
     backgroundColor: colors.surface,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
     borderWidth: 2,
     borderColor: colors.border,
     padding: spacing.md,
   },
+  icon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconEmoji: { fontSize: 24 },
   name: { ...typography.body, color: colors.text, fontWeight: '600', flex: 1 },
-  coins: { ...typography.caption, color: colors.primary, fontWeight: '700' },
+  pill: {
+    backgroundColor: colors.border,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm + 2,
+  },
+  pillText: { fontSize: 13, fontWeight: '700', color: colors.primary },
   button: {
     backgroundColor: colors.primary,
     borderRadius: radius.pill,
     paddingVertical: spacing.md,
     alignItems: 'center',
+    shadowColor: colors.primary,
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
   },
   buttonText: { ...typography.heading, color: colors.surface },
 });

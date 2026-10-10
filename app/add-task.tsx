@@ -21,8 +21,8 @@ export default function AddTaskScreen() {
       next.name = 'Give the task a name.';
     }
     const coins = coinAmount.trim();
-    if (!/^\d+$/.test(coins) || Number(coins) <= 0) {
-      next.coinAmount = 'Coins must be a positive whole number.';
+    if (!/^-?\d+$/.test(coins) || Number(coins) === 0) {
+      next.coinAmount = 'Coins must be a whole number, positive or negative.';
     }
     return next;
   }
@@ -62,7 +62,7 @@ export default function AddTaskScreen() {
         />
         {errors.name ? <Text style={styles.error}>{errors.name}</Text> : null}
 
-        <Text style={styles.label}>Coins earned</Text>
+        <Text style={styles.label}>Coins earned (use - for a penalty)</Text>
         <TextInput
           style={styles.input}
           value={coinAmount}
@@ -72,8 +72,8 @@ export default function AddTaskScreen() {
           }}
           placeholder="e.g. 5"
           placeholderTextColor={colors.textMuted}
-          keyboardType="number-pad"
-          maxLength={4}
+          keyboardType="numbers-and-punctuation"
+          maxLength={5}
           returnKeyType="done"
           onSubmitEditing={save}
         />
