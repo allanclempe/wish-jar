@@ -35,14 +35,6 @@ export default function SettingsScreen() {
         />
 
         <Pressable
-          style={styles.button}
-          onPress={() => router.push('/choose-kid')}
-          accessibilityRole="button"
-        >
-          <Text style={styles.buttonText}>Switch kid</Text>
-        </Pressable>
-
-        <Pressable
           style={[styles.button, styles.secondaryButton]}
           onPress={() => router.push('/add-kid')}
           accessibilityRole="button"
