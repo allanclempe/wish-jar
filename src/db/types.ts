@@ -7,9 +7,8 @@ export type Kid = {
 
 export type Task = {
   id: number;
-  kidId: number;
-  title: string;
-  amountCents: number;
+  name: string;
+  coinAmount: number;
   createdAt: number;
 };
 
