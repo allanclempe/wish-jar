@@ -29,6 +29,16 @@ export default function RootLayout() {
                 headerStyle: { backgroundColor: colors.background },
               }}
             />
+            <Stack.Screen
+              name="add-task"
+              options={{
+                presentation: 'modal',
+                headerShown: true,
+                title: 'Add a task',
+                headerTintColor: colors.text,
+                headerStyle: { backgroundColor: colors.background },
+              }}
+            />
           </Stack>
         </ActiveKidProvider>
       </DatabaseProvider>
