@@ -57,6 +57,16 @@ export default function RootLayout() {
                 headerStyle: { backgroundColor: colors.background },
               }}
             />
+            <Stack.Screen
+              name="edit-task"
+              options={{
+                presentation: 'modal',
+                headerShown: true,
+                title: 'Edit a task',
+                headerTintColor: colors.text,
+                headerStyle: { backgroundColor: colors.background },
+              }}
+            />
           </Stack>
         </ActiveKidProvider>
       </DatabaseProvider>
