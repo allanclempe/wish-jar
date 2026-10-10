@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-export const DATABASE_VERSION = 2;
+export const DATABASE_VERSION = 3;
 
 const MIGRATIONS: Record<number, string> = {
   1: `
@@ -34,6 +34,19 @@ const MIGRATIONS: Record<number, string> = {
     CREATE TABLE IF NOT EXISTS app_settings (
       key TEXT PRIMARY KEY NOT NULL,
       value TEXT NOT NULL
+    );
+  `,
+  // The version 1 tasks table matched an early money-based model and was
+  // never written to; replace it with the parent-defined coin task.
+  3: `
+    DROP INDEX IF EXISTS tasks_kid_id_idx;
+    DROP TABLE IF EXISTS tasks;
+
+    CREATE TABLE IF NOT EXISTS tasks (
+      id INTEGER PRIMARY KEY NOT NULL,
+      name TEXT NOT NULL,
+      coin_amount INTEGER NOT NULL,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
     );
   `,
 };

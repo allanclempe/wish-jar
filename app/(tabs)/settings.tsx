@@ -41,6 +41,15 @@ export default function SettingsScreen() {
         >
           <Text style={styles.buttonText}>Add a kid</Text>
         </Pressable>
+
+        <Text style={styles.section}>Tasks</Text>
+        <Pressable
+          style={[styles.button, styles.secondaryButton]}
+          onPress={() => router.push('/tasks')}
+          accessibilityRole="button"
+        >
+          <Text style={styles.buttonText}>View tasks</Text>
+        </Pressable>
       </View>
     </SafeAreaView>
   );
