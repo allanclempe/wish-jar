@@ -30,6 +30,15 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
+              name="kids"
+              options={{
+                headerShown: true,
+                title: 'Kids',
+                headerTintColor: colors.text,
+                headerStyle: { backgroundColor: colors.background },
+              }}
+            />
+            <Stack.Screen
               name="tasks"
               options={{
                 headerShown: true,
