@@ -1,0 +1,114 @@
+import { useFocusEffect } from 'expo-router';
+import { useCallback, useEffect, useState } from 'react';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+
+import { listTasks, useDatabase, type Task } from '../db';
+import { useActiveKid } from '../kids/ActiveKidProvider';
+import { colors, radius, spacing, typography } from '../theme';
+import { currentPeriod, PERIOD_LABELS } from '../tasks/period';
+import { IconBadge } from './Icons';
+
+const PERIOD_CHECK_INTERVAL_MS = 60_000;
+
+export function CurrentPeriodTasks() {
+  const db = useDatabase();
+  const { activeKid } = useActiveKid();
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [period, setPeriod] = useState(currentPeriod);
+  const [doneKeys, setDoneKeys] = useState<Set<string>>(() => new Set());
+
+  useEffect(() => {
+    const timer = setInterval(() => setPeriod(currentPeriod()), PERIOD_CHECK_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      listTasks(db).then((loaded) => {
+        if (!cancelled) setTasks(loaded);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [db]),
+  );
+
+  if (!activeKid) {
+    return null;
+  }
+
+  const kidId = activeKid.id;
+  const currentTasks = tasks.filter((task) => task.period === period);
+
+  function markDone(taskId: number) {
+    setDoneKeys((previous) => new Set(previous).add(`${kidId}:${taskId}`));
+  }
+
+  return (
+    <FlatList
+      data={currentTasks}
+      keyExtractor={(task) => String(task.id)}
+      contentContainerStyle={styles.list}
+      ListHeaderComponent={<Text style={styles.heading}>{PERIOD_LABELS[period]} tasks</Text>}
+      ListEmptyComponent={
+        <View style={styles.card}>
+          <Text style={styles.cardEmoji}>🪙</Text>
+          <Text style={styles.cardText}>No tasks for this part of the day.</Text>
+        </View>
+      }
+      renderItem={({ item }) => {
+        const done = doneKeys.has(`${kidId}:${item.id}`);
+        return (
+          <Pressable
+            style={[styles.row, done && styles.rowDone]}
+            onPress={() => markDone(item.id)}
+            disabled={done}
+            accessibilityRole="button"
+            accessibilityLabel={item.name}
+            accessibilityState={{ checked: done, disabled: done }}
+          >
+            <IconBadge icon={item.icon} fallbackEmoji="🧹" />
+            <View style={styles.details}>
+              <Text style={[styles.name, done && styles.nameDone]}>{item.name}</Text>
+              <Text style={styles.period}>{PERIOD_LABELS[item.period]}</Text>
+            </View>
+            <Text style={styles.status}>{done ? '✅' : '⬜️'}</Text>
+          </Pressable>
+        );
+      }}
+    />
+  );
+}
+
+const styles = StyleSheet.create({
+  list: { gap: spacing.sm, flexGrow: 1 },
+  heading: { ...typography.heading, color: colors.text, marginBottom: spacing.sm },
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 2,
+    borderColor: colors.border,
+    padding: spacing.lg,
+    gap: spacing.md,
+    alignItems: 'center',
+  },
+  cardEmoji: { fontSize: 48 },
+  cardText: { ...typography.body, color: colors.textMuted, textAlign: 'center' },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    borderWidth: 2,
+    borderColor: colors.border,
+    padding: spacing.md,
+  },
+  rowDone: { backgroundColor: colors.background },
+  details: { flex: 1, gap: spacing.xs },
+  name: { ...typography.body, color: colors.text, fontWeight: '600' },
+  nameDone: { color: colors.textMuted, textDecorationLine: 'line-through' },
+  period: { ...typography.caption, color: colors.textMuted },
+  status: { fontSize: 24 },
+});

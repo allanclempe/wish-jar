@@ -2,12 +2,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { PERIODS, type Period } from '../db';
 import { colors, radius, spacing, typography } from '../theme';
-
-const PERIOD_LABELS: Record<Period, string> = {
-  morning: 'Morning',
-  afternoon: 'Afternoon',
-  evening: 'Evening',
-};
+import { PERIOD_LABELS } from '../tasks/period';
 
 type PeriodPickerProps = {
   value: Period;
