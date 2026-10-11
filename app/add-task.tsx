@@ -4,7 +4,8 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput } from 'react
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IconPicker } from '../src/components/Icons';
-import { insertTask, useDatabase, type Icon } from '../src/db';
+import { PeriodPicker } from '../src/components/PeriodPicker';
+import { insertTask, useDatabase, type Icon, type Period } from '../src/db';
 import { removePhoto, storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
@@ -13,6 +14,7 @@ type Errors = { name?: string; coinAmount?: string };
 export default function AddTaskScreen() {
   const db = useDatabase();
   const [name, setName] = useState('');
+  const [period, setPeriod] = useState<Period>('morning');
   const [coinAmount, setCoinAmount] = useState('');
   const [icon, setIcon] = useState<Icon>({ emoji: null, photoUri: null });
   const [errors, setErrors] = useState<Errors>({});
@@ -41,6 +43,7 @@ export default function AddTaskScreen() {
       storedPhotoUri = icon.photoUri ? await storePhoto(icon.photoUri) : null;
       await insertTask(db, {
         name,
+        period,
         coinAmount: Number(coinAmount.trim()),
         icon: { emoji: icon.emoji, photoUri: storedPhotoUri },
       });
@@ -73,6 +76,9 @@ export default function AddTaskScreen() {
           returnKeyType="next"
         />
         {errors.name ? <Text style={styles.error}>{errors.name}</Text> : null}
+
+        <Text style={styles.label}>When</Text>
+        <PeriodPicker value={period} onChange={setPeriod} />
 
         <Text style={styles.label}>Coins earned (use - for a penalty)</Text>
         <TextInput

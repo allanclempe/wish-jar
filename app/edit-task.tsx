@@ -4,7 +4,8 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput } from 'react
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IconPicker } from '../src/components/Icons';
-import { getTask, updateTask, useDatabase, type Icon } from '../src/db';
+import { PeriodPicker } from '../src/components/PeriodPicker';
+import { getTask, updateTask, useDatabase, type Icon, type Period } from '../src/db';
 import { removePhoto, storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
@@ -16,6 +17,7 @@ export default function EditTaskScreen() {
   const taskId = Number(id);
   const [loaded, setLoaded] = useState(false);
   const [name, setName] = useState('');
+  const [period, setPeriod] = useState<Period>('morning');
   const [coinAmount, setCoinAmount] = useState('');
   const [icon, setIcon] = useState<Icon>({ emoji: null, photoUri: null });
   const [originalPhotoUri, setOriginalPhotoUri] = useState<string | null>(null);
@@ -32,6 +34,7 @@ export default function EditTaskScreen() {
         return;
       }
       setName(task.name);
+      setPeriod(task.period);
       setCoinAmount(String(task.coinAmount));
       setIcon(task.icon);
       setOriginalPhotoUri(task.icon.photoUri);
@@ -67,6 +70,7 @@ export default function EditTaskScreen() {
       }
       const previousPhotoUri = await updateTask(db, taskId, {
         name,
+        period,
         coinAmount: Number(coinAmount.trim()),
         icon: { emoji: icon.emoji, photoUri: savedPhotoUri },
       });
@@ -108,6 +112,9 @@ export default function EditTaskScreen() {
           returnKeyType="next"
         />
         {errors.name ? <Text style={styles.error}>{errors.name}</Text> : null}
+
+        <Text style={styles.label}>When</Text>
+        <PeriodPicker value={period} onChange={setPeriod} />
 
         <Text style={styles.label}>Coins earned (use - for a penalty)</Text>
         <TextInput

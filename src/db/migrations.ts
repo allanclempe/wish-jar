@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-export const DATABASE_VERSION = 4;
+export const DATABASE_VERSION = 5;
 
 const MIGRATIONS: Record<number, string> = {
   1: `
@@ -69,6 +69,10 @@ const MIGRATIONS: Record<number, string> = {
     );
 
     CREATE INDEX IF NOT EXISTS wishes_kid_id_idx ON wishes (kid_id);
+  `,
+  5: `
+    ALTER TABLE tasks ADD COLUMN period TEXT NOT NULL DEFAULT 'morning'
+      CHECK (period IN ('morning', 'afternoon', 'evening'));
   `,
 };
 
