@@ -25,6 +25,14 @@ export async function listKids(db: SQLiteDatabase): Promise<Kid[]> {
   return rows.map(toKid);
 }
 
+export async function getKid(db: SQLiteDatabase, kidId: number): Promise<Kid | null> {
+  const row = await db.getFirstAsync<KidRow>(
+    'SELECT id, name, photo_uri, created_at FROM kids WHERE id = ?',
+    kidId,
+  );
+  return row ? toKid(row) : null;
+}
+
 export async function insertKid(
   db: SQLiteDatabase,
   input: { name: string; photoUri: string | null },
@@ -35,6 +43,24 @@ export async function insertKid(
     input.photoUri,
   );
   return result.lastInsertRowId;
+}
+
+export async function updateKid(
+  db: SQLiteDatabase,
+  kidId: number,
+  input: { name: string; photoUri: string | null },
+): Promise<string | null> {
+  const previous = await db.getFirstAsync<{ photo_uri: string | null }>(
+    'SELECT photo_uri FROM kids WHERE id = ?',
+    kidId,
+  );
+  await db.runAsync(
+    'UPDATE kids SET name = ?, photo_uri = ? WHERE id = ?',
+    input.name.trim(),
+    input.photoUri,
+    kidId,
+  );
+  return previous?.photo_uri ?? null;
 }
 
 export async function setKidPhoto(

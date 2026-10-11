@@ -24,7 +24,11 @@ export default function KidsScreen() {
           renderItem={({ item }) => {
             const isActive = item.id === activeKid?.id;
             return (
-              <View style={[styles.row, isActive && styles.rowActive]}>
+              <Pressable
+                style={[styles.row, isActive && styles.rowActive]}
+                onPress={() => router.push({ pathname: '/edit-kid', params: { id: String(item.id) } })}
+                accessibilityRole="button"
+              >
                 {item.photoUri ? (
                   <Image source={{ uri: item.photoUri }} style={styles.avatar} />
                 ) : (
@@ -38,7 +42,7 @@ export default function KidsScreen() {
                     <Text style={styles.pillText}>Playing</Text>
                   </View>
                 ) : null}
-              </View>
+              </Pressable>
             );
           }}
         />
