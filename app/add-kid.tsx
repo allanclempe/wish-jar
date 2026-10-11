@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { insertKid, useDatabase } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
-import { removeKidPhoto, storeKidPhoto } from '../src/photos/kidPhotos';
+import { removePhoto, storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
 export default function AddKidScreen() {
@@ -42,12 +42,12 @@ export default function AddKidScreen() {
     setSaving(true);
     let storedPhotoUri: string | null = null;
     try {
-      storedPhotoUri = photoUri ? await storeKidPhoto(photoUri) : null;
+      storedPhotoUri = photoUri ? await storePhoto(photoUri) : null;
       await insertKid(db, { name, photoUri: storedPhotoUri });
       await refreshKids();
       router.back();
     } catch {
-      removeKidPhoto(storedPhotoUri);
+      removePhoto(storedPhotoUri);
       Alert.alert('Could not save', 'Something went wrong while saving. Please try again.');
       setSaving(false);
     }

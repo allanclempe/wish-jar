@@ -1,19 +1,30 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput } from 'react-native';
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IconPicker } from '../src/components/Icons';
-import { insertTask, useDatabase, type Icon } from '../src/db';
+import { insertWish, useDatabase, type Icon } from '../src/db';
+import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { removePhoto, storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
-type Errors = { name?: string; coinAmount?: string };
+type Errors = { name?: string; coinAmount?: string; kidId?: string };
 
-export default function AddTaskScreen() {
+export default function AddWishScreen() {
   const db = useDatabase();
+  const { kids } = useActiveKid();
   const [name, setName] = useState('');
   const [coinAmount, setCoinAmount] = useState('');
+  const [kidId, setKidId] = useState<number | null>(null);
   const [icon, setIcon] = useState<Icon>({ emoji: null, photoUri: null });
   const [errors, setErrors] = useState<Errors>({});
   const [saving, setSaving] = useState(false);
@@ -21,11 +32,14 @@ export default function AddTaskScreen() {
   function validate(): Errors {
     const next: Errors = {};
     if (name.trim().length === 0) {
-      next.name = 'Give the task a name.';
+      next.name = 'Give the wish a name.';
     }
     const coins = coinAmount.trim();
-    if (!/^-?\d+$/.test(coins) || Number(coins) === 0) {
-      next.coinAmount = 'Coins must be a whole number, positive or negative.';
+    if (!/^\d+$/.test(coins) || Number(coins) === 0) {
+      next.coinAmount = 'Coins must be a whole number, 1 or more.';
+    }
+    if (kidId === null) {
+      next.kidId = 'Choose which kid this wish is for.';
     }
     return next;
   }
@@ -33,13 +47,16 @@ export default function AddTaskScreen() {
   async function save() {
     const nextErrors = validate();
     setErrors(nextErrors);
-    if (nextErrors.name || nextErrors.coinAmount || saving) return;
+    if (nextErrors.name || nextErrors.coinAmount || nextErrors.kidId || saving || kidId === null) {
+      return;
+    }
 
     setSaving(true);
     let storedPhotoUri: string | null = null;
     try {
       storedPhotoUri = icon.photoUri ? await storePhoto(icon.photoUri) : null;
-      await insertTask(db, {
+      await insertWish(db, {
+        kidId,
         name,
         coinAmount: Number(coinAmount.trim()),
         icon: { emoji: icon.emoji, photoUri: storedPhotoUri },
@@ -55,9 +72,9 @@ export default function AddTaskScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <IconPicker value={icon} fallbackEmoji="🧹" onChange={setIcon} />
+        <IconPicker value={icon} fallbackEmoji="🎁" onChange={setIcon} />
 
-        <Text style={styles.label}>Task</Text>
+        <Text style={styles.label}>Wish</Text>
         <TextInput
           style={styles.input}
           value={name}
@@ -65,7 +82,7 @@ export default function AddTaskScreen() {
             setName(text);
             setErrors((prev) => ({ ...prev, name: undefined }));
           }}
-          placeholder="e.g. Brush teeth"
+          placeholder="e.g. Bike"
           placeholderTextColor={colors.textMuted}
           autoCapitalize="sentences"
           autoCorrect={false}
@@ -74,27 +91,55 @@ export default function AddTaskScreen() {
         />
         {errors.name ? <Text style={styles.error}>{errors.name}</Text> : null}
 
-        <Text style={styles.label}>Coins earned (use - for a penalty)</Text>
+        <Text style={styles.label}>Coins it costs</Text>
         <TextInput
           style={styles.input}
           value={coinAmount}
           onChangeText={(text) => {
-            setCoinAmount(text);
+            setCoinAmount(text.replace(/\D/g, ''));
             setErrors((prev) => ({ ...prev, coinAmount: undefined }));
           }}
-          placeholder="e.g. 5"
+          placeholder="e.g. 50"
           placeholderTextColor={colors.textMuted}
-          keyboardType="numbers-and-punctuation"
-          maxLength={5}
+          keyboardType="number-pad"
+          maxLength={6}
           returnKeyType="done"
           onSubmitEditing={save}
         />
         {errors.coinAmount ? <Text style={styles.error}>{errors.coinAmount}</Text> : null}
 
+        <Text style={styles.label}>For which kid</Text>
+        {kids.length === 0 ? (
+          <Text style={styles.hint}>Add a kid first, then you can register their wishes.</Text>
+        ) : (
+          <View style={styles.kids}>
+            {kids.map((kid) => {
+              const selected = kid.id === kidId;
+              return (
+                <Pressable
+                  key={kid.id}
+                  style={[styles.kid, selected && styles.kidSelected]}
+                  onPress={() => {
+                    setKidId(kid.id);
+                    setErrors((prev) => ({ ...prev, kidId: undefined }));
+                  }}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected }}
+                >
+                  <Text style={[styles.kidText, selected && styles.kidTextSelected]}>
+                    {kid.name}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        )}
+        {errors.kidId ? <Text style={styles.error}>{errors.kidId}</Text> : null}
+
         <Pressable
-          style={[styles.button, saving && styles.buttonDisabled]}
+          style={[styles.button, (saving || kids.length === 0) && styles.buttonDisabled]}
           onPress={save}
-          disabled={saving}
+          disabled={saving || kids.length === 0}
           accessibilityRole="button"
         >
           <Text style={styles.buttonText}>Save</Text>
@@ -119,6 +164,19 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm + 4,
   },
   error: { ...typography.caption, color: colors.accent, marginTop: -spacing.sm },
+  hint: { ...typography.caption, color: colors.textMuted },
+  kids: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  kid: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.pill,
+    borderWidth: 2,
+    borderColor: colors.border,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+  },
+  kidSelected: { borderColor: colors.primary, backgroundColor: colors.primary },
+  kidText: { ...typography.body, color: colors.text, fontWeight: '600' },
+  kidTextSelected: { color: colors.surface },
   button: {
     marginTop: spacing.lg,
     backgroundColor: colors.primary,
