@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-export const DATABASE_VERSION = 6;
+export const DATABASE_VERSION = 7;
 
 const MIGRATIONS: Record<number, string> = {
   1: `
@@ -90,6 +90,30 @@ const MIGRATIONS: Record<number, string> = {
       kid_id INTEGER PRIMARY KEY NOT NULL REFERENCES kids(id) ON DELETE CASCADE,
       amount INTEGER NOT NULL DEFAULT 0
     );
+  `,
+  // Name and coin_amount are copied from the type when a punishment is logged,
+  // so editing the type later doesn't change what was charged or refunded.
+  7: `
+    CREATE TABLE IF NOT EXISTS punishment_types (
+      id INTEGER PRIMARY KEY NOT NULL,
+      name TEXT NOT NULL,
+      coin_amount INTEGER NOT NULL CHECK (coin_amount > 0),
+      icon_emoji TEXT,
+      icon_photo_uri TEXT,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+    );
+
+    CREATE TABLE IF NOT EXISTS punishments (
+      id INTEGER PRIMARY KEY NOT NULL,
+      kid_id INTEGER NOT NULL REFERENCES kids(id) ON DELETE CASCADE,
+      punishment_type_id INTEGER REFERENCES punishment_types(id) ON DELETE SET NULL,
+      name TEXT NOT NULL,
+      coin_amount INTEGER NOT NULL CHECK (coin_amount > 0),
+      day_key TEXT NOT NULL,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+    );
+
+    CREATE INDEX IF NOT EXISTS punishments_kid_day_idx ON punishments (kid_id, day_key);
   `,
 };
 

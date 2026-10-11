@@ -19,6 +19,7 @@ type ActiveKidContextValue = {
   refreshKids: () => Promise<void>;
   selectKid: (kidId: number) => Promise<void>;
   recordTaskCompletion: (kidId: number, coinAmount: number, completed: boolean) => void;
+  recordSavingsChange: (kidId: number, delta: number) => void;
 };
 
 const ActiveKidContext = createContext<ActiveKidContextValue | null>(null);
@@ -39,6 +40,10 @@ export function ActiveKidProvider({ children }: PropsWithChildren) {
     },
     [],
   );
+
+  const recordSavingsChange = useCallback((kidId: number, delta: number) => {
+    setSavings((previous) => ({ ...previous, [kidId]: (previous[kidId] ?? 0) + delta }));
+  }, []);
 
   const refreshKids = useCallback(async () => {
     setKids(await listKids(db));
@@ -86,8 +91,9 @@ export function ActiveKidProvider({ children }: PropsWithChildren) {
       refreshKids,
       selectKid,
       recordTaskCompletion,
+      recordSavingsChange,
     }),
-    [ready, kids, activeKidId, savings, refreshKids, selectKid, recordTaskCompletion],
+    [ready, kids, activeKidId, savings, refreshKids, selectKid, recordTaskCompletion, recordSavingsChange],
   );
 
   return <ActiveKidContext.Provider value={value}>{children}</ActiveKidContext.Provider>;

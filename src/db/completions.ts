@@ -21,7 +21,7 @@ const UNCHANGED: TaskCompletionChange = { changed: false, coins: 0 };
 // try to open a second transaction inside the first. Writes run one at a time.
 let writeQueue: Promise<unknown> = Promise.resolve();
 
-function queueWrite<T>(task: () => Promise<T>): Promise<T> {
+export function queueWrite<T>(task: () => Promise<T>): Promise<T> {
   const run = writeQueue.then(task);
   writeQueue = run.catch(() => {});
   return run;
@@ -48,7 +48,7 @@ export async function getKidSavings(db: SQLiteDatabase, kidId: number): Promise<
   return row?.amount ?? 0;
 }
 
-async function addToSavings(db: SQLiteDatabase, kidId: number, delta: number): Promise<void> {
+export async function addToSavings(db: SQLiteDatabase, kidId: number, delta: number): Promise<void> {
   await db.runAsync(
     'INSERT INTO kid_savings (kid_id, amount) VALUES (?, ?) ON CONFLICT (kid_id) DO UPDATE SET amount = amount + excluded.amount',
     kidId,

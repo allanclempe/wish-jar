@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { listTasks, listWishes, useDatabase } from '../../src/db';
+import { listPunishmentTypes, listTasks, listWishes, useDatabase } from '../../src/db';
 import { useActiveKid } from '../../src/kids/ActiveKidProvider';
 import { colors, radius, spacing, typography } from '../../src/theme';
 
@@ -42,15 +42,19 @@ export default function SettingsScreen() {
   const { kids } = useActiveKid();
   const [taskCount, setTaskCount] = useState(0);
   const [wishCount, setWishCount] = useState(0);
+  const [punishmentCount, setPunishmentCount] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      Promise.all([listTasks(db), listWishes(db)]).then(([tasks, wishes]) => {
-        if (cancelled) return;
-        setTaskCount(tasks.length);
-        setWishCount(wishes.length);
-      });
+      Promise.all([listTasks(db), listWishes(db), listPunishmentTypes(db)]).then(
+        ([tasks, wishes, punishmentTypes]) => {
+          if (cancelled) return;
+          setTaskCount(tasks.length);
+          setWishCount(wishes.length);
+          setPunishmentCount(punishmentTypes.length);
+        },
+      );
       return () => {
         cancelled = true;
       };
@@ -80,6 +84,12 @@ export default function SettingsScreen() {
             title="Wishes"
             subtitle={plural(wishCount, 'wish', 'wishes')}
             onPress={() => router.push('/wishes')}
+          />
+          <MenuItem
+            emoji="🚫"
+            title="Punishments"
+            subtitle={plural(punishmentCount, 'punishment', 'punishments')}
+            onPress={() => router.push('/punishment-types')}
           />
         </View>
       </View>
