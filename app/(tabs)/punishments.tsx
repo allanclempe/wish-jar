@@ -15,6 +15,7 @@ export default function PunishmentsScreen() {
   const kidId = activeKid?.id ?? null;
   const [punishments, setPunishments] = useState<Punishment[]>([]);
   const [day, setDay] = useState(dayKey);
+  const [confirmingId, setConfirmingId] = useState<number | null>(null);
 
   // Entries are kept per day, so today's list is reloaded whenever the tab
   // is shown, including after adding one from the picker.
@@ -36,10 +37,10 @@ export default function PunishmentsScreen() {
     }, [db, kidId]),
   );
 
-  // Removing gives the coins straight back, so no confirmation step is needed.
-  // Alert.alert does nothing on web, which is why a confirm dialog never ran.
+  // Confirmation is inline because Alert.alert does nothing on web.
   async function remove(punishment: Punishment) {
     if (kidId == null) return;
+    setConfirmingId(null);
     const change = await removePunishment(db, {
       punishmentId: punishment.id,
       kidId,
@@ -75,14 +76,35 @@ export default function PunishmentsScreen() {
                     −{item.coinAmount} {item.coinAmount === 1 ? 'coin' : 'coins'}
                   </Text>
                 </View>
-                <Pressable
-                  onPress={() => remove(item)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Remove ${item.name}`}
-                  hitSlop={8}
-                >
-                  <Text style={styles.remove}>✕</Text>
-                </Pressable>
+                {confirmingId === item.id ? (
+                  <View style={styles.confirm}>
+                    <Pressable
+                      onPress={() => setConfirmingId(null)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Keep ${item.name}`}
+                      hitSlop={8}
+                    >
+                      <Text style={styles.keep}>Keep</Text>
+                    </Pressable>
+                    <Pressable
+                      style={styles.removeButton}
+                      onPress={() => remove(item)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Confirm remove ${item.name}`}
+                    >
+                      <Text style={styles.removeButtonText}>Remove</Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Pressable
+                    onPress={() => setConfirmingId(item.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove ${item.name}`}
+                    hitSlop={8}
+                  >
+                    <Text style={styles.remove}>✕</Text>
+                  </Pressable>
+                )}
               </View>
             )}
           />
@@ -144,6 +166,15 @@ const styles = StyleSheet.create({
   },
   pillText: { fontSize: 13, fontWeight: '700', color: colors.accent },
   remove: { fontSize: 18, fontWeight: '700', color: colors.textMuted, paddingHorizontal: spacing.xs },
+  confirm: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  keep: { ...typography.caption, color: colors.textMuted, fontWeight: '600' },
+  removeButton: {
+    backgroundColor: colors.accent,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm + 2,
+  },
+  removeButtonText: { fontSize: 13, fontWeight: '700', color: colors.surface },
   button: {
     backgroundColor: colors.primary,
     borderRadius: radius.pill,
