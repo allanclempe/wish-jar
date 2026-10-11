@@ -39,6 +39,16 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
+              name="edit-kid"
+              options={{
+                presentation: 'modal',
+                headerShown: true,
+                title: 'Edit a kid',
+                headerTintColor: colors.text,
+                headerStyle: { backgroundColor: colors.background },
+              }}
+            />
+            <Stack.Screen
               name="tasks"
               options={{
                 headerShown: true,
