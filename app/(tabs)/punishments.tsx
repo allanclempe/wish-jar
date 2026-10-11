@@ -1,6 +1,6 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IconBadge } from '../../src/components/Icons';
@@ -36,17 +36,8 @@ export default function PunishmentsScreen() {
     }, [db, kidId]),
   );
 
-  function confirmRemove(punishment: Punishment) {
-    Alert.alert(
-      'Remove this punishment?',
-      `${punishment.coinAmount} ${punishment.coinAmount === 1 ? 'coin' : 'coins'} go back to the savings.`,
-      [
-        { text: 'Keep', style: 'cancel' },
-        { text: 'Remove', style: 'destructive', onPress: () => remove(punishment) },
-      ],
-    );
-  }
-
+  // Removing gives the coins straight back, so no confirmation step is needed.
+  // Alert.alert does nothing on web, which is why a confirm dialog never ran.
   async function remove(punishment: Punishment) {
     if (kidId == null) return;
     const change = await removePunishment(db, {
@@ -54,12 +45,10 @@ export default function PunishmentsScreen() {
       kidId,
       dayKey: day,
     });
-    if (!change.changed) {
-      Alert.alert('Too late', 'Punishments can only be removed on the day they were added.');
-      return;
+    if (change.changed) {
+      recordSavingsChange(kidId, change.coins);
     }
-    recordSavingsChange(kidId, change.coins);
-    setPunishments((previous) => previous.filter((item) => item.id !== punishment.id));
+    setPunishments(await listPunishments(db, kidId, day));
   }
 
   return (
@@ -87,7 +76,7 @@ export default function PunishmentsScreen() {
                   </Text>
                 </View>
                 <Pressable
-                  onPress={() => confirmRemove(item)}
+                  onPress={() => remove(item)}
                   accessibilityRole="button"
                   accessibilityLabel={`Remove ${item.name}`}
                   hitSlop={8}
