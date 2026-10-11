@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-export const DATABASE_VERSION = 4;
+export const DATABASE_VERSION = 6;
 
 const MIGRATIONS: Record<number, string> = {
   1: `
@@ -69,6 +69,27 @@ const MIGRATIONS: Record<number, string> = {
     );
 
     CREATE INDEX IF NOT EXISTS wishes_kid_id_idx ON wishes (kid_id);
+  `,
+  5: `
+    ALTER TABLE tasks ADD COLUMN period TEXT NOT NULL DEFAULT 'morning'
+      CHECK (period IN ('morning', 'afternoon', 'evening'));
+  `,
+  // coin_amount is the amount the tick added, so un-ticking takes back exactly
+  // that even if the parent has since changed the task's coins.
+  6: `
+    CREATE TABLE IF NOT EXISTS completions (
+      kid_id INTEGER NOT NULL REFERENCES kids(id) ON DELETE CASCADE,
+      task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      day_key TEXT NOT NULL,
+      coin_amount INTEGER NOT NULL CHECK (coin_amount >= 0),
+      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
+      PRIMARY KEY (kid_id, task_id, day_key)
+    );
+
+    CREATE TABLE IF NOT EXISTS kid_savings (
+      kid_id INTEGER PRIMARY KEY NOT NULL REFERENCES kids(id) ON DELETE CASCADE,
+      amount INTEGER NOT NULL DEFAULT 0
+    );
   `,
 };
 

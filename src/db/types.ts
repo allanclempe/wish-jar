@@ -10,9 +10,14 @@ export type Icon = {
   photoUri: string | null;
 };
 
+export const PERIODS = ['morning', 'afternoon', 'evening'] as const;
+
+export type Period = (typeof PERIODS)[number];
+
 export type Task = {
   id: number;
   name: string;
+  period: Period;
   coinAmount: number;
   icon: Icon;
   createdAt: number;

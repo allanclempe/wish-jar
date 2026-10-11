@@ -1,11 +1,13 @@
 import { StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { CurrentPeriodTasks } from '../../src/components/CurrentPeriodTasks';
 import { useActiveKid } from '../../src/kids/ActiveKidProvider';
-import { colors, radius, spacing, typography } from '../../src/theme';
+import { colors, spacing, typography } from '../../src/theme';
 
 export default function HomeScreen() {
-  const { activeKid } = useActiveKid();
+  const { activeKid, savings } = useActiveKid();
+  const coins = activeKid ? (savings[activeKid.id] ?? 0) : 0;
 
   return (
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safe}>
@@ -13,12 +15,12 @@ export default function HomeScreen() {
         <Text style={styles.title}>
           {activeKid ? `Hi, ${activeKid.name}! 👋` : 'Welcome! 👋'}
         </Text>
-        <View style={styles.card}>
-          <Text style={styles.cardEmoji}>✨</Text>
-          <Text style={styles.cardText}>
-            Your adventure starts here. Add your first feature to this screen.
+        {activeKid ? (
+          <Text style={styles.savings}>
+            🪙 {coins} {coins === 1 ? 'coin' : 'coins'} saved
           </Text>
-        </View>
+        ) : null}
+        <CurrentPeriodTasks />
       </View>
     </SafeAreaView>
   );
@@ -28,15 +30,5 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   container: { flex: 1, padding: spacing.lg, gap: spacing.lg },
   title: { ...typography.title, color: colors.text },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 2,
-    borderColor: colors.border,
-    padding: spacing.lg,
-    gap: spacing.md,
-    alignItems: 'center',
-  },
-  cardEmoji: { fontSize: 48 },
-  cardText: { ...typography.body, color: colors.textMuted, textAlign: 'center' },
+  savings: { ...typography.body, color: colors.primary, fontWeight: '700' },
 });
