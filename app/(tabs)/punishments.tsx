@@ -1,6 +1,6 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IconBadge } from '../../src/components/Icons';
@@ -15,6 +15,7 @@ export default function PunishmentsScreen() {
   const kidId = activeKid?.id ?? null;
   const [punishments, setPunishments] = useState<Punishment[]>([]);
   const [day, setDay] = useState(dayKey);
+  const [confirmingId, setConfirmingId] = useState<number | null>(null);
 
   // Entries are kept per day, so today's list is reloaded whenever the tab
   // is shown, including after adding one from the picker.
@@ -36,30 +37,19 @@ export default function PunishmentsScreen() {
     }, [db, kidId]),
   );
 
-  function confirmRemove(punishment: Punishment) {
-    Alert.alert(
-      'Remove this punishment?',
-      `${punishment.coinAmount} ${punishment.coinAmount === 1 ? 'coin' : 'coins'} go back to the savings.`,
-      [
-        { text: 'Keep', style: 'cancel' },
-        { text: 'Remove', style: 'destructive', onPress: () => remove(punishment) },
-      ],
-    );
-  }
-
+  // Confirmation is inline because Alert.alert does nothing on web.
   async function remove(punishment: Punishment) {
     if (kidId == null) return;
+    setConfirmingId(null);
     const change = await removePunishment(db, {
       punishmentId: punishment.id,
       kidId,
       dayKey: day,
     });
-    if (!change.changed) {
-      Alert.alert('Too late', 'Punishments can only be removed on the day they were added.');
-      return;
+    if (change.changed) {
+      recordSavingsChange(kidId, change.coins);
     }
-    recordSavingsChange(kidId, change.coins);
-    setPunishments((previous) => previous.filter((item) => item.id !== punishment.id));
+    setPunishments(await listPunishments(db, kidId, day));
   }
 
   return (
@@ -86,14 +76,35 @@ export default function PunishmentsScreen() {
                     −{item.coinAmount} {item.coinAmount === 1 ? 'coin' : 'coins'}
                   </Text>
                 </View>
-                <Pressable
-                  onPress={() => confirmRemove(item)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Remove ${item.name}`}
-                  hitSlop={8}
-                >
-                  <Text style={styles.remove}>✕</Text>
-                </Pressable>
+                {confirmingId === item.id ? (
+                  <View style={styles.confirm}>
+                    <Pressable
+                      onPress={() => setConfirmingId(null)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Keep ${item.name}`}
+                      hitSlop={8}
+                    >
+                      <Text style={styles.keep}>Keep</Text>
+                    </Pressable>
+                    <Pressable
+                      style={styles.removeButton}
+                      onPress={() => remove(item)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Confirm remove ${item.name}`}
+                    >
+                      <Text style={styles.removeButtonText}>Remove</Text>
+                    </Pressable>
+                  </View>
+                ) : (
+                  <Pressable
+                    onPress={() => setConfirmingId(item.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Remove ${item.name}`}
+                    hitSlop={8}
+                  >
+                    <Text style={styles.remove}>✕</Text>
+                  </Pressable>
+                )}
               </View>
             )}
           />
@@ -155,6 +166,15 @@ const styles = StyleSheet.create({
   },
   pillText: { fontSize: 13, fontWeight: '700', color: colors.accent },
   remove: { fontSize: 18, fontWeight: '700', color: colors.textMuted, paddingHorizontal: spacing.xs },
+  confirm: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  keep: { ...typography.caption, color: colors.textMuted, fontWeight: '600' },
+  removeButton: {
+    backgroundColor: colors.accent,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.sm + 2,
+  },
+  removeButtonText: { fontSize: 13, fontWeight: '700', color: colors.surface },
   button: {
     backgroundColor: colors.primary,
     borderRadius: radius.pill,
