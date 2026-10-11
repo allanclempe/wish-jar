@@ -1,9 +1,11 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { getTask, updateTask, useDatabase } from '../src/db';
+import { IconPicker } from '../src/components/Icons';
+import { getTask, updateTask, useDatabase, type Icon } from '../src/db';
+import { removePhoto, storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
 type Errors = { name?: string; coinAmount?: string };
@@ -15,6 +17,8 @@ export default function EditTaskScreen() {
   const [loaded, setLoaded] = useState(false);
   const [name, setName] = useState('');
   const [coinAmount, setCoinAmount] = useState('');
+  const [icon, setIcon] = useState<Icon>({ emoji: null, photoUri: null });
+  const [originalPhotoUri, setOriginalPhotoUri] = useState<string | null>(null);
   const [errors, setErrors] = useState<Errors>({});
   const [saving, setSaving] = useState(false);
 
@@ -29,6 +33,8 @@ export default function EditTaskScreen() {
       }
       setName(task.name);
       setCoinAmount(String(task.coinAmount));
+      setIcon(task.icon);
+      setOriginalPhotoUri(task.icon.photoUri);
       setLoaded(true);
     });
     return () => {
@@ -54,10 +60,24 @@ export default function EditTaskScreen() {
     if (nextErrors.name || nextErrors.coinAmount || saving) return;
 
     setSaving(true);
+    let savedPhotoUri = icon.photoUri;
     try {
-      await updateTask(db, taskId, { name, coinAmount: Number(coinAmount.trim()) });
+      if (icon.photoUri && icon.photoUri !== originalPhotoUri) {
+        savedPhotoUri = await storePhoto(icon.photoUri);
+      }
+      const previousPhotoUri = await updateTask(db, taskId, {
+        name,
+        coinAmount: Number(coinAmount.trim()),
+        icon: { emoji: icon.emoji, photoUri: savedPhotoUri },
+      });
+      if (previousPhotoUri !== savedPhotoUri) {
+        removePhoto(previousPhotoUri);
+      }
       router.back();
     } catch {
+      if (savedPhotoUri !== icon.photoUri) {
+        removePhoto(savedPhotoUri);
+      }
       Alert.alert('Could not save', 'Something went wrong while saving. Please try again.');
       setSaving(false);
     }
@@ -69,7 +89,9 @@ export default function EditTaskScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.container}>
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
+        <IconPicker value={icon} fallbackEmoji="🧹" onChange={setIcon} />
+
         <Text style={styles.label}>Task</Text>
         <TextInput
           style={styles.input}
@@ -112,7 +134,7 @@ export default function EditTaskScreen() {
         >
           <Text style={styles.buttonText}>Save</Text>
         </Pressable>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

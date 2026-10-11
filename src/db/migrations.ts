@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-export const DATABASE_VERSION = 3;
+export const DATABASE_VERSION = 4;
 
 const MIGRATIONS: Record<number, string> = {
   1: `
@@ -48,6 +48,27 @@ const MIGRATIONS: Record<number, string> = {
       coin_amount INTEGER NOT NULL,
       created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
     );
+  `,
+  // The version 1 wishes table tracked money in cents and was never written
+  // to; replace it with the parent-defined coin wish.
+  4: `
+    ALTER TABLE tasks ADD COLUMN icon_emoji TEXT;
+    ALTER TABLE tasks ADD COLUMN icon_photo_uri TEXT;
+
+    DROP INDEX IF EXISTS wishes_kid_id_idx;
+    DROP TABLE IF EXISTS wishes;
+
+    CREATE TABLE IF NOT EXISTS wishes (
+      id INTEGER PRIMARY KEY NOT NULL,
+      kid_id INTEGER NOT NULL REFERENCES kids(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      coin_amount INTEGER NOT NULL CHECK (coin_amount >= 0),
+      icon_emoji TEXT,
+      icon_photo_uri TEXT,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+    );
+
+    CREATE INDEX IF NOT EXISTS wishes_kid_id_idx ON wishes (kid_id);
   `,
 };
 

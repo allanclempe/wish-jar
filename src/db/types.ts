@@ -5,17 +5,24 @@ export type Kid = {
   createdAt: number;
 };
 
+export type Icon = {
+  emoji: string | null;
+  photoUri: string | null;
+};
+
 export type Task = {
   id: number;
   name: string;
   coinAmount: number;
+  icon: Icon;
   createdAt: number;
 };
 
 export type Wish = {
   id: number;
   kidId: number;
-  title: string;
-  amountCents: number;
+  name: string;
+  coinAmount: number;
+  icon: Icon;
   createdAt: number;
 };

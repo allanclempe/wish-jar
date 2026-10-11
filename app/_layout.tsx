@@ -67,6 +67,25 @@ export default function RootLayout() {
                 headerStyle: { backgroundColor: colors.background },
               }}
             />
+            <Stack.Screen
+              name="wishes"
+              options={{
+                headerShown: true,
+                title: 'Wishes',
+                headerTintColor: colors.text,
+                headerStyle: { backgroundColor: colors.background },
+              }}
+            />
+            <Stack.Screen
+              name="add-wish"
+              options={{
+                presentation: 'modal',
+                headerShown: true,
+                title: 'Add a wish',
+                headerTintColor: colors.text,
+                headerStyle: { backgroundColor: colors.background },
+              }}
+            />
           </Stack>
         </ActiveKidProvider>
       </DatabaseProvider>

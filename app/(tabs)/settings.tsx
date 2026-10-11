@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { listTasks, useDatabase } from '../../src/db';
+import { listTasks, listWishes, useDatabase } from '../../src/db';
 import { useActiveKid } from '../../src/kids/ActiveKidProvider';
 import { colors, radius, spacing, typography } from '../../src/theme';
 
@@ -41,12 +41,15 @@ export default function SettingsScreen() {
   const db = useDatabase();
   const { kids } = useActiveKid();
   const [taskCount, setTaskCount] = useState(0);
+  const [wishCount, setWishCount] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      listTasks(db).then((tasks) => {
-        if (!cancelled) setTaskCount(tasks.length);
+      Promise.all([listTasks(db), listWishes(db)]).then(([tasks, wishes]) => {
+        if (cancelled) return;
+        setTaskCount(tasks.length);
+        setWishCount(wishes.length);
       });
       return () => {
         cancelled = true;
@@ -71,6 +74,12 @@ export default function SettingsScreen() {
             title="Tasks"
             subtitle={plural(taskCount, 'task', 'tasks')}
             onPress={() => router.push('/tasks')}
+          />
+          <MenuItem
+            emoji="🎁"
+            title="Wishes"
+            subtitle={plural(wishCount, 'wish', 'wishes')}
+            onPress={() => router.push('/wishes')}
           />
         </View>
       </View>

@@ -1,8 +1,8 @@
 import { Directory, File, Paths } from 'expo-file-system';
 
-const photoDirectory = new Directory(Paths.document, 'kid-photos');
+const photoDirectory = new Directory(Paths.document, 'photos');
 
-export async function storeKidPhoto(sourceUri: string): Promise<string> {
+export async function storePhoto(sourceUri: string): Promise<string> {
   photoDirectory.create({ intermediates: true, idempotent: true });
   const destination = new File(
     photoDirectory,
@@ -12,7 +12,7 @@ export async function storeKidPhoto(sourceUri: string): Promise<string> {
   return destination.uri;
 }
 
-export function removeKidPhoto(photoUri: string | null): void {
+export function removePhoto(photoUri: string | null): void {
   if (!photoUri) return;
   const file = new File(photoUri);
   if (file.info().exists) {

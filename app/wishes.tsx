@@ -4,18 +4,20 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IconBadge } from '../src/components/Icons';
-import { listTasks, useDatabase, type Task } from '../src/db';
+import { listWishes, useDatabase, type Wish } from '../src/db';
+import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { colors, radius, spacing, typography } from '../src/theme';
 
-export default function TasksScreen() {
+export default function WishesScreen() {
   const db = useDatabase();
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const { kids } = useActiveKid();
+  const [wishes, setWishes] = useState<Wish[]>([]);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      listTasks(db).then((loaded) => {
-        if (!cancelled) setTasks(loaded);
+      listWishes(db).then((loaded) => {
+        if (!cancelled) setWishes(loaded);
       });
       return () => {
         cancelled = true;
@@ -27,40 +29,42 @@ export default function TasksScreen() {
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safe}>
       <View style={styles.container}>
         <FlatList
-          data={tasks}
-          keyExtractor={(task) => String(task.id)}
+          data={wishes}
+          keyExtractor={(wish) => String(wish.id)}
           contentContainerStyle={styles.list}
           ListEmptyComponent={
             <View style={styles.card}>
-              <Text style={styles.cardEmoji}>🪙</Text>
+              <Text style={styles.cardEmoji}>🎁</Text>
               <Text style={styles.cardText}>
-                No tasks yet. Add one below and start earning coins!
+                No wishes yet. Add one below so kids can start saving coins!
               </Text>
             </View>
           }
-          renderItem={({ item }) => (
-            <Pressable
-              style={styles.row}
-              onPress={() => router.push({ pathname: '/edit-task', params: { id: String(item.id) } })}
-              accessibilityRole="button"
-            >
-              <IconBadge icon={item.icon} fallbackEmoji="🧹" />
-              <Text style={styles.name}>{item.name}</Text>
-              <View style={styles.pill}>
-                <Text style={styles.pillText}>
-                  🪙 {item.coinAmount} {item.coinAmount === 1 ? 'coin' : 'coins'}
-                </Text>
+          renderItem={({ item }) => {
+            const kid = kids.find((candidate) => candidate.id === item.kidId);
+            return (
+              <View style={styles.row}>
+                <IconBadge icon={item.icon} fallbackEmoji="🎁" />
+                <View style={styles.text}>
+                  <Text style={styles.name}>{item.name}</Text>
+                  {kid ? <Text style={styles.kid}>For {kid.name}</Text> : null}
+                </View>
+                <View style={styles.pill}>
+                  <Text style={styles.pillText}>
+                    🪙 {item.coinAmount} {item.coinAmount === 1 ? 'coin' : 'coins'}
+                  </Text>
+                </View>
               </View>
-            </Pressable>
-          )}
+            );
+          }}
         />
 
         <Pressable
           style={styles.button}
-          onPress={() => router.push('/add-task')}
+          onPress={() => router.push('/add-wish')}
           accessibilityRole="button"
         >
-          <Text style={styles.buttonText}>＋ Add a task</Text>
+          <Text style={styles.buttonText}>＋ Add a wish</Text>
         </Pressable>
       </View>
     </SafeAreaView>
@@ -94,7 +98,9 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: spacing.md,
   },
-  name: { ...typography.body, color: colors.text, fontWeight: '600', flex: 1 },
+  text: { flex: 1, gap: 2 },
+  name: { ...typography.body, color: colors.text, fontWeight: '600' },
+  kid: { ...typography.caption, color: colors.textMuted },
   pill: {
     backgroundColor: colors.border,
     borderRadius: radius.pill,
