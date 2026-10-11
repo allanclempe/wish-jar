@@ -2,7 +2,7 @@ import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { listTasks, useDatabase, type Task } from '../db';
+import { listCompletedTaskIds, listTasks, setTaskCompletion, useDatabase, type Task } from '../db';
 import { useActiveKid } from '../kids/ActiveKidProvider';
 import { colors, radius, spacing, typography } from '../theme';
 import { currentPeriod, PERIOD_LABELS, tasksForPeriod } from '../tasks/period';
@@ -22,6 +22,8 @@ export function CurrentPeriodTasks() {
   const [doneKeys, setDoneKeys] = useState<Set<string>>(() => new Set());
   // Read and written synchronously so rapid taps see each other before re-render.
   const doneRef = useRef(new Set<string>());
+  // The kid and day whose saved ticks are loaded; taps wait until they match.
+  const [hydratedKey, setHydratedKey] = useState<string | null>(null);
 
   // Ticks are keyed by day, so once the day key changes no task looks done.
   const refreshClock = useCallback(() => {
@@ -58,6 +60,21 @@ export function CurrentPeriodTasks() {
     }, [db, activeKidId]),
   );
 
+  // Saved ticks are for one kid on one day, so reload them when either changes.
+  useEffect(() => {
+    if (activeKidId == null) return;
+    let cancelled = false;
+    listCompletedTaskIds(db, activeKidId, day).then((taskIds) => {
+      if (cancelled) return;
+      doneRef.current = new Set(taskIds.map((taskId) => `${day}:${activeKidId}:${taskId}`));
+      setDoneKeys(new Set(doneRef.current));
+      setHydratedKey(`${day}:${activeKidId}`);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [db, activeKidId, day]);
+
   if (!activeKid) {
     return null;
   }
@@ -65,7 +82,8 @@ export function CurrentPeriodTasks() {
   const kidId = activeKid.id;
   const currentTasks = tasksForPeriod(tasks, period);
 
-  function toggleDone(task: Task) {
+  async function toggleDone(task: Task) {
+    if (hydratedKey !== `${day}:${kidId}`) return;
     const key = `${day}:${kidId}:${task.id}`;
     const completed = !doneRef.current.has(key);
     if (completed) {
@@ -74,7 +92,16 @@ export function CurrentPeriodTasks() {
       doneRef.current.delete(key);
     }
     setDoneKeys(new Set(doneRef.current));
-    recordTaskCompletion(kidId, task.coinAmount, completed);
+    const change = await setTaskCompletion(db, {
+      kidId,
+      taskId: task.id,
+      dayKey: day,
+      coinAmount: task.coinAmount,
+      completed,
+    });
+    if (change.changed) {
+      recordTaskCompletion(kidId, change.coins, completed);
+    }
   }
 
   return (

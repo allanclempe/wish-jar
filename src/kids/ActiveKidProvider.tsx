@@ -1,7 +1,14 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { PropsWithChildren } from 'react';
 
-import { getActiveKidId, listKids, setActiveKidId, useDatabase, type Kid } from '../db';
+import {
+  getActiveKidId,
+  getKidSavings,
+  listKids,
+  setActiveKidId,
+  useDatabase,
+  type Kid,
+} from '../db';
 import { savingsAfterTask } from './savings';
 
 type ActiveKidContextValue = {
@@ -49,6 +56,18 @@ export function ActiveKidProvider({ children }: PropsWithChildren) {
       cancelled = true;
     };
   }, [db]);
+
+  useEffect(() => {
+    if (activeKidId == null) return;
+    let cancelled = false;
+    getKidSavings(db, activeKidId).then((amount) => {
+      if (cancelled) return;
+      setSavings((previous) => ({ ...previous, [activeKidId]: amount }));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [db, activeKidId]);
 
   const selectKid = useCallback(
     async (kidId: number) => {
