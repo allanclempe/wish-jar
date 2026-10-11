@@ -51,8 +51,8 @@ export default function EditTaskScreen() {
       next.name = 'Give the task a name.';
     }
     const coins = coinAmount.trim();
-    if (!/^-?\d+$/.test(coins) || Number(coins) === 0) {
-      next.coinAmount = 'Coins must be a whole number, positive or negative.';
+    if (!/^\d+$/.test(coins) || Number(coins) === 0) {
+      next.coinAmount = 'Coins must be a whole number, 1 or more.';
     }
     return next;
   }
@@ -116,7 +116,7 @@ export default function EditTaskScreen() {
         <Text style={styles.label}>When</Text>
         <PeriodPicker value={period} onChange={setPeriod} />
 
-        <Text style={styles.label}>Coins earned (use - for a penalty)</Text>
+        <Text style={styles.label}>Coins earned</Text>
         <TextInput
           style={styles.input}
           value={coinAmount}
@@ -126,7 +126,7 @@ export default function EditTaskScreen() {
           }}
           placeholder="e.g. 5"
           placeholderTextColor={colors.textMuted}
-          keyboardType="numbers-and-punctuation"
+          keyboardType="number-pad"
           maxLength={5}
           returnKeyType="done"
           onSubmitEditing={save}
