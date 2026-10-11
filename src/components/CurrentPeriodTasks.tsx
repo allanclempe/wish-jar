@@ -5,7 +5,7 @@ import { AppState, FlatList, Pressable, StyleSheet, Text, View } from 'react-nat
 import { listTasks, useDatabase, type Task } from '../db';
 import { useActiveKid } from '../kids/ActiveKidProvider';
 import { colors, radius, spacing, typography } from '../theme';
-import { currentPeriod, PERIOD_LABELS } from '../tasks/period';
+import { currentPeriod, PERIOD_LABELS, tasksForPeriod } from '../tasks/period';
 import { dayKey } from '../tasks/day';
 import { IconBadge } from './Icons';
 
@@ -14,7 +14,9 @@ const PERIOD_CHECK_INTERVAL_MS = 60_000;
 export function CurrentPeriodTasks() {
   const db = useDatabase();
   const { activeKid, recordTaskCompletion } = useActiveKid();
+  const activeKidId = activeKid?.id ?? null;
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState(currentPeriod);
   const [day, setDay] = useState(dayKey);
   const [doneKeys, setDoneKeys] = useState<Set<string>>(() => new Set());
@@ -38,16 +40,22 @@ export function CurrentPeriodTasks() {
     };
   }, [refreshClock]);
 
+  // Tasks are shared across kids today, so activeKidId only triggers a reload
+  // when the selected kid changes.
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
+      setLoading(true);
       listTasks(db).then((loaded) => {
-        if (!cancelled) setTasks(loaded);
+        if (cancelled) return;
+        setTasks(loaded);
+        setLoading(false);
       });
       return () => {
         cancelled = true;
       };
-    }, [db]),
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [db, activeKidId]),
   );
 
   if (!activeKid) {
@@ -55,7 +63,7 @@ export function CurrentPeriodTasks() {
   }
 
   const kidId = activeKid.id;
-  const currentTasks = tasks.filter((task) => task.period === period);
+  const currentTasks = tasksForPeriod(tasks, period);
 
   function toggleDone(task: Task) {
     const key = `${day}:${kidId}:${task.id}`;
@@ -76,10 +84,14 @@ export function CurrentPeriodTasks() {
       contentContainerStyle={styles.list}
       ListHeaderComponent={<Text style={styles.heading}>{PERIOD_LABELS[period]} tasks</Text>}
       ListEmptyComponent={
-        <View style={styles.card}>
-          <Text style={styles.cardEmoji}>🪙</Text>
-          <Text style={styles.cardText}>No tasks for this part of the day.</Text>
-        </View>
+        loading ? (
+          <Text style={styles.cardText}>Loading tasks…</Text>
+        ) : (
+          <View style={styles.card}>
+            <Text style={styles.cardEmoji}>🪙</Text>
+            <Text style={styles.cardText}>No tasks for this part of the day.</Text>
+          </View>
+        )
       }
       renderItem={({ item }) => {
         const done = doneKeys.has(`${day}:${kidId}:${item.id}`);

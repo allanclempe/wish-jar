@@ -1,4 +1,4 @@
-import type { Period } from '../db';
+import type { Period, Task } from '../db';
 
 export const PERIOD_LABELS: Record<Period, string> = {
   morning: 'Morning',
@@ -13,4 +13,8 @@ export function currentPeriod(now: Date = new Date()): Period {
   if (hour >= 18) return 'evening';
   if (hour >= 12) return 'afternoon';
   return 'morning';
+}
+
+export function tasksForPeriod(tasks: Task[], period: Period): Task[] {
+  return tasks.filter((task) => task.period === period);
 }
