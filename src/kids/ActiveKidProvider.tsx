@@ -2,13 +2,16 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { PropsWithChildren } from 'react';
 
 import { getActiveKidId, listKids, setActiveKidId, useDatabase, type Kid } from '../db';
+import { savingsAfterTask } from './savings';
 
 type ActiveKidContextValue = {
   ready: boolean;
   kids: Kid[];
   activeKid: Kid | null;
+  savings: Record<number, number>;
   refreshKids: () => Promise<void>;
   selectKid: (kidId: number) => Promise<void>;
+  recordTaskCompletion: (kidId: number, coinAmount: number, completed: boolean) => void;
 };
 
 const ActiveKidContext = createContext<ActiveKidContextValue | null>(null);
@@ -18,6 +21,17 @@ export function ActiveKidProvider({ children }: PropsWithChildren) {
   const [ready, setReady] = useState(false);
   const [kids, setKids] = useState<Kid[]>([]);
   const [activeKidId, setActiveKidIdState] = useState<number | null>(null);
+  const [savings, setSavings] = useState<Record<number, number>>({});
+
+  const recordTaskCompletion = useCallback(
+    (kidId: number, coinAmount: number, completed: boolean) => {
+      setSavings((previous) => ({
+        ...previous,
+        [kidId]: savingsAfterTask(previous[kidId] ?? 0, coinAmount, completed),
+      }));
+    },
+    [],
+  );
 
   const refreshKids = useCallback(async () => {
     setKids(await listKids(db));
@@ -49,10 +63,12 @@ export function ActiveKidProvider({ children }: PropsWithChildren) {
       ready,
       kids,
       activeKid: kids.find((kid) => kid.id === activeKidId) ?? null,
+      savings,
       refreshKids,
       selectKid,
+      recordTaskCompletion,
     }),
-    [ready, kids, activeKidId, refreshKids, selectKid],
+    [ready, kids, activeKidId, savings, refreshKids, selectKid, recordTaskCompletion],
   );
 
   return <ActiveKidContext.Provider value={value}>{children}</ActiveKidContext.Provider>;

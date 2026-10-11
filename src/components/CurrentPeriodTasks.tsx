@@ -1,5 +1,5 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { listTasks, useDatabase, type Task } from '../db';
@@ -12,10 +12,12 @@ const PERIOD_CHECK_INTERVAL_MS = 60_000;
 
 export function CurrentPeriodTasks() {
   const db = useDatabase();
-  const { activeKid } = useActiveKid();
+  const { activeKid, recordTaskCompletion } = useActiveKid();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [period, setPeriod] = useState(currentPeriod);
   const [doneKeys, setDoneKeys] = useState<Set<string>>(() => new Set());
+  // Read and written synchronously so rapid taps see each other before re-render.
+  const doneRef = useRef(new Set<string>());
 
   useEffect(() => {
     const timer = setInterval(() => setPeriod(currentPeriod()), PERIOD_CHECK_INTERVAL_MS);
@@ -41,8 +43,16 @@ export function CurrentPeriodTasks() {
   const kidId = activeKid.id;
   const currentTasks = tasks.filter((task) => task.period === period);
 
-  function markDone(taskId: number) {
-    setDoneKeys((previous) => new Set(previous).add(`${kidId}:${taskId}`));
+  function toggleDone(task: Task) {
+    const key = `${kidId}:${task.id}`;
+    const completed = !doneRef.current.has(key);
+    if (completed) {
+      doneRef.current.add(key);
+    } else {
+      doneRef.current.delete(key);
+    }
+    setDoneKeys(new Set(doneRef.current));
+    recordTaskCompletion(kidId, task.coinAmount, completed);
   }
 
   return (
@@ -62,11 +72,10 @@ export function CurrentPeriodTasks() {
         return (
           <Pressable
             style={[styles.row, done && styles.rowDone]}
-            onPress={() => markDone(item.id)}
-            disabled={done}
-            accessibilityRole="button"
+            onPress={() => toggleDone(item)}
+            accessibilityRole="checkbox"
             accessibilityLabel={item.name}
-            accessibilityState={{ checked: done, disabled: done }}
+            accessibilityState={{ checked: done }}
           >
             <IconBadge icon={item.icon} fallbackEmoji="🧹" />
             <View style={styles.details}>
