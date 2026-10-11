@@ -1,11 +1,12 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { listTasks, useDatabase, type Task } from '../db';
 import { useActiveKid } from '../kids/ActiveKidProvider';
 import { colors, radius, spacing, typography } from '../theme';
 import { currentPeriod, PERIOD_LABELS } from '../tasks/period';
+import { dayKey } from '../tasks/day';
 import { IconBadge } from './Icons';
 
 const PERIOD_CHECK_INTERVAL_MS = 60_000;
@@ -15,14 +16,27 @@ export function CurrentPeriodTasks() {
   const { activeKid, recordTaskCompletion } = useActiveKid();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [period, setPeriod] = useState(currentPeriod);
+  const [day, setDay] = useState(dayKey);
   const [doneKeys, setDoneKeys] = useState<Set<string>>(() => new Set());
   // Read and written synchronously so rapid taps see each other before re-render.
   const doneRef = useRef(new Set<string>());
 
-  useEffect(() => {
-    const timer = setInterval(() => setPeriod(currentPeriod()), PERIOD_CHECK_INTERVAL_MS);
-    return () => clearInterval(timer);
+  // Ticks are keyed by day, so once the day key changes no task looks done.
+  const refreshClock = useCallback(() => {
+    setPeriod(currentPeriod());
+    setDay(dayKey());
   }, []);
+
+  useEffect(() => {
+    const timer = setInterval(refreshClock, PERIOD_CHECK_INTERVAL_MS);
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') refreshClock();
+    });
+    return () => {
+      clearInterval(timer);
+      subscription.remove();
+    };
+  }, [refreshClock]);
 
   useFocusEffect(
     useCallback(() => {
@@ -44,7 +58,7 @@ export function CurrentPeriodTasks() {
   const currentTasks = tasks.filter((task) => task.period === period);
 
   function toggleDone(task: Task) {
-    const key = `${kidId}:${task.id}`;
+    const key = `${day}:${kidId}:${task.id}`;
     const completed = !doneRef.current.has(key);
     if (completed) {
       doneRef.current.add(key);
@@ -68,7 +82,7 @@ export function CurrentPeriodTasks() {
         </View>
       }
       renderItem={({ item }) => {
-        const done = doneKeys.has(`${kidId}:${item.id}`);
+        const done = doneKeys.has(`${day}:${kidId}:${item.id}`);
         return (
           <Pressable
             style={[styles.row, done && styles.rowDone]}
