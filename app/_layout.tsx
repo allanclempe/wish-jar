@@ -96,6 +96,45 @@ export default function RootLayout() {
                 headerStyle: { backgroundColor: colors.background },
               }}
             />
+            <Stack.Screen
+              name="punishment-types"
+              options={{
+                headerShown: true,
+                title: 'Punishments',
+                headerTintColor: colors.text,
+                headerStyle: { backgroundColor: colors.background },
+              }}
+            />
+            <Stack.Screen
+              name="add-punishment-type"
+              options={{
+                presentation: 'modal',
+                headerShown: true,
+                title: 'Add a punishment',
+                headerTintColor: colors.text,
+                headerStyle: { backgroundColor: colors.background },
+              }}
+            />
+            <Stack.Screen
+              name="edit-punishment-type"
+              options={{
+                presentation: 'modal',
+                headerShown: true,
+                title: 'Edit a punishment',
+                headerTintColor: colors.text,
+                headerStyle: { backgroundColor: colors.background },
+              }}
+            />
+            <Stack.Screen
+              name="add-punishment"
+              options={{
+                presentation: 'modal',
+                headerShown: true,
+                title: 'What did they do?',
+                headerTintColor: colors.text,
+                headerStyle: { backgroundColor: colors.background },
+              }}
+            />
           </Stack>
         </ActiveKidProvider>
       </DatabaseProvider>

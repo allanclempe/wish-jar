@@ -23,6 +23,25 @@ export type Task = {
   createdAt: number;
 };
 
+export type PunishmentType = {
+  id: number;
+  name: string;
+  coinAmount: number;
+  icon: Icon;
+  createdAt: number;
+};
+
+export type Punishment = {
+  id: number;
+  kidId: number;
+  punishmentTypeId: number | null;
+  name: string;
+  coinAmount: number;
+  icon: Icon;
+  dayKey: string;
+  createdAt: number;
+};
+
 export type Wish = {
   id: number;
   kidId: number;
