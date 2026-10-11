@@ -36,15 +36,15 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: 'Home',
-          tabBarIcon: ({ focused }) => <TabEmoji emoji="🏠" focused={focused} />,
+          title: 'Tasks',
+          tabBarIcon: ({ focused }) => <TabEmoji emoji="🧹" focused={focused} />,
         }}
       />
       <Tabs.Screen
-        name="play"
+        name="wishlist"
         options={{
-          title: 'Play',
-          tabBarIcon: ({ focused }) => <TabEmoji emoji="🎮" focused={focused} />,
+          title: 'Wishes',
+          tabBarIcon: ({ focused }) => <TabEmoji emoji="🎁" focused={focused} />,
         }}
       />
       <Tabs.Screen
