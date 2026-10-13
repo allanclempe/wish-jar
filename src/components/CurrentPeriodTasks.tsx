@@ -124,7 +124,7 @@ export function CurrentPeriodTasks() {
         const done = doneKeys.has(`${day}:${kidId}:${item.id}`);
         return (
           <Pressable
-            style={[styles.row, done && styles.rowDone]}
+            style={styles.row}
             onPress={() => toggleDone(item)}
             accessibilityRole="checkbox"
             accessibilityLabel={item.name}
@@ -167,7 +167,6 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: spacing.md,
   },
-  rowDone: { backgroundColor: colors.background },
   details: { flex: 1, gap: spacing.xs },
   name: { ...typography.body, color: colors.text, fontWeight: '600' },
   nameDone: { color: colors.textMuted, textDecorationLine: 'line-through' },
