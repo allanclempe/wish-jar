@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
 import { Text } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useActiveKid } from '../../src/kids/ActiveKidProvider';
 import { KidSwitcher } from '../../src/kids/KidSwitcher';
@@ -11,6 +12,7 @@ function TabEmoji({ emoji, focused }: { emoji: string; focused: boolean }) {
 
 export default function TabsLayout() {
   const { ready } = useActiveKid();
+  const insets = useSafeAreaInsets();
 
   if (!ready) {
     return null;
@@ -26,8 +28,8 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
-          height: 64,
-          paddingBottom: 8,
+          height: 64 + insets.bottom,
+          paddingBottom: 8 + insets.bottom,
           paddingTop: 8,
         },
         tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
