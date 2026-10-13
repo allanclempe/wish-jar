@@ -1,6 +1,6 @@
-import { router, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useMemo, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FlatList, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IconBadge } from '../../src/components/Icons';
@@ -48,7 +48,7 @@ export default function WishlistScreen() {
             <View style={styles.card}>
               <Text style={styles.cardEmoji}>🎁</Text>
               <Text style={styles.cardText}>
-                No wishes yet. Add one below so kids can start saving coins!
+                No wishes yet. Ask a grown-up to add one so kids can start saving coins!
               </Text>
             </View>
           }
@@ -69,13 +69,6 @@ export default function WishlistScreen() {
           ItemSeparatorComponent={Separator}
         />
 
-        <Pressable
-          style={styles.button}
-          onPress={() => router.push('/add-wish')}
-          accessibilityRole="button"
-        >
-          <Text style={styles.buttonText}>＋ Add a wish</Text>
-        </Pressable>
       </View>
     </SafeAreaView>
   );
@@ -117,16 +110,4 @@ const styles = StyleSheet.create({
   details: { flex: 1, gap: spacing.xs },
   name: { ...typography.body, color: colors.text, fontWeight: '600' },
   needed: { ...typography.caption, color: colors.textMuted },
-  button: {
-    backgroundColor: colors.primary,
-    borderRadius: radius.pill,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-    shadowColor: colors.primary,
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
-  },
-  buttonText: { ...typography.heading, color: colors.surface },
 });
