@@ -49,9 +49,7 @@ export function KidSwitcher() {
         </ScrollView>
         {activeKid ? (
           <View style={styles.coins} accessibilityLabel={`${coins} ${coins === 1 ? 'coin' : 'coins'}`}>
-            <Text style={styles.coinsText}>
-              🪙 {coins} {coins === 1 ? 'coin' : 'coins'}
-            </Text>
+            <Text style={styles.coinsText}>🪙 {coins}</Text>
           </View>
         ) : null}
       </View>
@@ -72,7 +70,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm + 2,
   },
-  coinsText: { fontSize: 13, fontWeight: '700', color: colors.primary },
+  coinsText: { fontSize: 22, fontWeight: '700', color: colors.primary },
   kid: { alignItems: 'center', gap: spacing.xs, opacity: 0.6 },
   kidActive: { opacity: 1 },
   avatar: {
