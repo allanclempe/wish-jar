@@ -1,8 +1,8 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ScrollScreen } from '../src/components/ScrollScreen';
 import { listPunishmentTypes, listTasks, listWishes, useDatabase } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { colors, radius, spacing, typography } from '../src/theme';
@@ -62,50 +62,46 @@ export default function SettingsScreen() {
   );
 
   return (
-    <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safe}>
-      <View style={styles.container}>
-        <View style={styles.menu}>
-          <MenuItem
-            emoji="🧒"
-            title="Kids"
-            subtitle={plural(kids.length, 'kid', 'kids')}
-            onPress={() => router.push('/kids')}
-          />
-          <MenuItem
-            emoji="🧹"
-            title="Tasks"
-            subtitle={plural(taskCount, 'task', 'tasks')}
-            onPress={() => router.push('/tasks')}
-          />
-          <MenuItem
-            emoji="🎁"
-            title="Wishes"
-            subtitle={plural(wishCount, 'wish', 'wishes')}
-            onPress={() => router.push('/wishes')}
-          />
-          <MenuItem
-            emoji="🚫"
-            title="Punishments"
-            subtitle={plural(punishmentCount, 'punishment', 'punishments')}
-            onPress={() => router.push('/punishment-types')}
-          />
-          <MenuItem
-            emoji="🔢"
-            title="Change PIN"
-            subtitle="The code that opens this page"
-            onPress={() => router.push('/change-pin')}
-          />
-        </View>
+    <ScrollScreen>
+      <View style={styles.menu}>
+        <MenuItem
+          emoji="🧒"
+          title="Kids"
+          subtitle={plural(kids.length, 'kid', 'kids')}
+          onPress={() => router.push('/kids')}
+        />
+        <MenuItem
+          emoji="🧹"
+          title="Tasks"
+          subtitle={plural(taskCount, 'task', 'tasks')}
+          onPress={() => router.push('/tasks')}
+        />
+        <MenuItem
+          emoji="🎁"
+          title="Wishes"
+          subtitle={plural(wishCount, 'wish', 'wishes')}
+          onPress={() => router.push('/wishes')}
+        />
+        <MenuItem
+          emoji="🚫"
+          title="Punishments"
+          subtitle={plural(punishmentCount, 'punishment', 'punishments')}
+          onPress={() => router.push('/punishment-types')}
+        />
+        <MenuItem
+          emoji="🔢"
+          title="Change PIN"
+          subtitle="The code that opens this page"
+          onPress={() => router.push('/change-pin')}
+        />
       </View>
-    </SafeAreaView>
+    </ScrollScreen>
   );
 }
 
 const ICON_SIZE = 56;
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  container: { flex: 1, padding: spacing.lg, gap: spacing.lg },
   menu: { gap: spacing.md },
   menuItem: {
     flexDirection: 'row',

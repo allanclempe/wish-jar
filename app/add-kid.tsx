@@ -1,9 +1,9 @@
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Image, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { Alert, Image, Pressable, StyleSheet, Text, TextInput } from 'react-native';
 
+import { ScrollScreen } from '../src/components/ScrollScreen';
 import { insertKid, useDatabase } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { removePhoto, storePhoto } from '../src/photos/photos';
@@ -54,49 +54,45 @@ export default function AddKidScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <View style={styles.container}>
-        <Pressable style={styles.photo} onPress={pickPhoto} accessibilityRole="button">
-          {photoUri ? (
-            <Image source={{ uri: photoUri }} style={styles.photoImage} />
-          ) : (
-            <Text style={styles.photoPlaceholder}>📷</Text>
-          )}
-        </Pressable>
-        <Text style={styles.caption}>Tap to add a photo</Text>
+    <ScrollScreen>
+      <Pressable style={styles.photo} onPress={pickPhoto} accessibilityRole="button">
+        {photoUri ? (
+          <Image source={{ uri: photoUri }} style={styles.photoImage} />
+        ) : (
+          <Text style={styles.photoPlaceholder}>📷</Text>
+        )}
+      </Pressable>
+      <Text style={styles.caption}>Tap to add a photo</Text>
 
-        <Text style={styles.label}>Name</Text>
-        <TextInput
-          style={styles.input}
-          value={name}
-          onChangeText={setName}
-          placeholder="Their name"
-          placeholderTextColor={colors.textMuted}
-          autoCapitalize="words"
-          autoCorrect={false}
-          maxLength={40}
-          returnKeyType="done"
-          onSubmitEditing={save}
-        />
+      <Text style={styles.label}>Name</Text>
+      <TextInput
+        style={styles.input}
+        value={name}
+        onChangeText={setName}
+        placeholder="Their name"
+        placeholderTextColor={colors.textMuted}
+        autoCapitalize="words"
+        autoCorrect={false}
+        maxLength={40}
+        returnKeyType="done"
+        onSubmitEditing={save}
+      />
 
-        <Pressable
-          style={[styles.button, !canSave && styles.buttonDisabled]}
-          onPress={save}
-          disabled={!canSave}
-          accessibilityRole="button"
-        >
-          <Text style={styles.buttonText}>Save</Text>
-        </Pressable>
-      </View>
-    </SafeAreaView>
+      <Pressable
+        style={[styles.button, !canSave && styles.buttonDisabled]}
+        onPress={save}
+        disabled={!canSave}
+        accessibilityRole="button"
+      >
+        <Text style={styles.buttonText}>Save</Text>
+      </Pressable>
+    </ScrollScreen>
   );
 }
 
 const PHOTO_SIZE = 160;
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
-  container: { flex: 1, padding: spacing.lg, gap: spacing.md, alignItems: 'stretch' },
   photo: {
     alignSelf: 'center',
     width: PHOTO_SIZE,
