@@ -3,9 +3,9 @@ import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { listPunishmentTypes, listTasks, listWishes, useDatabase } from '../../src/db';
-import { useActiveKid } from '../../src/kids/ActiveKidProvider';
-import { colors, radius, spacing, typography } from '../../src/theme';
+import { listPunishmentTypes, listTasks, listWishes, useDatabase } from '../src/db';
+import { useActiveKid } from '../src/kids/ActiveKidProvider';
+import { colors, radius, spacing, typography } from '../src/theme';
 
 type MenuItemProps = {
   emoji: string;
@@ -64,8 +64,6 @@ export default function SettingsScreen() {
   return (
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safe}>
       <View style={styles.container}>
-        <Text style={styles.title}>Settings ⚙️</Text>
-
         <View style={styles.menu}>
           <MenuItem
             emoji="🧒"
@@ -91,6 +89,12 @@ export default function SettingsScreen() {
             subtitle={plural(punishmentCount, 'punishment', 'punishments')}
             onPress={() => router.push('/punishment-types')}
           />
+          <MenuItem
+            emoji="🔢"
+            title="Change PIN"
+            subtitle="The code that opens this page"
+            onPress={() => router.push('/change-pin')}
+          />
         </View>
       </View>
     </SafeAreaView>
@@ -102,7 +106,6 @@ const ICON_SIZE = 56;
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   container: { flex: 1, padding: spacing.lg, gap: spacing.lg },
-  title: { ...typography.title, color: colors.text },
   menu: { gap: spacing.md },
   menuItem: {
     flexDirection: 'row',

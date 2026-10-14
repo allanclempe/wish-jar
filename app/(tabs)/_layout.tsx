@@ -1,13 +1,42 @@
 import { Tabs } from 'expo-router';
-import { Text } from 'react-native';
+import { useEffect, useState } from 'react';
+import { Animated, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useNativeDriver } from '../../src/components/Animations';
 import { useActiveKid } from '../../src/kids/ActiveKidProvider';
 import { KidSwitcher } from '../../src/kids/KidSwitcher';
 import { colors } from '../../src/theme';
 
+// Jumps and grows when its tab is chosen.
 function TabEmoji({ emoji, focused }: { emoji: string; focused: boolean }) {
-  return <Text style={{ fontSize: focused ? 26 : 22 }}>{emoji}</Text>;
+  const [focus] = useState(() => new Animated.Value(focused ? 1 : 0));
+
+  useEffect(() => {
+    Animated.spring(focus, {
+      toValue: focused ? 1 : 0,
+      friction: 4,
+      tension: 120,
+      useNativeDriver,
+    }).start();
+  }, [focused, focus]);
+
+  return (
+    <Animated.Text
+      style={[
+        styles.emoji,
+        {
+          opacity: focus.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] }),
+          transform: [
+            { scale: focus.interpolate({ inputRange: [0, 1], outputRange: [1, 1.3] }) },
+            { translateY: focus.interpolate({ inputRange: [0, 1], outputRange: [0, -4] }) },
+          ],
+        },
+      ]}
+    >
+      {emoji}
+    </Animated.Text>
+  );
 }
 
 export default function TabsLayout() {
@@ -28,11 +57,12 @@ export default function TabsLayout() {
         tabBarStyle: {
           backgroundColor: colors.surface,
           borderTopColor: colors.border,
-          height: 64 + insets.bottom,
+          borderTopWidth: 2,
+          height: 76 + insets.bottom,
           paddingBottom: 8 + insets.bottom,
-          paddingTop: 8,
+          paddingTop: 10,
         },
-        tabBarLabelStyle: { fontSize: 12, fontWeight: '600' },
+        tabBarLabelStyle: { fontSize: 13, fontWeight: '800' },
       }}
     >
       <Tabs.Screen
@@ -56,13 +86,10 @@ export default function TabsLayout() {
           tabBarIcon: ({ focused }) => <TabEmoji emoji="🚫" focused={focused} />,
         }}
       />
-      <Tabs.Screen
-        name="settings"
-        options={{
-          title: 'Settings',
-          tabBarIcon: ({ focused }) => <TabEmoji emoji="⚙️" focused={focused} />,
-        }}
-      />
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  emoji: { fontSize: 26 },
+});

@@ -1,4 +1,4 @@
-import { router, useFocusEffect } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -6,16 +6,18 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { IconBadge } from '../../src/components/Icons';
 import { listPunishments, removePunishment, useDatabase, type Punishment } from '../../src/db';
 import { useActiveKid } from '../../src/kids/ActiveKidProvider';
+import { useParentLock } from '../../src/parent/ParentLockProvider';
 import { dayKey } from '../../src/tasks/day';
-import { colors, radius, spacing, typography } from '../../src/theme';
+import { FadeInUp } from '../../src/components/Animations';
+import { colors, radius, shadow, spacing, typography } from '../../src/theme';
 
 export default function PunishmentsScreen() {
   const db = useDatabase();
   const { activeKid, recordSavingsChange } = useActiveKid();
   const kidId = activeKid?.id ?? null;
   const [punishments, setPunishments] = useState<Punishment[]>([]);
+  const { requestPin, openParentScreen } = useParentLock();
   const [day, setDay] = useState(dayKey);
-  const [confirmingId, setConfirmingId] = useState<number | null>(null);
 
   // Entries are kept per day, so today's list is reloaded whenever the tab
   // is shown, including after adding one from the picker.
@@ -37,10 +39,9 @@ export default function PunishmentsScreen() {
     }, [db, kidId]),
   );
 
-  // Confirmation is inline because Alert.alert does nothing on web.
+  // Kids can see their punishments, but only a grown-up with the PIN can take one back.
   async function remove(punishment: Punishment) {
-    if (kidId == null) return;
-    setConfirmingId(null);
+    if (kidId == null || !(await requestPin())) return;
     const change = await removePunishment(db, {
       punishmentId: punishment.id,
       kidId,
@@ -63,65 +64,44 @@ export default function PunishmentsScreen() {
             ListHeaderComponent={<Text style={styles.heading}>Today</Text>}
             ListEmptyComponent={
               <View style={styles.card}>
-                <Text style={styles.cardEmoji}>🙂</Text>
+                <Text style={styles.cardEmoji}>😇</Text>
                 <Text style={styles.cardText}>Nothing today. Keep it that way!</Text>
               </View>
             }
-            renderItem={({ item }) => (
-              <View style={styles.row}>
-                <IconBadge icon={item.icon} fallbackEmoji="🚫" />
-                <Text style={styles.name}>{item.name}</Text>
-                <View style={styles.pill}>
-                  <Text style={styles.pillText}>
-                    −{item.coinAmount} {item.coinAmount === 1 ? 'coin' : 'coins'}
-                  </Text>
-                </View>
-                {confirmingId === item.id ? (
-                  <View style={styles.confirm}>
-                    <Pressable
-                      onPress={() => setConfirmingId(null)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Keep ${item.name}`}
-                      hitSlop={8}
-                    >
-                      <Text style={styles.keep}>Keep</Text>
-                    </Pressable>
-                    <Pressable
-                      style={styles.removeButton}
-                      onPress={() => remove(item)}
-                      accessibilityRole="button"
-                      accessibilityLabel={`Confirm remove ${item.name}`}
-                    >
-                      <Text style={styles.removeButtonText}>Remove</Text>
-                    </Pressable>
+            renderItem={({ item, index }) => (
+              <FadeInUp index={index}>
+                <View style={styles.row}>
+                  <IconBadge icon={item.icon} fallbackEmoji="🚫" size={56} />
+                  <Text style={styles.name}>{item.name}</Text>
+                  <View style={styles.pill}>
+                    <Text style={styles.pillText}>−{item.coinAmount} 🪙</Text>
                   </View>
-                ) : (
                   <Pressable
-                    onPress={() => setConfirmingId(item.id)}
+                    onPress={() => remove(item)}
                     accessibilityRole="button"
                     accessibilityLabel={`Remove ${item.name}`}
                     hitSlop={8}
                   >
                     <Text style={styles.remove}>✕</Text>
                   </Pressable>
-                )}
-              </View>
+                </View>
+              </FadeInUp>
             )}
           />
         ) : (
           <View style={styles.card}>
             <Text style={styles.cardEmoji}>🧒</Text>
-            <Text style={styles.cardText}>Add a kid in Settings first.</Text>
+            <Text style={styles.cardText}>Ask a grown-up to add a kid first.</Text>
           </View>
         )}
 
         {activeKid ? (
           <Pressable
             style={styles.button}
-            onPress={() => router.push('/add-punishment')}
+            onPress={() => openParentScreen('/add-punishment')}
             accessibilityRole="button"
           >
-            <Text style={styles.buttonText}>＋ Add a punishment</Text>
+            <Text style={styles.buttonText}>🔒 Add a punishment</Text>
           </Pressable>
         ) : null}
       </View>
@@ -145,7 +125,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  cardEmoji: { fontSize: 48 },
+  cardEmoji: { fontSize: 64 },
   cardText: { ...typography.body, color: colors.textMuted, textAlign: 'center' },
   row: {
     flexDirection: 'row',
@@ -153,28 +133,20 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: colors.border,
     padding: spacing.md,
+    ...shadow,
   },
-  name: { ...typography.body, color: colors.text, fontWeight: '600', flex: 1 },
+  name: { ...typography.body, fontSize: 18, color: colors.text, fontWeight: '700', flex: 1 },
   pill: {
     backgroundColor: colors.border,
     borderRadius: radius.pill,
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm + 2,
   },
-  pillText: { fontSize: 13, fontWeight: '700', color: colors.accent },
-  remove: { fontSize: 18, fontWeight: '700', color: colors.textMuted, paddingHorizontal: spacing.xs },
-  confirm: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  keep: { ...typography.caption, color: colors.textMuted, fontWeight: '600' },
-  removeButton: {
-    backgroundColor: colors.accent,
-    borderRadius: radius.pill,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm + 2,
-  },
-  removeButtonText: { fontSize: 13, fontWeight: '700', color: colors.surface },
+  pillText: { fontSize: 16, fontWeight: '800', color: colors.accent },
+  remove: { fontSize: 20, fontWeight: '800', color: colors.textMuted, paddingHorizontal: spacing.xs },
   button: {
     backgroundColor: colors.primary,
     borderRadius: radius.pill,
