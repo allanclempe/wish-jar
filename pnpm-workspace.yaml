@@ -1,2 +1,4 @@
 allowBuilds:
   unrs-resolver: false
+patchedDependencies:
+  '@expo/metro-config@57.0.13': patches/@expo__metro-config@57.0.13.patch
