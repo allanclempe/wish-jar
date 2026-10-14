@@ -47,6 +47,10 @@ function RootStack() {
       }}
     >
       <Stack.Screen name="(tabs)" />
+      <Stack.Screen
+        name="wish-unlocked"
+        options={{ presentation: 'fullScreenModal', animation: 'fade' }}
+      />
       {/* Everything a grown-up sets up needs the PIN first. */}
       <Stack.Protected guard={unlocked}>
         <Stack.Screen name="settings" options={page('Grown-ups')} />

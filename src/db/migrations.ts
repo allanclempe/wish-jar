@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-export const DATABASE_VERSION = 7;
+export const DATABASE_VERSION = 8;
 
 const MIGRATIONS: Record<number, string> = {
   1: `
@@ -114,6 +114,10 @@ const MIGRATIONS: Record<number, string> = {
     );
 
     CREATE INDEX IF NOT EXISTS punishments_kid_day_idx ON punishments (kid_id, day_key);
+  `,
+  // Set once a grown-up has handed the wish over and its coins were taken.
+  8: `
+    ALTER TABLE wishes ADD COLUMN claimed_at INTEGER;
   `,
 };
 

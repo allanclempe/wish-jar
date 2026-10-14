@@ -1,16 +1,26 @@
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, FlatList, StyleSheet, Text, View } from 'react-native';
 
-import { listCompletedTaskIds, listTasks, setTaskCompletion, useDatabase, type Task } from '../db';
+import {
+  listCompletedTaskIds,
+  listTasks,
+  listWishes,
+  setTaskCompletion,
+  useDatabase,
+  type Task,
+} from '../db';
 import { useActiveKid } from '../kids/ActiveKidProvider';
 import { colors, radius, shadow, spacing, typography } from '../theme';
 import { currentPeriod, PERIOD_EMOJIS, PERIOD_LABELS, tasksForPeriod } from '../tasks/period';
 import { dayKey } from '../tasks/day';
+import { wishesUnlockedBy } from '../wishes/order';
 import { Celebration, FadeInUp } from './Animations';
 import { TaskCard } from './TaskCard';
 
 const PERIOD_CHECK_INTERVAL_MS = 60_000;
+// Lets the tick's coin float and confetti play before the achievement opens.
+const UNLOCK_DELAY_MS = 900;
 
 export function CurrentPeriodTasks() {
   const db = useDatabase();
@@ -26,6 +36,17 @@ export function CurrentPeriodTasks() {
   // The kid and day whose saved ticks are loaded; taps wait until they match.
   const [hydratedKey, setHydratedKey] = useState<string | null>(null);
   const [burst, setBurst] = useState(0);
+  const unlockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Wishes unlocked by quick ticks in a row open together on one screen, keyed
+  // by id with their coin amount so an un-tick before it opens can drop them.
+  const pendingUnlocks = useRef(new Map<number, number>());
+
+  useEffect(
+    () => () => {
+      if (unlockTimer.current) clearTimeout(unlockTimer.current);
+    },
+    [],
+  );
 
   // Ticks are keyed by day, so once the day key changes no task looks done.
   const refreshClock = useCallback(() => {
@@ -104,9 +125,37 @@ export function CurrentPeriodTasks() {
       coinAmount: task.coinAmount,
       completed,
     });
-    if (change.changed) {
-      recordTaskCompletion(kidId, change.coins, completed);
+    if (!change.changed) return;
+    recordTaskCompletion(kidId, change.coins, completed);
+    if (completed) {
+      await showUnlockedWishes(change.savings - change.coins, change.savings);
+    } else {
+      dropRelockedWishes(change.savings);
     }
+  }
+
+  function dropRelockedWishes(savings: number) {
+    for (const [wishId, coinAmount] of pendingUnlocks.current) {
+      if (coinAmount > savings) pendingUnlocks.current.delete(wishId);
+    }
+    if (pendingUnlocks.current.size === 0 && unlockTimer.current) {
+      clearTimeout(unlockTimer.current);
+      unlockTimer.current = null;
+    }
+  }
+
+  async function showUnlockedWishes(before: number, after: number) {
+    const kidWishes = (await listWishes(db)).filter((wish) => wish.kidId === kidId);
+    const unlocked = wishesUnlockedBy(kidWishes, before, after);
+    if (unlocked.length === 0) return;
+    for (const wish of unlocked) pendingUnlocks.current.set(wish.id, wish.coinAmount);
+    if (unlockTimer.current) clearTimeout(unlockTimer.current);
+    unlockTimer.current = setTimeout(() => {
+      const ids = [...pendingUnlocks.current.keys()].join(',');
+      pendingUnlocks.current.clear();
+      unlockTimer.current = null;
+      router.push({ pathname: '/wish-unlocked', params: { ids } });
+    }, UNLOCK_DELAY_MS);
   }
 
   const doneCount = currentTasks.filter((task) => doneKeys.has(`${day}:${kidId}:${task.id}`)).length;

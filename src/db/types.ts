@@ -49,4 +49,5 @@ export type Wish = {
   coinAmount: number;
   icon: Icon;
   createdAt: number;
+  claimedAt: number | null;
 };
