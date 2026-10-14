@@ -1,0 +1,16 @@
+diff --git a/build/serializer/serializeChunks.js b/build/serializer/serializeChunks.js
+index 10c8ce32a04cc7f05f28d95347fa7127dd6600f8..a6495647371d0a37e3f8d610253bebb31c8e1805 100644
+--- a/build/serializer/serializeChunks.js
++++ b/build/serializer/serializeChunks.js
+@@ -521,6 +521,11 @@ function gatherChunks(runtimePremodules, chunks, settings, preModules, graph, op
+                 (isWorker || splitChunks)) {
+                 const asyncChunks = gatherChunks(runtimePremodules, chunks, { test: pathToRegex(dependency.absolutePath) }, isWorker ? runtimePremodules : [], graph, options, true, isWorker);
+                 // Seal all chunks that are for web workers, as these must be self-sufficient chunks
++                // A lazy dev bundle leaves the worker out of the graph; the
++                // client fetches it from the dev server when it starts.
++                if (isWorker && !asyncChunks.size && !graph.dependencies.has(dependency.absolutePath)) {
++                    continue;
++                }
+                 if (isWorker) {
+                     (0, assert_1.default)(asyncChunks.size, `Worker chunk not found for: ${dependency.absolutePath}`);
+                     for (const chunk of asyncChunks) {
