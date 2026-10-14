@@ -1,8 +1,9 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { ScrollScreen } from '../src/components/ScrollScreen';
 import { IconPicker } from '../src/components/Icons';
 import { getPunishmentType, updatePunishmentType, useDatabase, type Icon } from '../src/db';
 import { removePhoto, storePhoto } from '../src/photos/photos';
@@ -88,60 +89,57 @@ export default function EditPunishmentTypeScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
-        <IconPicker value={icon} fallbackEmoji="🚫" onChange={setIcon} />
+    <ScrollScreen>
+      <IconPicker value={icon} fallbackEmoji="🚫" onChange={setIcon} />
 
-        <Text style={styles.label}>Punishment</Text>
-        <TextInput
-          style={styles.input}
-          value={name}
-          onChangeText={(text) => {
-            setName(text);
-            setErrors((prev) => ({ ...prev, name: undefined }));
-          }}
-          placeholder="e.g. Hit my brother"
-          placeholderTextColor={colors.textMuted}
-          autoCapitalize="sentences"
-          autoCorrect={false}
-          maxLength={60}
-          returnKeyType="next"
-        />
-        {errors.name ? <Text style={styles.error}>{errors.name}</Text> : null}
+      <Text style={styles.label}>Punishment</Text>
+      <TextInput
+        style={styles.input}
+        value={name}
+        onChangeText={(text) => {
+          setName(text);
+          setErrors((prev) => ({ ...prev, name: undefined }));
+        }}
+        placeholder="e.g. Hit my brother"
+        placeholderTextColor={colors.textMuted}
+        autoCapitalize="sentences"
+        autoCorrect={false}
+        maxLength={60}
+        returnKeyType="next"
+      />
+      {errors.name ? <Text style={styles.error}>{errors.name}</Text> : null}
 
-        <Text style={styles.label}>Coins taken</Text>
-        <TextInput
-          style={styles.input}
-          value={coinAmount}
-          onChangeText={(text) => {
-            setCoinAmount(text);
-            setErrors((prev) => ({ ...prev, coinAmount: undefined }));
-          }}
-          placeholder="e.g. 5"
-          placeholderTextColor={colors.textMuted}
-          keyboardType="number-pad"
-          maxLength={5}
-          returnKeyType="done"
-          onSubmitEditing={save}
-        />
-        {errors.coinAmount ? <Text style={styles.error}>{errors.coinAmount}</Text> : null}
+      <Text style={styles.label}>Coins taken</Text>
+      <TextInput
+        style={styles.input}
+        value={coinAmount}
+        onChangeText={(text) => {
+          setCoinAmount(text);
+          setErrors((prev) => ({ ...prev, coinAmount: undefined }));
+        }}
+        placeholder="e.g. 5"
+        placeholderTextColor={colors.textMuted}
+        keyboardType="number-pad"
+        maxLength={5}
+        returnKeyType="done"
+        onSubmitEditing={save}
+      />
+      {errors.coinAmount ? <Text style={styles.error}>{errors.coinAmount}</Text> : null}
 
-        <Pressable
-          style={[styles.button, saving && styles.buttonDisabled]}
-          onPress={save}
-          disabled={saving}
-          accessibilityRole="button"
-        >
-          <Text style={styles.buttonText}>Save</Text>
-        </Pressable>
-      </ScrollView>
-    </SafeAreaView>
+      <Pressable
+        style={[styles.button, saving && styles.buttonDisabled]}
+        onPress={save}
+        disabled={saving}
+        accessibilityRole="button"
+      >
+        <Text style={styles.buttonText}>Save</Text>
+      </Pressable>
+    </ScrollScreen>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  container: { flex: 1, padding: spacing.lg, gap: spacing.md, alignItems: 'stretch' },
   label: { ...typography.caption, color: colors.textMuted, marginTop: spacing.md },
   input: {
     ...typography.body,
