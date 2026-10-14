@@ -4,7 +4,7 @@ import { Alert, Pressable, StyleSheet, Text, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ScrollScreen } from '../src/components/ScrollScreen';
-import { IconPicker } from '../src/components/Icons';
+import { IconPicker, PUNISHMENT_EMOJIS } from '../src/components/Icons';
 import { getPunishmentType, updatePunishmentType, useDatabase, type Icon } from '../src/db';
 import { removePhoto, storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
@@ -90,7 +90,12 @@ export default function EditPunishmentTypeScreen() {
 
   return (
     <ScrollScreen>
-      <IconPicker value={icon} fallbackEmoji="🚫" onChange={setIcon} />
+      <IconPicker
+        value={icon}
+        fallbackEmoji="🚫"
+        emojis={PUNISHMENT_EMOJIS}
+        onChange={setIcon}
+      />
 
       <Text style={styles.label}>Punishment</Text>
       <TextInput
