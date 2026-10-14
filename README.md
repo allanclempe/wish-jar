@@ -30,4 +30,9 @@ pnpm android      # run on Android
 pnpm web          # run on web
 ```
 
+When the machine is on [Tailscale](https://tailscale.com/), the dev server
+uses its Tailscale address, so the QR code works from a phone on the same
+tailnet even when the machine is a VM. Set `REACT_NATIVE_PACKAGER_HOSTNAME`
+to choose another address.
+
 See [AGENTS.md](./AGENTS.md) for project conventions and commands.
