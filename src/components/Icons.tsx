@@ -10,6 +10,13 @@ export const ICON_EMOJIS = [
   '🍦', '🍕', '🍭', '👟', '📺', '🎈', '🦄', '🚀',
 ];
 
+// What a kid did wrong: hitting, shouting, lying, too much screen, bedtime…
+export const PUNISHMENT_EMOJIS = [
+  '🚫', '🛑', '😡', '🤬', '😤', '😭', '😝', '🤥',
+  '🙉', '🗯️', '👊', '🦶', '🦷', '💦', '🥊', '💥',
+  '🚪', '🧦', '🍬', '📱', '📺', '🎮', '⏰', '🛏️',
+];
+
 type IconBadgeProps = {
   icon: Icon;
   fallbackEmoji: string;
@@ -34,9 +41,11 @@ type IconPickerProps = {
   value: Icon;
   fallbackEmoji: string;
   onChange: (icon: Icon) => void;
+  // The emojis to choose from; tasks and wishes share ICON_EMOJIS.
+  emojis?: readonly string[];
 };
 
-export function IconPicker({ value, fallbackEmoji, onChange }: IconPickerProps) {
+export function IconPicker({ value, fallbackEmoji, onChange, emojis = ICON_EMOJIS }: IconPickerProps) {
   const selectedEmoji = value.photoUri ? null : (value.emoji ?? fallbackEmoji);
 
   async function pickPhoto() {
@@ -65,7 +74,7 @@ export function IconPicker({ value, fallbackEmoji, onChange }: IconPickerProps) 
       </View>
 
       <View style={styles.emojis}>
-        {ICON_EMOJIS.map((emoji) => {
+        {emojis.map((emoji) => {
           const selected = selectedEmoji === emoji;
           return (
             <Pressable
