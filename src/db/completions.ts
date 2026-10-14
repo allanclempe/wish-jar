@@ -10,12 +10,16 @@ export type TaskCompletionInput = {
 
 // The coins this change moved into (or out of) the kid's savings. `changed` is
 // false when the tick was already in the requested state, so nothing moved.
+// `savings` is the kid's balance once the change was saved.
 export type TaskCompletionChange = {
   changed: boolean;
   coins: number;
+  savings: number;
 };
 
-const UNCHANGED: TaskCompletionChange = { changed: false, coins: 0 };
+type CompletionResult = Omit<TaskCompletionChange, 'savings'>;
+
+const UNCHANGED: CompletionResult = { changed: false, coins: 0 };
 
 // Transactions on one connection are not exclusive, so overlapping taps would
 // try to open a second transaction inside the first. Writes run one at a time.
@@ -59,7 +63,7 @@ export async function addToSavings(db: SQLiteDatabase, kidId: number, delta: num
 async function addCompletion(
   db: SQLiteDatabase,
   input: TaskCompletionInput,
-): Promise<TaskCompletionChange> {
+): Promise<CompletionResult> {
   const result = await db.runAsync(
     'INSERT INTO completions (kid_id, task_id, day_key, coin_amount) VALUES (?, ?, ?, ?) ON CONFLICT (kid_id, task_id, day_key) DO NOTHING',
     input.kidId,
@@ -75,7 +79,7 @@ async function addCompletion(
 async function removeCompletion(
   db: SQLiteDatabase,
   input: TaskCompletionInput,
-): Promise<TaskCompletionChange> {
+): Promise<CompletionResult> {
   const row = await db.getFirstAsync<{ coin_amount: number }>(
     'SELECT coin_amount FROM completions WHERE kid_id = ? AND task_id = ? AND day_key = ?',
     input.kidId,
@@ -100,11 +104,12 @@ export function setTaskCompletion(
   input: TaskCompletionInput,
 ): Promise<TaskCompletionChange> {
   return queueWrite(async () => {
-    let change = UNCHANGED;
+    let change: TaskCompletionChange = { ...UNCHANGED, savings: 0 };
     await db.withTransactionAsync(async () => {
-      change = input.completed
+      const result = input.completed
         ? await addCompletion(db, input)
         : await removeCompletion(db, input);
+      change = { ...result, savings: await getKidSavings(db, input.kidId) };
     });
     return change;
   });

@@ -15,11 +15,18 @@ import { getParentPin, PIN_LENGTH, useDatabase } from '../db';
 import { colors, radius, spacing, typography } from '../theme';
 import { PinPad } from './PinPad';
 
+// What the PIN prompt says. Without one it reads "Grown-ups only".
+export type PinPromptText = {
+  emoji?: string;
+  title?: string;
+  subtitle?: string;
+};
+
 type ParentLockContextValue = {
   // True while a grown-up has entered the PIN and not yet gone back to the kids' tabs.
   unlocked: boolean;
   // Asks for the PIN without unlocking, for a single grown-up action.
-  requestPin: () => Promise<boolean>;
+  requestPin: (text?: PinPromptText) => Promise<boolean>;
   // Asks for the PIN unless already unlocked, then opens a grown-up screen.
   openParentScreen: (href: Href) => Promise<void>;
 };
@@ -29,7 +36,10 @@ const ParentLockContext = createContext<ParentLockContextValue | null>(null);
 export function ParentLockProvider({ children }: PropsWithChildren) {
   const [unlocked, setUnlocked] = useState(false);
   const pendingHref = useRef<Href | null>(null);
-  const [prompt, setPrompt] = useState<{ resolve: (ok: boolean) => void } | null>(null);
+  const [prompt, setPrompt] = useState<{
+    text?: PinPromptText;
+    resolve: (ok: boolean) => void;
+  } | null>(null);
   const segments = useSegments();
   const inTabs = segments[0] === '(tabs)';
   const wasInTabs = useRef(inTabs);
@@ -58,11 +68,11 @@ export function ParentLockProvider({ children }: PropsWithChildren) {
   }, [unlocked]);
 
   const requestPin = useCallback(
-    () =>
+    (text?: PinPromptText) =>
       new Promise<boolean>((resolve) => {
         setPrompt((previous) => {
           previous?.resolve(false);
-          return { resolve };
+          return { text, resolve };
         });
       }),
     [],
@@ -103,13 +113,13 @@ export function ParentLockProvider({ children }: PropsWithChildren) {
         animationType="fade"
         onRequestClose={() => finish(false)}
       >
-        {prompt ? <PinPrompt onDone={finish} /> : null}
+        {prompt ? <PinPrompt text={prompt.text} onDone={finish} /> : null}
       </Modal>
     </ParentLockContext.Provider>
   );
 }
 
-function PinPrompt({ onDone }: { onDone: (ok: boolean) => void }) {
+function PinPrompt({ text, onDone }: { text?: PinPromptText; onDone: (ok: boolean) => void }) {
   const db = useDatabase();
   const [value, setValue] = useState('');
   const [shake, setShake] = useState(0);
@@ -128,9 +138,9 @@ function PinPrompt({ onDone }: { onDone: (ok: boolean) => void }) {
   return (
     <View style={styles.backdrop}>
       <View style={styles.sheet}>
-        <Text style={styles.emoji}>🔒</Text>
-        <Text style={styles.title}>Grown-ups only</Text>
-        <Text style={styles.subtitle}>Enter the PIN to carry on.</Text>
+        <Text style={styles.emoji}>{text?.emoji ?? '🔒'}</Text>
+        <Text style={styles.title}>{text?.title ?? 'Grown-ups only'}</Text>
+        <Text style={styles.subtitle}>{text?.subtitle ?? 'Enter the PIN to carry on.'}</Text>
         <PinPad value={value} onChange={change} shake={shake} />
         <Pressable onPress={() => onDone(false)} accessibilityRole="button" hitSlop={12}>
           <Text style={styles.cancel}>Cancel</Text>
@@ -166,7 +176,12 @@ const styles = StyleSheet.create({
     maxWidth: 360,
   },
   emoji: { fontSize: 44 },
-  title: { ...typography.heading, color: colors.text },
-  subtitle: { ...typography.caption, color: colors.textMuted, marginBottom: spacing.sm },
+  title: { ...typography.heading, color: colors.text, textAlign: 'center' },
+  subtitle: {
+    ...typography.caption,
+    color: colors.textMuted,
+    marginBottom: spacing.sm,
+    textAlign: 'center',
+  },
   cancel: { ...typography.body, color: colors.textMuted, fontWeight: '600', marginTop: spacing.sm },
 });

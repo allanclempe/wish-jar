@@ -48,6 +48,7 @@ export default function WishesScreen() {
                 <View style={styles.text}>
                   <Text style={styles.name}>{item.name}</Text>
                   {kid ? <Text style={styles.kid}>For {kid.name}</Text> : null}
+                  {item.claimedAt != null ? <Text style={styles.kid}>✅ Got it</Text> : null}
                 </View>
                 <View style={styles.pill}>
                   <Text style={styles.pillText}>
