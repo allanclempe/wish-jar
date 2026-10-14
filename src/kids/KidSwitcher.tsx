@@ -1,16 +1,14 @@
-import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { useNativeDriver } from '../components/Animations';
+import { ParentLockButton } from '../parent/ParentLockButton';
 import { useActiveKid } from './ActiveKidProvider';
 import { colors, radius, spacing, typography } from '../theme';
 
 export function KidSwitcher() {
   const { kids, activeKid, savings, selectKid } = useActiveKid();
-
-  if (kids.length === 0) {
-    return null;
-  }
-
   const coins = activeKid ? (savings[activeKid.id] ?? 0) : 0;
 
   return (
@@ -22,57 +20,111 @@ export function KidSwitcher() {
           contentContainerStyle={styles.row}
           style={styles.scroll}
         >
-          {kids.map((kid) => {
-            const active = kid.id === activeKid?.id;
-            return (
-              <Pressable
-                key={kid.id}
-                style={[styles.kid, active && styles.kidActive]}
-                onPress={() => selectKid(kid.id)}
-                accessibilityRole="button"
-                accessibilityLabel={kid.name}
-                accessibilityState={{ selected: active }}
-              >
-                {kid.photoUri ? (
-                  <Image source={{ uri: kid.photoUri }} style={[styles.avatar, active && styles.avatarActive]} />
-                ) : (
-                  <View style={[styles.avatar, styles.avatarEmpty, active && styles.avatarActive]}>
-                    <Text style={styles.avatarEmoji}>🙂</Text>
-                  </View>
-                )}
-                <Text style={[styles.name, active && styles.nameActive]} numberOfLines={1}>
-                  {kid.name}
-                </Text>
-              </Pressable>
-            );
-          })}
+          {kids.map((kid) => (
+            <KidAvatar
+              key={kid.id}
+              name={kid.name}
+              photoUri={kid.photoUri}
+              active={kid.id === activeKid?.id}
+              onPress={() => selectKid(kid.id)}
+            />
+          ))}
         </ScrollView>
-        {activeKid ? (
-          <View style={styles.coins} accessibilityLabel={`${coins} ${coins === 1 ? 'coin' : 'coins'}`}>
-            <Text style={styles.coinsText}>🪙 {coins}</Text>
-          </View>
-        ) : null}
+        {activeKid ? <CoinCounter coins={coins} /> : null}
+        <ParentLockButton />
       </View>
     </SafeAreaView>
   );
 }
 
-const AVATAR_SIZE = 48;
+type KidAvatarProps = {
+  name: string;
+  photoUri: string | null;
+  active: boolean;
+  onPress: () => void;
+};
+
+function KidAvatar({ name, photoUri, active, onPress }: KidAvatarProps) {
+  const [pop] = useState(() => new Animated.Value(active ? 1 : 0));
+
+  useEffect(() => {
+    Animated.spring(pop, { toValue: active ? 1 : 0, friction: 4, tension: 120, useNativeDriver }).start();
+  }, [active, pop]);
+
+  return (
+    <Pressable
+      style={styles.kid}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={name}
+      accessibilityState={{ selected: active }}
+    >
+      <Animated.View
+        style={{
+          opacity: pop.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] }),
+          transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1.05] }) }],
+        }}
+      >
+        {photoUri ? (
+          <Image source={{ uri: photoUri }} style={[styles.avatar, active && styles.avatarActive]} />
+        ) : (
+          <View style={[styles.avatar, styles.avatarEmpty, active && styles.avatarActive]}>
+            <Text style={styles.avatarEmoji}>🙂</Text>
+          </View>
+        )}
+      </Animated.View>
+      <Text style={[styles.name, active && styles.nameActive]} numberOfLines={1}>
+        {name}
+      </Text>
+    </Pressable>
+  );
+}
+
+// Bounces whenever the count goes up, so earning a coin is felt up here too.
+function CoinCounter({ coins }: { coins: number }) {
+  const [bounce] = useState(() => new Animated.Value(1));
+  const previous = useRef(coins);
+
+  useEffect(() => {
+    if (coins > previous.current) {
+      bounce.setValue(1.5);
+      Animated.spring(bounce, { toValue: 1, friction: 3, tension: 140, useNativeDriver }).start();
+    }
+    previous.current = coins;
+  }, [coins, bounce]);
+
+  return (
+    <Animated.View
+      style={[styles.coins, { transform: [{ scale: bounce }] }]}
+      accessibilityLabel={`${coins} ${coins === 1 ? 'coin' : 'coins'}`}
+    >
+      <Text style={styles.coinsText}>🪙 {coins}</Text>
+    </Animated.View>
+  );
+}
+
+const AVATAR_SIZE = 52;
 
 const styles = StyleSheet.create({
   safe: { backgroundColor: colors.surface, borderBottomWidth: 2, borderBottomColor: colors.border },
-  bar: { flexDirection: 'row', alignItems: 'center', paddingRight: spacing.md },
+  bar: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingRight: spacing.md, minHeight: 64 },
   scroll: { flex: 1 },
   row: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, gap: spacing.md },
   coins: {
-    backgroundColor: colors.border,
+    backgroundColor: colors.sunshine,
     borderRadius: radius.pill,
-    paddingVertical: spacing.xs,
-    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: spacing.xs + 2,
+    paddingHorizontal: spacing.md,
+    borderWidth: 3,
+    borderColor: colors.surface,
+    shadowColor: colors.primary,
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
   },
-  coinsText: { fontSize: 22, fontWeight: '700', color: colors.primary },
-  kid: { alignItems: 'center', gap: spacing.xs, opacity: 0.6 },
-  kidActive: { opacity: 1 },
+  coinsText: { fontSize: 26, fontWeight: '900', color: colors.text },
+  kid: { alignItems: 'center', gap: spacing.xs },
   avatar: {
     width: AVATAR_SIZE,
     height: AVATAR_SIZE,
@@ -80,9 +132,9 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: colors.border,
   },
-  avatarActive: { borderColor: colors.primary },
+  avatarActive: { borderColor: colors.primary, borderWidth: 4 },
   avatarEmpty: { backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
-  avatarEmoji: { fontSize: 24 },
+  avatarEmoji: { fontSize: 26 },
   name: { ...typography.caption, color: colors.textMuted, maxWidth: 72 },
-  nameActive: { color: colors.text, fontWeight: '700' },
+  nameActive: { color: colors.text, fontWeight: '800' },
 });

@@ -6,6 +6,12 @@ export const PERIOD_LABELS: Record<Period, string> = {
   evening: 'Evening',
 };
 
+export const PERIOD_EMOJIS: Record<Period, string> = {
+  morning: '🌅',
+  afternoon: '☀️',
+  evening: '🌙',
+};
+
 // Morning runs from midnight to 12:00, afternoon from 12:00 to 18:00, and
 // evening from 18:00 to midnight, all on the device clock.
 export function currentPeriod(now: Date = new Date()): Period {

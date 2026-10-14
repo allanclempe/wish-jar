@@ -1,13 +1,14 @@
 import { useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { AppState, FlatList, StyleSheet, Text, View } from 'react-native';
 
 import { listCompletedTaskIds, listTasks, setTaskCompletion, useDatabase, type Task } from '../db';
 import { useActiveKid } from '../kids/ActiveKidProvider';
-import { colors, radius, spacing, typography } from '../theme';
-import { currentPeriod, PERIOD_LABELS, tasksForPeriod } from '../tasks/period';
+import { colors, radius, shadow, spacing, typography } from '../theme';
+import { currentPeriod, PERIOD_EMOJIS, PERIOD_LABELS, tasksForPeriod } from '../tasks/period';
 import { dayKey } from '../tasks/day';
-import { IconBadge } from './Icons';
+import { Celebration, FadeInUp } from './Animations';
+import { TaskCard } from './TaskCard';
 
 const PERIOD_CHECK_INTERVAL_MS = 60_000;
 
@@ -24,6 +25,7 @@ export function CurrentPeriodTasks() {
   const doneRef = useRef(new Set<string>());
   // The kid and day whose saved ticks are loaded; taps wait until they match.
   const [hydratedKey, setHydratedKey] = useState<string | null>(null);
+  const [burst, setBurst] = useState(0);
 
   // Ticks are keyed by day, so once the day key changes no task looks done.
   const refreshClock = useCallback(() => {
@@ -92,6 +94,9 @@ export function CurrentPeriodTasks() {
       doneRef.current.delete(key);
     }
     setDoneKeys(new Set(doneRef.current));
+    if (completed && currentTasks.every((t) => doneRef.current.has(`${day}:${kidId}:${t.id}`))) {
+      setBurst((count) => count + 1);
+    }
     const change = await setTaskCompletion(db, {
       kidId,
       taskId: task.id,
@@ -104,72 +109,85 @@ export function CurrentPeriodTasks() {
     }
   }
 
+  const doneCount = currentTasks.filter((task) => doneKeys.has(`${day}:${kidId}:${task.id}`)).length;
+  const allDone = currentTasks.length > 0 && doneCount === currentTasks.length;
+
   return (
-    <FlatList
-      data={currentTasks}
-      keyExtractor={(task) => String(task.id)}
-      contentContainerStyle={styles.list}
-      ListHeaderComponent={<Text style={styles.heading}>{PERIOD_LABELS[period]} tasks</Text>}
-      ListEmptyComponent={
-        loading ? (
-          <Text style={styles.cardText}>Loading tasks…</Text>
-        ) : (
-          <View style={styles.card}>
-            <Text style={styles.cardEmoji}>🪙</Text>
-            <Text style={styles.cardText}>No tasks for this part of the day.</Text>
-          </View>
-        )
-      }
-      renderItem={({ item }) => {
-        const done = doneKeys.has(`${day}:${kidId}:${item.id}`);
-        return (
-          <Pressable
-            style={styles.row}
-            onPress={() => toggleDone(item)}
-            accessibilityRole="checkbox"
-            accessibilityLabel={item.name}
-            accessibilityState={{ checked: done }}
-          >
-            <IconBadge icon={item.icon} fallbackEmoji="🧹" />
-            <View style={styles.details}>
-              <Text style={[styles.name, done && styles.nameDone]}>{item.name}</Text>
-              <Text style={styles.period}>{PERIOD_LABELS[item.period]}</Text>
+    <View style={styles.container}>
+      <FlatList
+        data={currentTasks}
+        keyExtractor={(task) => String(task.id)}
+        contentContainerStyle={styles.list}
+        ListHeaderComponent={
+          <View style={styles.banner}>
+            <Text style={styles.bannerEmoji}>{PERIOD_EMOJIS[period]}</Text>
+            <View style={styles.bannerText}>
+              <Text style={styles.heading}>{PERIOD_LABELS[period]} tasks</Text>
+              {currentTasks.length > 0 ? (
+                <Text
+                  style={[styles.stars, allDone && styles.allDone]}
+                  accessibilityLabel={`${doneCount} of ${currentTasks.length} done`}
+                >
+                  {allDone
+                    ? 'All done! 🎉'
+                    : '⭐'.repeat(doneCount) + '☆'.repeat(currentTasks.length - doneCount)}
+                </Text>
+              ) : null}
             </View>
-            <Text style={styles.status}>{done ? '✅' : '⬜️'}</Text>
-          </Pressable>
-        );
-      }}
-    />
+          </View>
+        }
+        ListEmptyComponent={
+          loading ? (
+            <Text style={styles.cardText}>Loading tasks…</Text>
+          ) : (
+            <View style={styles.card}>
+              <Text style={styles.cardEmoji}>😴</Text>
+              <Text style={styles.cardText}>No tasks right now. Time to play!</Text>
+            </View>
+          )
+        }
+        renderItem={({ item, index }) => (
+          <FadeInUp index={index}>
+            <TaskCard
+              task={item}
+              done={doneKeys.has(`${day}:${kidId}:${item.id}`)}
+              onPress={() => toggleDone(item)}
+            />
+          </FadeInUp>
+        )}
+      />
+      <Celebration burst={burst} />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  list: { gap: spacing.sm, flexGrow: 1 },
-  heading: { ...typography.heading, color: colors.text, marginBottom: spacing.sm },
+  container: { flex: 1 },
+  list: { gap: spacing.md, flexGrow: 1, paddingBottom: spacing.lg },
+  banner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    backgroundColor: colors.sky,
+    borderRadius: radius.lg,
+    padding: spacing.md,
+    marginBottom: spacing.xs,
+  },
+  bannerEmoji: { fontSize: 44 },
+  bannerText: { flex: 1, gap: 2 },
+  heading: { ...typography.heading, color: colors.text },
+  stars: { fontSize: 22, color: colors.sunshine, fontWeight: '800', letterSpacing: 2 },
+  allDone: { color: colors.successDark, letterSpacing: 0 },
   card: {
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    borderWidth: 2,
+    borderWidth: 3,
     borderColor: colors.border,
     padding: spacing.lg,
     gap: spacing.md,
     alignItems: 'center',
+    ...shadow,
   },
-  cardEmoji: { fontSize: 48 },
+  cardEmoji: { fontSize: 64 },
   cardText: { ...typography.body, color: colors.textMuted, textAlign: 'center' },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 2,
-    borderColor: colors.border,
-    padding: spacing.md,
-  },
-  details: { flex: 1, gap: spacing.xs },
-  name: { ...typography.body, color: colors.text, fontWeight: '600' },
-  nameDone: { color: colors.textMuted, textDecorationLine: 'line-through' },
-  period: { ...typography.caption, color: colors.textMuted },
-  status: { fontSize: 24 },
 });
