@@ -2,6 +2,9 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.wishjar.frame">
 
+  <!-- To read the photos Frameo receives, in /sdcard/frameo_files/media. -->
+  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+
   <application
       android:label="Wish Jar"
       android:icon="@mipmap/ic_launcher"

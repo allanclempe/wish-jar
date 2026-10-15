@@ -1,12 +1,19 @@
 package com.wishjar.frame;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Matrix;
 import android.graphics.Rect;
+import android.media.ExifInterface;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
@@ -24,11 +31,17 @@ import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
 
+import org.json.JSONObject;
+
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -42,6 +55,8 @@ import java.util.Map;
  * - The page is shrunk to the space above the keyboard (fitAboveKeyboard), so a focused input
  *   scrolls into view instead of hiding behind it.
  * - Hold two fingers still on the screen for 1.5 s to open the Frameo app, Android settings or reload.
+ * - Photos sent to the frame with the Frameo phone app are served under /frameo/ for the page's
+ *   photo picker (serveFrameo). The user agent ends in WishJarFrame so the page knows to use them.
  * - Remote debugging is off unless launched with the debug extra:
  *     adb shell am start -n com.wishjar.frame/.MainActivity --ez debug true
  */
@@ -51,13 +66,18 @@ public class MainActivity extends Activity {
   static final String START_URL = "https://" + HOST + "/";
   static final String FRAMEO = "net.frameo.frame";
   static final int PICK_FILE = 1;
+  static final int READ_PHOTOS = 2;
   static final long CONTROLS_HOLD_MS = 1500;
   static final float CONTROLS_SLOP_PX = 60;
+  // Where Frameo keeps the photos it receives. A .nomedia file hides them from the media index.
+  static final File FRAMEO_PHOTOS = new File(Environment.getExternalStorageDirectory(), "frameo_files/media");
+  static final int MAX_PHOTOS = 60;
 
   private WebView web;
   private FrameLayout root;
   private final Rect visible = new Rect();
   private ValueCallback<Uri[]> pendingFiles;
+  private volatile boolean askingForPhotos;
   private final Handler handler = new Handler(Looper.getMainLooper());
   private final int[] holdIds = new int[2];
   private final float[] holdX = new float[2];
@@ -93,11 +113,14 @@ public class MainActivity extends Activity {
     s.setUseWideViewPort(true);
     s.setAllowFileAccess(false);
     s.setAllowContentAccess(false);
+    s.setUserAgentString(s.getUserAgentString() + " WishJarFrame");
     web.setWebViewClient(new WebViewClient() {
       @Override
       public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
         Uri url = request.getUrl();
         if (!"https".equals(url.getScheme()) || !HOST.equals(url.getHost())) return null;
+        List<String> segments = url.getPathSegments();
+        if (!segments.isEmpty() && "frameo".equals(segments.get(0))) return serveFrameo(url);
         return serveAsset(url.getPath());
       }
 
@@ -149,6 +172,12 @@ public class MainActivity extends Activity {
     pendingFiles = null;
   }
 
+  @Override
+  public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
+    // The page's photo picker refreshes every few seconds, so it picks the answer up by itself.
+    if (requestCode == READ_PHOTOS) askingForPhotos = false;
+  }
+
   /**
    * A full-screen window is never resized for the keyboard (adjustResize is ignored with
    * FLAG_FULLSCREEN), so the keyboard would cover the bottom of the page. Size the WebView to the
@@ -194,11 +223,6 @@ public class MainActivity extends Activity {
     } catch (IOException e) {
       return null;
     }
-    Map<String, String> headers = new HashMap<>();
-    headers.put("Cross-Origin-Opener-Policy", "same-origin");
-    headers.put("Cross-Origin-Embedder-Policy", "credentialless");
-    headers.put("Cross-Origin-Resource-Policy", "same-origin");
-    headers.put("Cache-Control", "no-cache");
     String mime = mimeType(file);
     if ("text/html".equals(mime)) {
       try {
@@ -208,7 +232,126 @@ public class MainActivity extends Activity {
         return null;
       }
     }
-    return new WebResourceResponse(mime, null, status, reason, headers, in);
+    return new WebResourceResponse(mime, null, status, reason, headers(), in);
+  }
+
+  private static Map<String, String> headers() {
+    Map<String, String> headers = new HashMap<>();
+    headers.put("Cross-Origin-Opener-Policy", "same-origin");
+    headers.put("Cross-Origin-Embedder-Policy", "credentialless");
+    headers.put("Cross-Origin-Resource-Policy", "same-origin");
+    headers.put("Cache-Control", "no-cache");
+    return headers;
+  }
+
+  /**
+   * The photos sent to the frame with the Frameo phone app, for the page's photo picker
+   * (src/photos/frameo.ts):
+   *   /frameo/photos               the newest ones first, as [{"name": "…", "time": <ms>}]
+   *   /frameo/photos/<name>?size=N  one of them upright, cropped square and N px wide, as JPEG
+   * Both answer 403 until Wish Jar may read shared storage. /frameo/photos?ask=1 also asks for
+   * that permission; the picker passes it when it opens, so a "Deny" isn't asked again on every
+   * refresh.
+   */
+  private WebResourceResponse serveFrameo(Uri url) {
+    List<String> segments = url.getPathSegments();
+    boolean list = segments.size() == 2 && "photos".equals(segments.get(1));
+    boolean photo = segments.size() == 3 && "photos".equals(segments.get(1));
+    if (!list && !photo) return json(404, "Not Found", "{\"error\":\"not found\"}");
+
+    if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+      if (list && "1".equals(url.getQueryParameter("ask")) && !askingForPhotos) {
+        askingForPhotos = true;
+        runOnUiThread(() -> requestPermissions(
+            new String[] {Manifest.permission.READ_EXTERNAL_STORAGE}, READ_PHOTOS));
+      }
+      return json(403, "Forbidden", "{\"error\":\"permission\"}");
+    }
+    if (list) return json(200, "OK", listPhotos());
+
+    String name = segments.get(2);
+    int size = 512;
+    try {
+      size = Math.max(64, Math.min(1024, Integer.parseInt(url.getQueryParameter("size"))));
+    } catch (NumberFormatException e) {
+      // No size or a bad one: keep the default.
+    }
+    // A name is one file straight in Frameo's folder, never a path out of it.
+    byte[] jpeg = name.contains("/") || name.startsWith(".")
+        ? null : squarePhoto(new File(FRAMEO_PHOTOS, name), size);
+    if (jpeg == null) return json(404, "Not Found", "{\"error\":\"not found\"}");
+    return new WebResourceResponse("image/jpeg", null, 200, "OK", headers(), new ByteArrayInputStream(jpeg));
+  }
+
+  /** Frameo's photos, newest first, skipping videos and anything else that isn't an image. */
+  private static String listPhotos() {
+    File[] files = FRAMEO_PHOTOS.listFiles();
+    if (files == null) files = new File[0];
+    Arrays.sort(files, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
+    StringBuilder out = new StringBuilder("[");
+    int count = 0;
+    for (File file : files) {
+      if (count == MAX_PHOTOS) break;
+      if (!file.isFile() || file.getName().startsWith(".")) continue;
+      BitmapFactory.Options bounds = new BitmapFactory.Options();
+      bounds.inJustDecodeBounds = true;
+      BitmapFactory.decodeFile(file.getPath(), bounds);
+      if (bounds.outWidth <= 0) continue;
+      if (count++ > 0) out.append(',');
+      out.append("{\"name\":").append(JSONObject.quote(file.getName()))
+          .append(",\"time\":").append(file.lastModified()).append('}');
+    }
+    return out.append(']').toString();
+  }
+
+  /**
+   * The photo turned upright, centre-cropped to a square and scaled down to size px, as JPEG:
+   * what the app keeps for a kid or an icon. Decoded at the smallest power-of-two sample that is
+   * still big enough, so a large photo never has to fit in memory whole.
+   */
+  private static byte[] squarePhoto(File file, int size) {
+    BitmapFactory.Options options = new BitmapFactory.Options();
+    options.inJustDecodeBounds = true;
+    BitmapFactory.decodeFile(file.getPath(), options);
+    if (options.outWidth <= 0) return null;
+    int side = Math.min(options.outWidth, options.outHeight);
+    options.inJustDecodeBounds = false;
+    options.inSampleSize = 1;
+    while (side / (options.inSampleSize * 2) >= size) options.inSampleSize *= 2;
+    Bitmap decoded = BitmapFactory.decodeFile(file.getPath(), options);
+    if (decoded == null) return null;
+
+    int crop = Math.min(decoded.getWidth(), decoded.getHeight());
+    float scale = Math.min(1f, (float) size / crop);
+    Matrix matrix = new Matrix();
+    matrix.postScale(scale, scale);
+    matrix.postRotate(exifRotation(file));
+    Bitmap square = Bitmap.createBitmap(decoded, (decoded.getWidth() - crop) / 2,
+        (decoded.getHeight() - crop) / 2, crop, crop, matrix, true);
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+    square.compress(Bitmap.CompressFormat.JPEG, 85, out);
+    if (square != decoded) square.recycle();
+    decoded.recycle();
+    return out.toByteArray();
+  }
+
+  private static int exifRotation(File file) {
+    try {
+      switch (new ExifInterface(file.getPath()).getAttributeInt(
+          ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
+        case ExifInterface.ORIENTATION_ROTATE_90: return 90;
+        case ExifInterface.ORIENTATION_ROTATE_180: return 180;
+        case ExifInterface.ORIENTATION_ROTATE_270: return 270;
+        default: return 0;
+      }
+    } catch (IOException e) {
+      return 0;
+    }
+  }
+
+  private static WebResourceResponse json(int status, String reason, String body) {
+    return new WebResourceResponse("application/json", "UTF-8", status, reason, headers(),
+        new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8)));
   }
 
   /** Adds the frame's own stylesheet (Twemoji, no text selection; see web/frame.css) to a page. */

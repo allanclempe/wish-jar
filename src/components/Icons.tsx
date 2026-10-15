@@ -1,7 +1,8 @@
-import * as ImagePicker from 'expo-image-picker';
-import { Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Icon } from '../db';
+import { onFrame } from '../photos/frameo';
+import { usePickPhoto } from '../photos/PhotoPicker';
 import { colors, radius, spacing, typography } from '../theme';
 
 export const ICON_EMOJIS = [
@@ -47,24 +48,11 @@ type IconPickerProps = {
 
 export function IconPicker({ value, fallbackEmoji, onChange, emojis = ICON_EMOJIS }: IconPickerProps) {
   const selectedEmoji = value.photoUri ? null : (value.emoji ?? fallbackEmoji);
+  const pickPhoto = usePickPhoto();
 
-  async function pickPhoto() {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Permission needed', 'Allow access to your photos to add a picture.');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-
-    if (!result.canceled) {
-      onChange({ emoji: null, photoUri: result.assets[0].uri });
-    }
+  async function choosePhoto() {
+    const uri = await pickPhoto();
+    if (uri) onChange({ emoji: null, photoUri: uri });
   }
 
   return (
@@ -92,10 +80,12 @@ export function IconPicker({ value, fallbackEmoji, onChange, emojis = ICON_EMOJI
 
       <Pressable
         style={[styles.gallery, value.photoUri && styles.selected]}
-        onPress={pickPhoto}
+        onPress={choosePhoto}
         accessibilityRole="button"
       >
-        <Text style={styles.galleryText}>📷 Pick a photo from your gallery</Text>
+        <Text style={styles.galleryText}>
+          {onFrame ? '📷 Pick a photo sent with Frameo' : '📷 Pick a photo from your gallery'}
+        </Text>
       </Pressable>
     </View>
   );

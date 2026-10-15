@@ -6,6 +6,7 @@ import { LargeHeader } from '../src/components/LargeHeader';
 import { ActiveKidProvider } from '../src/kids/ActiveKidProvider';
 import { DatabaseProvider } from '../src/db/provider';
 import { ParentLockProvider, useParentLock } from '../src/parent/ParentLockProvider';
+import { PhotoPickerProvider } from '../src/photos/PhotoPicker';
 import { colors, useLargeScreen } from '../src/theme';
 
 const headerStyle = {
@@ -28,8 +29,10 @@ export default function RootLayout() {
       <DatabaseProvider>
         <ActiveKidProvider>
           <ParentLockProvider>
-            <StatusBar style="dark" />
-            <RootStack />
+            <PhotoPickerProvider>
+              <StatusBar style="dark" />
+              <RootStack />
+            </PhotoPickerProvider>
           </ParentLockProvider>
         </ActiveKidProvider>
       </DatabaseProvider>
