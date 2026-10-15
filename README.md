@@ -36,3 +36,8 @@ tailnet even when the machine is a VM. Set `REACT_NATIVE_PACKAGER_HOSTNAME`
 to choose another address.
 
 See [AGENTS.md](./AGENTS.md) for project conventions and commands.
+
+## Frameo photo frame
+
+Wish Jar can also run full screen on a Frameo photo frame. See
+[frame/README.md](./frame/README.md).
