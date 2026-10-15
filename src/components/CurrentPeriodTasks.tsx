@@ -11,7 +11,7 @@ import {
   type Task,
 } from '../db';
 import { useActiveKid } from '../kids/ActiveKidProvider';
-import { colors, radius, shadow, spacing, typography } from '../theme';
+import { colors, radius, shadow, spacing, typography, useLargeScreen } from '../theme';
 import { currentPeriod, PERIOD_EMOJIS, PERIOD_LABELS, tasksForPeriod } from '../tasks/period';
 import { dayKey } from '../tasks/day';
 import { wishesUnlockedBy } from '../wishes/order';
@@ -25,6 +25,7 @@ const UNLOCK_DELAY_MS = 900;
 export function CurrentPeriodTasks() {
   const db = useDatabase();
   const { activeKid, recordTaskCompletion } = useActiveKid();
+  const large = useLargeScreen();
   const activeKidId = activeKid?.id ?? null;
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
@@ -158,14 +159,19 @@ export function CurrentPeriodTasks() {
     }, UNLOCK_DELAY_MS);
   }
 
+  const columns = large ? 2 : 1;
   const doneCount = currentTasks.filter((task) => doneKeys.has(`${day}:${kidId}:${task.id}`)).length;
   const allDone = currentTasks.length > 0 && doneCount === currentTasks.length;
 
   return (
     <View style={styles.container}>
       <FlatList
+        // FlatList can't change its column count in place, so remount on change.
+        key={columns}
         data={currentTasks}
         keyExtractor={(task) => String(task.id)}
+        numColumns={columns}
+        columnWrapperStyle={columns > 1 ? styles.columns : undefined}
         contentContainerStyle={styles.list}
         ListHeaderComponent={
           <View style={styles.banner}>
@@ -196,7 +202,7 @@ export function CurrentPeriodTasks() {
           )
         }
         renderItem={({ item, index }) => (
-          <FadeInUp index={index}>
+          <FadeInUp index={index} style={columns > 1 && styles.cell}>
             <TaskCard
               task={item}
               done={doneKeys.has(`${day}:${kidId}:${item.id}`)}
@@ -213,6 +219,9 @@ export function CurrentPeriodTasks() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   list: { gap: spacing.md, flexGrow: 1, paddingBottom: spacing.lg },
+  columns: { gap: spacing.md },
+  // Half the row each, so a lone last task stays the same size.
+  cell: { flex: 1, maxWidth: '50%' },
   banner: {
     flexDirection: 'row',
     alignItems: 'center',

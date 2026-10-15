@@ -4,12 +4,14 @@ import { Animated, StyleSheet } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useNativeDriver } from '../../src/components/Animations';
+import { TopTabBar } from '../../src/components/TopTabBar';
 import { useActiveKid } from '../../src/kids/ActiveKidProvider';
 import { KidSwitcher } from '../../src/kids/KidSwitcher';
-import { colors } from '../../src/theme';
+import { colors, useLargeScreen } from '../../src/theme';
 
 // Jumps and grows when its tab is chosen.
 function TabEmoji({ emoji, focused }: { emoji: string; focused: boolean }) {
+  const large = useLargeScreen();
   const [focus] = useState(() => new Animated.Value(focused ? 1 : 0));
 
   useEffect(() => {
@@ -25,6 +27,7 @@ function TabEmoji({ emoji, focused }: { emoji: string; focused: boolean }) {
     <Animated.Text
       style={[
         styles.emoji,
+        large && styles.emojiLarge,
         {
           opacity: focus.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] }),
           transform: [
@@ -42,6 +45,7 @@ function TabEmoji({ emoji, focused }: { emoji: string; focused: boolean }) {
 export default function TabsLayout() {
   const { ready } = useActiveKid();
   const insets = useSafeAreaInsets();
+  const large = useLargeScreen();
 
   if (!ready) {
     return null;
@@ -49,9 +53,12 @@ export default function TabsLayout() {
 
   return (
     <Tabs
+      // Large screens move the tabs up into the kids bar (TopTabBar).
+      tabBar={large ? (props) => <TopTabBar {...props} /> : undefined}
       screenOptions={{
-        headerShown: true,
+        headerShown: !large,
         header: () => <KidSwitcher />,
+        tabBarPosition: large ? 'top' : 'bottom',
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.textMuted,
         tabBarStyle: {
@@ -92,4 +99,5 @@ export default function TabsLayout() {
 
 const styles = StyleSheet.create({
   emoji: { fontSize: 26 },
+  emojiLarge: { fontSize: 34 },
 });

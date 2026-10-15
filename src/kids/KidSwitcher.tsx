@@ -1,19 +1,25 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Animated, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useNativeDriver } from '../components/Animations';
 import { ParentLockButton } from '../parent/ParentLockButton';
 import { useActiveKid } from './ActiveKidProvider';
-import { colors, radius, spacing, typography } from '../theme';
+import { colors, radius, spacing, typography, useLargeScreen } from '../theme';
 
-export function KidSwitcher() {
+type KidSwitcherProps = {
+  // On large screens the tabs sit in this bar instead of at the bottom.
+  tabs?: ReactNode;
+};
+
+export function KidSwitcher({ tabs }: KidSwitcherProps) {
   const { kids, activeKid, savings, selectKid } = useActiveKid();
   const coins = activeKid ? (savings[activeKid.id] ?? 0) : 0;
+  const large = useLargeScreen();
 
   return (
     <SafeAreaView edges={['top']} style={styles.safe}>
-      <View style={styles.bar}>
+      <View style={[styles.bar, large && styles.barLarge]}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -26,11 +32,13 @@ export function KidSwitcher() {
               name={kid.name}
               photoUri={kid.photoUri}
               active={kid.id === activeKid?.id}
+              large={large}
               onPress={() => selectKid(kid.id)}
             />
           ))}
         </ScrollView>
-        {activeKid ? <CoinCounter coins={coins} /> : null}
+        {tabs}
+        {activeKid ? <CoinCounter coins={coins} large={large} /> : null}
         <ParentLockButton />
       </View>
     </SafeAreaView>
@@ -41,10 +49,11 @@ type KidAvatarProps = {
   name: string;
   photoUri: string | null;
   active: boolean;
+  large: boolean;
   onPress: () => void;
 };
 
-function KidAvatar({ name, photoUri, active, onPress }: KidAvatarProps) {
+function KidAvatar({ name, photoUri, active, large, onPress }: KidAvatarProps) {
   const [pop] = useState(() => new Animated.Value(active ? 1 : 0));
 
   useEffect(() => {
@@ -66,14 +75,17 @@ function KidAvatar({ name, photoUri, active, onPress }: KidAvatarProps) {
         }}
       >
         {photoUri ? (
-          <Image source={{ uri: photoUri }} style={[styles.avatar, active && styles.avatarActive]} />
+          <Image
+            source={{ uri: photoUri }}
+            style={[styles.avatar, large && styles.avatarLarge, active && styles.avatarActive]}
+          />
         ) : (
-          <View style={[styles.avatar, styles.avatarEmpty, active && styles.avatarActive]}>
-            <Text style={styles.avatarEmoji}>🙂</Text>
+          <View style={[styles.avatar, large && styles.avatarLarge, styles.avatarEmpty, active && styles.avatarActive]}>
+            <Text style={[styles.avatarEmoji, large && styles.avatarEmojiLarge]}>🙂</Text>
           </View>
         )}
       </Animated.View>
-      <Text style={[styles.name, active && styles.nameActive]} numberOfLines={1}>
+      <Text style={[styles.name, large && styles.nameLarge, active && styles.nameActive]} numberOfLines={1}>
         {name}
       </Text>
     </Pressable>
@@ -81,7 +93,7 @@ function KidAvatar({ name, photoUri, active, onPress }: KidAvatarProps) {
 }
 
 // Bounces whenever the count goes up, so earning a coin is felt up here too.
-function CoinCounter({ coins }: { coins: number }) {
+function CoinCounter({ coins, large }: { coins: number; large: boolean }) {
   const [bounce] = useState(() => new Animated.Value(1));
   const previous = useRef(coins);
 
@@ -95,19 +107,21 @@ function CoinCounter({ coins }: { coins: number }) {
 
   return (
     <Animated.View
-      style={[styles.coins, { transform: [{ scale: bounce }] }]}
+      style={[styles.coins, large && styles.coinsLarge, { transform: [{ scale: bounce }] }]}
       accessibilityLabel={`${coins} ${coins === 1 ? 'coin' : 'coins'}`}
     >
-      <Text style={styles.coinsText}>🪙 {coins}</Text>
+      <Text style={[styles.coinsText, large && styles.coinsTextLarge]}>🪙 {coins}</Text>
     </Animated.View>
   );
 }
 
 const AVATAR_SIZE = 52;
+const AVATAR_SIZE_LARGE = 84;
 
 const styles = StyleSheet.create({
   safe: { backgroundColor: colors.surface, borderBottomWidth: 2, borderBottomColor: colors.border },
   bar: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingRight: spacing.md, minHeight: 64 },
+  barLarge: { gap: spacing.md, paddingRight: spacing.lg, minHeight: 112 },
   scroll: { flex: 1 },
   row: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, gap: spacing.md },
   coins: {
@@ -123,7 +137,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     elevation: 3,
   },
+  coinsLarge: { paddingVertical: spacing.sm, paddingHorizontal: spacing.lg },
   coinsText: { fontSize: 26, fontWeight: '900', color: colors.text },
+  coinsTextLarge: { fontSize: 36 },
   kid: { alignItems: 'center', gap: spacing.xs },
   avatar: {
     width: AVATAR_SIZE,
@@ -132,9 +148,12 @@ const styles = StyleSheet.create({
     borderWidth: 3,
     borderColor: colors.border,
   },
+  avatarLarge: { width: AVATAR_SIZE_LARGE, height: AVATAR_SIZE_LARGE, borderRadius: AVATAR_SIZE_LARGE / 2 },
   avatarActive: { borderColor: colors.primary, borderWidth: 4 },
   avatarEmpty: { backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
   avatarEmoji: { fontSize: 26 },
+  avatarEmojiLarge: { fontSize: 44 },
   name: { ...typography.caption, color: colors.textMuted, maxWidth: 72 },
+  nameLarge: { fontSize: 18, maxWidth: 110 },
   nameActive: { color: colors.text, fontWeight: '800' },
 });
