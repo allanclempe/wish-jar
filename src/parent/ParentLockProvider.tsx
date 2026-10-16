@@ -29,6 +29,9 @@ type ParentLockContextValue = {
   requestPin: (text?: PinPromptText) => Promise<boolean>;
   // Asks for the PIN unless already unlocked, then opens a grown-up screen.
   openParentScreen: (href: Href) => Promise<void>;
+  // Keeps the PIN unlocked while the app is away on purpose for a grown-up, as
+  // long as it's back within `ms`; a longer absence locks as usual.
+  keepUnlockedWhileAway: (ms: number) => void;
 };
 
 const ParentLockContext = createContext<ParentLockContextValue | null>(null);
@@ -51,11 +54,22 @@ export function ParentLockProvider({ children }: PropsWithChildren) {
     wasInTabs.current = inTabs;
   }, [inTabs]);
 
+  // When a trip away (keepUnlockedWhileAway) must be over by; 0 for none.
+  const awayUntil = useRef(0);
+
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'background') setUnlocked(false);
+      if (state === 'background' && awayUntil.current === 0) setUnlocked(false);
+      if (state === 'active' && awayUntil.current !== 0) {
+        if (Date.now() > awayUntil.current) setUnlocked(false);
+        awayUntil.current = 0;
+      }
     });
     return () => subscription.remove();
+  }, []);
+
+  const keepUnlockedWhileAway = useCallback((ms: number) => {
+    awayUntil.current = Date.now() + ms;
   }, []);
 
   // Grown-up screens are guarded by `unlocked`, so push only once the
@@ -100,8 +114,8 @@ export function ParentLockProvider({ children }: PropsWithChildren) {
   );
 
   const value = useMemo<ParentLockContextValue>(
-    () => ({ unlocked, requestPin, openParentScreen }),
-    [unlocked, requestPin, openParentScreen],
+    () => ({ unlocked, requestPin, openParentScreen, keepUnlockedWhileAway }),
+    [unlocked, requestPin, openParentScreen, keepUnlockedWhileAway],
   );
 
   return (
