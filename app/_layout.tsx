@@ -12,7 +12,7 @@ import { colors, useLargeScreen } from '../src/theme';
 const headerStyle = {
   headerShown: true,
   headerTintColor: colors.text,
-  headerStyle: { backgroundColor: colors.background },
+  headerStyle: { backgroundColor: colors.surface },
 };
 
 function page(title: string) {
