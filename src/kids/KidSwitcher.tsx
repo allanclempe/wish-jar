@@ -8,7 +8,7 @@ import { useActiveKid } from './ActiveKidProvider';
 import { colors, radius, spacing, typography, useLargeScreen } from '../theme';
 
 type KidSwitcherProps = {
-  // On large screens the tabs sit in this bar instead of at the bottom.
+  // On large screens and in landscape the tabs sit in this bar instead of at the bottom.
   tabs?: ReactNode;
 };
 

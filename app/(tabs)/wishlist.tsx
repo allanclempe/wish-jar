@@ -162,8 +162,9 @@ const styles = StyleSheet.create({
   list: { flexGrow: 1, padding: spacing.lg, gap: spacing.md },
   column: { gap: spacing.md },
   heading: { ...typography.title, color: colors.text, marginBottom: spacing.xs },
+  // Grows to fill the list, but never shrinks below its content on a short screen.
   card: {
-    flex: 1,
+    flexGrow: 1,
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     borderWidth: 3,

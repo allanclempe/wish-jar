@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { TabToggle, type TabBarProps } from './TabToggle';
 import { colors, spacing } from '../theme';
 
-// Phones have no room for the tabs in the kids bar, so the same toggle sits
+// Upright phones have no room for the tabs in the kids bar, so the same toggle sits
 // at the bottom, in reach of a thumb.
 export function BottomTabBar(props: TabBarProps) {
   return (

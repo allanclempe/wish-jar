@@ -44,4 +44,4 @@ export const shadow = {
   elevation: 3,
 };
 
-export { useLargeScreen } from './layout';
+export { useLargeScreen, useTabsOnTop } from './layout';

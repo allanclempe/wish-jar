@@ -69,7 +69,7 @@ export default function ConsequencesScreen() {
             contentContainerStyle={styles.list}
             ListHeaderComponent={<Text style={styles.heading}>Today</Text>}
             ListEmptyComponent={
-              <View style={styles.card}>
+              <View style={[styles.card, styles.cardInList]}>
                 <Text style={styles.cardEmoji}>😇</Text>
                 <Text style={styles.cardText}>Nothing today. Keep it that way!</Text>
               </View>
@@ -138,6 +138,9 @@ const styles = StyleSheet.create({
   },
   cardEmoji: { fontSize: 64 },
   cardText: { ...typography.body, color: colors.textMuted, textAlign: 'center' },
+  // Fills the list's free space, but never shrinks below its own content when
+  // the screen is short (a phone in landscape), or the button would cover it.
+  cardInList: { flex: 0, flexGrow: 1 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
