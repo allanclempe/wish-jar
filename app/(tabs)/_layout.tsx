@@ -1,17 +1,16 @@
 import { Tabs } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Animated, StyleSheet } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { useNativeDriver } from '../../src/components/Animations';
+import { BottomTabBar } from '../../src/components/BottomTabBar';
 import { TopTabBar } from '../../src/components/TopTabBar';
 import { useActiveKid } from '../../src/kids/ActiveKidProvider';
 import { KidSwitcher } from '../../src/kids/KidSwitcher';
-import { colors, useLargeScreen } from '../../src/theme';
+import { useLargeScreen } from '../../src/theme';
 
-// Jumps and grows when its tab is chosen. On large screens it only brightens:
-// the top toggle's sliding thumb already shows the choice, and a bigger icon
-// would sit off-centre in it.
+// Brightens when its tab is chosen. It stays one size: the toggle's sliding
+// thumb already shows the choice, and a bigger icon would sit off-centre in it.
 function TabEmoji({ emoji, focused }: { emoji: string; focused: boolean }) {
   const large = useLargeScreen();
   const [focus] = useState(() => new Animated.Value(focused ? 1 : 0));
@@ -19,8 +18,8 @@ function TabEmoji({ emoji, focused }: { emoji: string; focused: boolean }) {
   useEffect(() => {
     Animated.spring(focus, {
       toValue: focused ? 1 : 0,
-      friction: 4,
-      tension: 120,
+      friction: 8,
+      tension: 90,
       useNativeDriver,
     }).start();
   }, [focused, focus]);
@@ -32,12 +31,6 @@ function TabEmoji({ emoji, focused }: { emoji: string; focused: boolean }) {
         large && styles.emojiLarge,
         {
           opacity: focus.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] }),
-          transform: large
-            ? []
-            : [
-                { scale: focus.interpolate({ inputRange: [0, 1], outputRange: [1, 1.3] }) },
-                { translateY: focus.interpolate({ inputRange: [0, 1], outputRange: [0, -4] }) },
-              ],
         },
       ]}
     >
@@ -48,7 +41,6 @@ function TabEmoji({ emoji, focused }: { emoji: string; focused: boolean }) {
 
 export default function TabsLayout() {
   const { ready } = useActiveKid();
-  const insets = useSafeAreaInsets();
   const large = useLargeScreen();
 
   if (!ready) {
@@ -57,23 +49,12 @@ export default function TabsLayout() {
 
   return (
     <Tabs
-      // Large screens move the tabs up into the kids bar (TopTabBar).
-      tabBar={large ? (props) => <TopTabBar {...props} /> : undefined}
+      // The tabs are one toggle: in the kids bar on large screens, at the bottom on phones.
+      tabBar={(props) => (large ? <TopTabBar {...props} /> : <BottomTabBar {...props} />)}
       screenOptions={{
         headerShown: !large,
         header: () => <KidSwitcher />,
         tabBarPosition: large ? 'top' : 'bottom',
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textMuted,
-        tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-          borderTopWidth: 2,
-          height: 76 + insets.bottom,
-          paddingBottom: 8 + insets.bottom,
-          paddingTop: 10,
-        },
-        tabBarLabelStyle: { fontSize: 13, fontWeight: '800' },
       }}
     >
       <Tabs.Screen
