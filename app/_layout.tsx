@@ -6,7 +6,9 @@ import { LargeHeader } from '../src/components/LargeHeader';
 import { ActiveKidProvider } from '../src/kids/ActiveKidProvider';
 import { DatabaseProvider } from '../src/db/provider';
 import { ParentLockProvider, useParentLock } from '../src/parent/ParentLockProvider';
+import { frameoPhotos } from '../src/photos/frameo';
 import { PhotoPickerProvider } from '../src/photos/PhotoPicker';
+import { IdleSlideshow } from '../src/photos/Slideshow';
 import { colors, useLargeScreen } from '../src/theme';
 
 const headerStyle = {
@@ -32,6 +34,7 @@ export default function RootLayout() {
             <PhotoPickerProvider>
               <StatusBar style="dark" />
               <RootStack />
+              {frameoPhotos ? <IdleSlideshow /> : null}
             </PhotoPickerProvider>
           </ParentLockProvider>
         </ActiveKidProvider>

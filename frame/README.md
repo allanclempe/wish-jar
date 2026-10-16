@@ -87,6 +87,26 @@ app reads the folder directly, which needs Android's storage permission
 - `/frameo/photos` lists the newest 60 photos, skipping videos.
 - `/frameo/photos/<name>?size=N` turns one upright (EXIF), crops it to the
   middle square and scales it to N px. The app keeps it at 512 px.
+- `/frameo/photos/<name>?width=W&height=H` turns one upright and scales the
+  whole photo to fit inside W×H px, for the slideshow below.
+
+### Slideshow while nobody's using it
+
+Wish Jar keeps the screen on, so on its own the frame would show Wish Jar all
+day and never the family's photos. Handing over to Frameo's slideshow doesn't
+work: Frameo can't open other apps, so a tap would leave the frame in Frameo.
+
+So once nobody has touched the frame for 3 minutes, Wish Jar shows the photos
+sent with Frameo itself (`src/photos/Slideshow.tsx`): the newest first, 15
+seconds each, fading from one to the next. Along the bottom, each kid's card
+shows their coins and the wish they're closest to, with its progress bar. A tap
+anywhere goes back to the screen that was open.
+
+The photo list is read again after each round, so a photo sent in the
+meantime joins the next one. With no photos yet, or no permission to read them
+(see [Adding photos from a phone](#7-adding-photos-from-a-phone)), Wish Jar
+just stays on screen. The slideshow comes with the Frameo photo picker, so a
+frame built with `FRAMEO_PHOTOS=0` has neither.
 
 It's a build option of the frame app. `frame/build.sh` writes
 `/frame/config.js`, which the app adds to every page, with
