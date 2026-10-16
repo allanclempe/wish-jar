@@ -39,6 +39,13 @@
           "photosPermission": "Allow $(PRODUCT_NAME) to use your photos for kids, tasks and wishes.",
           "cameraPermission": "Allow $(PRODUCT_NAME) to take photos for kids, tasks and wishes."
         }
+      ],
+      [
+        "expo-audio",
+        {
+          "recordAudioAndroid": false,
+          "enableBackgroundPlayback": false
+        }
       ]
     ],
     "extra": {

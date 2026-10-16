@@ -18,6 +18,7 @@ import { ParentLockProvider, useParentLock } from '../src/parent/ParentLockProvi
 import { frameoPhotos } from '../src/photos/frameo';
 import { PhotoPickerProvider } from '../src/photos/PhotoPicker';
 import { IdleSlideshow } from '../src/photos/Slideshow';
+import { SoundProvider } from '../src/sound/SoundProvider';
 import { colors, fonts, useLargeScreen } from '../src/theme';
 
 // The splash stays up until the fonts are in, so the first screen never shows
@@ -65,11 +66,13 @@ export default function RootLayout() {
       <DatabaseProvider>
         <ActiveKidProvider>
           <ParentLockProvider>
-            <PhotoPickerProvider>
-              <StatusBar style="dark" />
-              <RootStack />
-              {frameoPhotos ? <IdleSlideshow /> : null}
-            </PhotoPickerProvider>
+            <SoundProvider>
+              <PhotoPickerProvider>
+                <StatusBar style="dark" />
+                <RootStack />
+                {frameoPhotos ? <IdleSlideshow /> : null}
+              </PhotoPickerProvider>
+            </SoundProvider>
           </ParentLockProvider>
         </ActiveKidProvider>
       </DatabaseProvider>

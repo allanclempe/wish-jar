@@ -7,17 +7,20 @@ import {
   listTasks,
   listWishes,
   setTaskCompletion,
+  sumCoinsEarnedOn,
   useDatabase,
   type Period,
   type Task,
 } from '../db';
 import { useActiveKid } from '../kids/ActiveKidProvider';
+import { useSound } from '../sound/SoundProvider';
 import { fonts, skies, spacing, typography, useLargeScreen } from '../theme';
 import { PERIOD_EMOJIS, tasksForPeriod } from '../tasks/period';
 import { wishesUnlockedBy } from '../wishes/order';
 import { Celebration, FadeInUp } from './Animations';
 import { CoinJar } from './CoinJar';
 import { EmptyState } from './EmptyState';
+import { PeriodDoneOverlay } from './PeriodDoneOverlay';
 import { TaskCard } from './TaskCard';
 import { TILE_TILT_DEG } from './PhotoTile';
 
@@ -75,6 +78,12 @@ export function gridMetrics(
 // Lets the tick's coin float and confetti play before the achievement opens.
 const UNLOCK_DELAY_MS = 900;
 
+// The period celebration shows once per kid per period per day, however many
+// times the last task is un-ticked and ticked again. Kept for the app's run:
+// it only ever opens off a tap, so a restart with everything already ticked
+// shows nothing anyway.
+const celebrated = new Set<string>();
+
 type CurrentPeriodTasksProps = {
   // The period and day from the screen's clock (useClock), which also drives
   // the sky behind this list.
@@ -85,6 +94,7 @@ type CurrentPeriodTasksProps = {
 export function CurrentPeriodTasks({ period, day }: CurrentPeriodTasksProps) {
   const db = useDatabase();
   const { activeKid, recordTaskCompletion } = useActiveKid();
+  const { playFanfare } = useSound();
   const large = useLargeScreen();
   const activeKidId = activeKid?.id ?? null;
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -99,6 +109,12 @@ export function CurrentPeriodTasks({ period, day }: CurrentPeriodTasksProps) {
   // Wishes unlocked by quick ticks in a row open together on one screen, keyed
   // by id with their coin amount so an un-tick before it opens can drop them.
   const pendingUnlocks = useRef(new Map<number, number>());
+  // The period-complete celebration: its timer while it waits for the tick's
+  // animation, then the coins it shows while open. Unlocked wishes wait for it
+  // to close (`holdUnlocks`) so the two never open over each other.
+  const celebrationTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const holdUnlocks = useRef(false);
+  const [celebration, setCelebration] = useState<{ coinsToday: number } | null>(null);
   // The space the grid may fill: the list minus the banner above it.
   const [listSize, setListSize] = useState({ width: 0, height: 0 });
   const [bannerHeight, setBannerHeight] = useState(0);
@@ -106,9 +122,23 @@ export function CurrentPeriodTasks({ period, day }: CurrentPeriodTasksProps) {
   useEffect(
     () => () => {
       if (unlockTimer.current) clearTimeout(unlockTimer.current);
+      if (celebrationTimer.current) clearTimeout(celebrationTimer.current);
     },
     [],
   );
+
+  // A celebration belongs to one kid's period on one day; switching kid or
+  // crossing into the next period drops a pending or open one.
+  useEffect(() => {
+    return () => {
+      if (celebrationTimer.current) {
+        clearTimeout(celebrationTimer.current);
+        celebrationTimer.current = null;
+      }
+      holdUnlocks.current = false;
+      setCelebration(null);
+    };
+  }, [activeKidId, period, day]);
 
   // Tasks are shared across kids today, so activeKidId only triggers a reload
   // when the selected kid changes.
@@ -163,6 +193,12 @@ export function CurrentPeriodTasks({ period, day }: CurrentPeriodTasksProps) {
     setDoneKeys(new Set(doneRef.current));
     if (completed && currentTasks.every((t) => doneRef.current.has(`${day}:${kidId}:${t.id}`))) {
       setBurst((count) => count + 1);
+      // Still inside the tap, before the await: the frame's WebView only
+      // starts a sound from a gesture.
+      playFanfare();
+      scheduleCelebration();
+    } else if (!completed) {
+      cancelCelebration();
     }
     const change = await setTaskCompletion(db, {
       kidId,
@@ -180,6 +216,44 @@ export function CurrentPeriodTasks({ period, day }: CurrentPeriodTasksProps) {
     }
   }
 
+  // Opens about a second after the last tick, once its sticker, coins and
+  // confetti have played. An un-tick before then cancels it.
+  function scheduleCelebration() {
+    const key = `${day}:${kidId}:${period}`;
+    if (celebrated.has(key)) return;
+    if (celebrationTimer.current) clearTimeout(celebrationTimer.current);
+    // A wish an earlier tick unlocked waits too, instead of opening over this.
+    if (unlockTimer.current) {
+      clearTimeout(unlockTimer.current);
+      unlockTimer.current = null;
+    }
+    holdUnlocks.current = true;
+    celebrationTimer.current = setTimeout(async () => {
+      celebrationTimer.current = null;
+      celebrated.add(key);
+      // Today's coins across every period, read once the tick is saved.
+      const coinsToday = await sumCoinsEarnedOn(db, kidId, day).catch(() => 0);
+      if (!holdUnlocks.current) return;
+      setCelebration({ coinsToday });
+    }, UNLOCK_DELAY_MS);
+  }
+
+  function cancelCelebration() {
+    if (!celebrationTimer.current) return;
+    clearTimeout(celebrationTimer.current);
+    celebrationTimer.current = null;
+    holdUnlocks.current = false;
+  }
+
+  // Closing the celebration lets any wish the last tick unlocked open next,
+  // on top of the wishes tab when the kid chose to go there.
+  function closeCelebration(seeWishes: boolean) {
+    setCelebration(null);
+    holdUnlocks.current = false;
+    if (seeWishes) router.dismissTo('/wishlist');
+    if (pendingUnlocks.current.size > 0) openUnlockedWishes();
+  }
+
   function dropRelockedWishes(savings: number) {
     for (const [wishId, coinAmount] of pendingUnlocks.current) {
       if (coinAmount > savings) pendingUnlocks.current.delete(wishId);
@@ -188,6 +262,22 @@ export function CurrentPeriodTasks({ period, day }: CurrentPeriodTasksProps) {
       clearTimeout(unlockTimer.current);
       unlockTimer.current = null;
     }
+    // Unlocks that waited on a celebration the un-tick just cancelled.
+    if (pendingUnlocks.current.size > 0 && !unlockTimer.current && !holdUnlocks.current) {
+      openUnlockedWishesSoon();
+    }
+  }
+
+  function openUnlockedWishes() {
+    const ids = [...pendingUnlocks.current.keys()].join(',');
+    pendingUnlocks.current.clear();
+    unlockTimer.current = null;
+    router.push({ pathname: '/wish-unlocked', params: { ids } });
+  }
+
+  function openUnlockedWishesSoon() {
+    if (unlockTimer.current) clearTimeout(unlockTimer.current);
+    unlockTimer.current = setTimeout(openUnlockedWishes, UNLOCK_DELAY_MS);
   }
 
   async function showUnlockedWishes(before: number, after: number) {
@@ -195,13 +285,9 @@ export function CurrentPeriodTasks({ period, day }: CurrentPeriodTasksProps) {
     const unlocked = wishesUnlockedBy(kidWishes, before, after);
     if (unlocked.length === 0) return;
     for (const wish of unlocked) pendingUnlocks.current.set(wish.id, wish.coinAmount);
-    if (unlockTimer.current) clearTimeout(unlockTimer.current);
-    unlockTimer.current = setTimeout(() => {
-      const ids = [...pendingUnlocks.current.keys()].join(',');
-      pendingUnlocks.current.clear();
-      unlockTimer.current = null;
-      router.push({ pathname: '/wish-unlocked', params: { ids } });
-    }, UNLOCK_DELAY_MS);
+    // With the period celebration on its way, the wishes open once it closes.
+    if (holdUnlocks.current) return;
+    openUnlockedWishesSoon();
   }
 
   const doneCount = currentTasks.filter((task) => doneKeys.has(`${day}:${kidId}:${task.id}`)).length;
@@ -296,6 +382,16 @@ export function CurrentPeriodTasks({ period, day }: CurrentPeriodTasksProps) {
         ) : null}
       </ScrollView>
       <Celebration burst={burst} />
+      {celebration ? (
+        <PeriodDoneOverlay
+          kid={activeKid}
+          period={period}
+          total={currentTasks.length}
+          coinsToday={celebration.coinsToday}
+          onSeeWishes={() => closeCelebration(true)}
+          onKeepGoing={() => closeCelebration(false)}
+        />
+      ) : null}
     </View>
   );
 }

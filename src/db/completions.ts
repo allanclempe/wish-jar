@@ -44,6 +44,18 @@ export async function listCompletedTaskIds(
   return rows.map((row) => row.task_id);
 }
 
+// Every coin the kid earned on one day, over all periods: what the
+// period-complete celebration shows as "+17 today". Consequences are not
+// taken off; they live in their own table.
+export async function sumCoinsEarnedOn(db: SQLiteDatabase, kidId: number, dayKey: string): Promise<number> {
+  const row = await db.getFirstAsync<{ total: number | null }>(
+    'SELECT SUM(coin_amount) AS total FROM completions WHERE kid_id = ? AND day_key = ?',
+    kidId,
+    dayKey,
+  );
+  return row?.total ?? 0;
+}
+
 export async function getKidSavings(db: SQLiteDatabase, kidId: number): Promise<number> {
   const row = await db.getFirstAsync<{ amount: number }>(
     'SELECT amount FROM kid_savings WHERE kid_id = ?',

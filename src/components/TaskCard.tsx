@@ -3,8 +3,9 @@ import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import type { Task } from '../db';
+import { useSound } from '../sound/SoundProvider';
 import { colors, fonts, offsetShadow, pastelFor, radius, spacing, sunshineShadow } from '../theme';
-import { useNativeDriver } from './Animations';
+import { Celebration, useNativeDriver } from './Animations';
 import { PhotoTile, tiltForIndex } from './PhotoTile';
 
 type TaskCardProps = {
@@ -18,12 +19,16 @@ type TaskCardProps = {
   style?: StyleProp<ViewStyle>;
 };
 
-// A big photo tile for one task. Ticking it squishes the card, pops a check in
-// and floats the coins up toward the counter in the header.
+// A big photo tile for one task. Ticking it squishes the card, pops a check
+// in, slaps a DONE sticker over the photo, bursts a little confetti and
+// floats the coins up toward the counter in the header, with a ding.
 export function TaskCard({ task, done, onPress, index = 0, large = false, style }: TaskCardProps) {
+  const { playCoin } = useSound();
   const [squish] = useState(() => new Animated.Value(1));
+  // Drives the check and the sticker: both spring in off this one value.
   const [check] = useState(() => new Animated.Value(done ? 1 : 0));
   const [coinFloat] = useState(() => new Animated.Value(0));
+  const [burst, setBurst] = useState(0);
   // Only a tap animates; ticks loaded from the database just appear.
   const tapped = useRef(false);
 
@@ -56,6 +61,11 @@ export function TaskCard({ task, done, onPress, index = 0, large = false, style 
 
   function press() {
     tapped.current = true;
+    // Before anything async: browsers only start a sound from inside the tap.
+    if (!done) {
+      playCoin();
+      setBurst((count) => count + 1);
+    }
     onPress();
   }
 
@@ -85,6 +95,24 @@ export function TaskCard({ task, done, onPress, index = 0, large = false, style 
                 <Text style={[styles.coinText, large && styles.coinTextLarge]}>🪙 {task.coinAmount}</Text>
               </View>
             }
+            sticker={
+              <Animated.View
+                style={[
+                  styles.sticker,
+                  large && styles.stickerLarge,
+                  {
+                    opacity: check.interpolate({ inputRange: [0, 0.25, 1], outputRange: [0, 1, 1] }),
+                    transform: [
+                      { rotate: '-12deg' },
+                      // Lands from above the card and overshoots, like a real slap.
+                      { scale: check.interpolate({ inputRange: [0, 1], outputRange: [2.6, 1] }) },
+                    ],
+                  },
+                ]}
+              >
+                <Text style={[styles.stickerText, large && styles.stickerTextLarge]}>DONE!</Text>
+              </Animated.View>
+            }
             bottomRight={
               <View
                 style={[
@@ -108,21 +136,24 @@ export function TaskCard({ task, done, onPress, index = 0, large = false, style 
               </View>
             }
             above={
-              <Animated.Text
-                pointerEvents="none"
-                style={[
-                  styles.coinFloat,
-                  {
-                    opacity: coinFloat.interpolate({ inputRange: [0, 0.15, 0.7, 1], outputRange: [0, 1, 1, 0] }),
-                    transform: [
-                      { translateY: coinFloat.interpolate({ inputRange: [0, 1], outputRange: [0, -90] }) },
-                      { scale: coinFloat.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0.6, 1.3, 1] }) },
-                    ],
-                  },
-                ]}
-              >
-                +{task.coinAmount} 🪙
-              </Animated.Text>
+              <>
+                <Celebration burst={burst} size={large ? 26 : 20} count={10} />
+                <Animated.Text
+                  pointerEvents="none"
+                  style={[
+                    styles.coinFloat,
+                    {
+                      opacity: coinFloat.interpolate({ inputRange: [0, 0.15, 0.7, 1], outputRange: [0, 1, 1, 0] }),
+                      transform: [
+                        { translateY: coinFloat.interpolate({ inputRange: [0, 1], outputRange: [0, -90] }) },
+                        { scale: coinFloat.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0.6, 1.3, 1] }) },
+                      ],
+                    },
+                  ]}
+                >
+                  +{task.coinAmount} 🪙
+                </Animated.Text>
+              </>
             }
           />
         </Animated.View>
@@ -157,6 +188,19 @@ const styles = StyleSheet.create({
     ...offsetShadow('rgba(0, 0, 0, 0.15)', 3),
   },
   checkCircleDone: { borderColor: colors.successDark, backgroundColor: colors.success },
+  // A yellow label slapped over the photo, tilted, with a dark lift under it.
+  sticker: {
+    backgroundColor: colors.sunshine,
+    borderRadius: radius.md,
+    borderWidth: 3,
+    borderColor: colors.surface,
+    paddingHorizontal: spacing.md + 2,
+    paddingVertical: spacing.xs,
+    ...offsetShadow('rgba(61, 44, 46, 0.35)', 5),
+  },
+  stickerLarge: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radius.lg },
+  stickerText: { fontFamily: fonts.display, fontSize: 30, lineHeight: 36, color: colors.text, letterSpacing: 1 },
+  stickerTextLarge: { fontSize: 40, lineHeight: 48 },
   checkMark: { fontSize: 28, fontFamily: fonts.display, color: colors.surface },
   checkMarkLarge: { fontSize: 34 },
   coinFloat: {

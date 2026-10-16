@@ -38,3 +38,23 @@ export async function setParentPin(db: SQLiteDatabase, pin: string): Promise<voi
     pin,
   );
 }
+
+const SOUND_ENABLED_KEY = 'sound_enabled';
+
+// Whether ticks ding and the last one plays a fanfare. On until a grown-up
+// turns it off.
+export async function getSoundEnabled(db: SQLiteDatabase): Promise<boolean> {
+  const row = await db.getFirstAsync<{ value: string }>(
+    'SELECT value FROM app_settings WHERE key = ?',
+    SOUND_ENABLED_KEY,
+  );
+  return row ? row.value === '1' : true;
+}
+
+export async function setSoundEnabled(db: SQLiteDatabase, enabled: boolean): Promise<void> {
+  await db.runAsync(
+    'INSERT INTO app_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+    SOUND_ENABLED_KEY,
+    enabled ? '1' : '0',
+  );
+}

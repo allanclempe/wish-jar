@@ -485,6 +485,10 @@ public class MainActivity extends Activity {
       case "ico": return "image/x-icon";
       case "ttf": return "font/ttf";
       case "woff2": return "font/woff2";
+      case "ogg": return "audio/ogg";
+      case "mp3": return "audio/mpeg";
+      case "wav": return "audio/wav";
+      case "m4a": return "audio/mp4";
       default: return "application/octet-stream";
     }
   }
