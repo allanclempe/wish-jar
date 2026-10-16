@@ -96,11 +96,14 @@ const styles = StyleSheet.create({
     ...shadow,
   },
   name: { ...typography.title, color: colors.text, textAlign: 'center' },
+  // White with a yellow rim, like the coin counter, so the gold coin stands out.
   pill: {
-    backgroundColor: colors.sunshine,
+    backgroundColor: colors.surface,
+    borderWidth: 3,
+    borderColor: colors.sunshine,
     borderRadius: radius.pill,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs,
+    paddingVertical: spacing.xs - 3,
   },
   pillText: { ...typography.heading, color: colors.text },
   button: {

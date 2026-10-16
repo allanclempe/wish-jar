@@ -37,7 +37,7 @@ export function LargeHeader({ navigation, options, back }: LargeHeaderProps) {
 }
 
 const styles = StyleSheet.create({
-  safe: { backgroundColor: colors.background, borderBottomWidth: 2, borderBottomColor: colors.border },
+  safe: { backgroundColor: colors.surface, borderBottomWidth: 2, borderBottomColor: colors.border },
   bar: {
     flexDirection: 'row',
     alignItems: 'center',

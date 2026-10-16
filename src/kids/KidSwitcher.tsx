@@ -124,13 +124,14 @@ const styles = StyleSheet.create({
   barLarge: { gap: spacing.md, paddingRight: spacing.lg, minHeight: 112 },
   scroll: { flex: 1 },
   row: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, gap: spacing.md },
+  // White inside, so the gold coin stands out; the yellow rim keeps it the coins spot.
   coins: {
-    backgroundColor: colors.sunshine,
+    backgroundColor: colors.surface,
     borderRadius: radius.pill,
     paddingVertical: spacing.xs + 2,
     paddingHorizontal: spacing.md,
     borderWidth: 3,
-    borderColor: colors.surface,
+    borderColor: colors.sunshine,
     shadowColor: colors.primary,
     shadowOpacity: 0.3,
     shadowRadius: 6,
