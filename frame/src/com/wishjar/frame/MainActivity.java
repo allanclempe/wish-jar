@@ -39,6 +39,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -92,7 +93,7 @@ public class MainActivity extends Activity {
       new AlertDialog.Builder(MainActivity.this)
           .setTitle("Wish Jar")
           .setItems(new String[] {"Open Frameo", "Android settings", "Reload Wish Jar"}, (dialog, which) -> {
-            if (which == 0) openFrameo();
+            if (which == 0) confirmOpenFrameo();
             else if (which == 1) startActivity(new Intent(Settings.ACTION_SETTINGS));
             else web.reload();
           })
@@ -249,12 +250,17 @@ public class MainActivity extends Activity {
    * (src/photos/frameo.ts):
    *   /frameo/photos               the newest ones first, as [{"name": "…", "time": <ms>}]
    *   /frameo/photos/<name>?size=N  one of them upright, cropped square and N px wide, as JPEG
-   * Both answer 403 until Wish Jar may read shared storage. /frameo/photos?ask=1 also asks for
-   * that permission; the picker passes it when it opens, so a "Deny" isn't asked again on every
-   * refresh.
+   *   POST /frameo/connect          opens Frameo to add a friend, and comes back (connectPhone)
+   * The photo routes answer 403 until Wish Jar may read shared storage. /frameo/photos?ask=1 also
+   * asks for that permission; the picker passes it when it opens, so a "Deny" isn't asked again on
+   * every refresh.
    */
   private WebResourceResponse serveFrameo(Uri url) {
     List<String> segments = url.getPathSegments();
+    if (segments.size() == 2 && "connect".equals(segments.get(1))) {
+      runOnUiThread(this::connectPhone);
+      return json(200, "OK", "{\"ok\":true}");
+    }
     boolean list = segments.size() == 2 && "photos".equals(segments.get(1));
     boolean photo = segments.size() == 3 && "photos".equals(segments.get(1));
     if (!list && !photo) return json(404, "Not Found", "{\"error\":\"not found\"}");
@@ -283,21 +289,33 @@ public class MainActivity extends Activity {
     return new WebResourceResponse("image/jpeg", null, 200, "OK", headers(), new ByteArrayInputStream(jpeg));
   }
 
-  /** Frameo's photos, newest first, skipping videos and anything else that isn't an image. */
-  private static String listPhotos() {
+  /** Up to max of Frameo's photos, newest first, skipping videos and anything else that isn't an image. */
+  private static List<File> photos(int max) {
     File[] files = FRAMEO_PHOTOS.listFiles();
     if (files == null) files = new File[0];
     Arrays.sort(files, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
-    StringBuilder out = new StringBuilder("[");
-    int count = 0;
+    List<File> photos = new ArrayList<>();
     for (File file : files) {
-      if (count == MAX_PHOTOS) break;
+      if (photos.size() == max) break;
       if (!file.isFile() || file.getName().startsWith(".")) continue;
       BitmapFactory.Options bounds = new BitmapFactory.Options();
       bounds.inJustDecodeBounds = true;
       BitmapFactory.decodeFile(file.getPath(), bounds);
-      if (bounds.outWidth <= 0) continue;
-      if (count++ > 0) out.append(',');
+      if (bounds.outWidth > 0) photos.add(file);
+    }
+    return photos;
+  }
+
+  /** When the newest of Frameo's photos arrived, or 0 with none (or no permission to look). */
+  static long newestPhotoTime() {
+    List<File> newest = photos(1);
+    return newest.isEmpty() ? 0 : newest.get(0).lastModified();
+  }
+
+  private static String listPhotos() {
+    StringBuilder out = new StringBuilder("[");
+    for (File file : photos(MAX_PHOTOS)) {
+      if (out.length() > 1) out.append(',');
       out.append("{\"name\":").append(JSONObject.quote(file.getName()))
           .append(",\"time\":").append(file.lastModified()).append('}');
     }
@@ -392,6 +410,27 @@ public class MainActivity extends Activity {
     startActivity(frameo != null ? frameo : new Intent(Settings.ACTION_SETTINGS));
   }
 
+  /**
+   * "Connect a phone" in the photo picker: Frameo's Add friend gives the code the phone app needs.
+   * Frameo can't open other apps, so ReturnReceiver brings Wish Jar back once the new friend's
+   * first photo arrives, or after a few minutes.
+   */
+  private void connectPhone() {
+    ReturnReceiver.start(this);
+    openFrameo();
+  }
+
+  /** Opening Frameo from the menu is for staying there, so nothing brings Wish Jar back. */
+  private void confirmOpenFrameo() {
+    new AlertDialog.Builder(this)
+        .setTitle("Open Frameo?")
+        .setMessage("Frameo can't open other apps, so the frame stays in Frameo until Wish Jar is "
+            + "started again (adb shell am start -n com.wishjar.frame/.MainActivity). To add a "
+            + "phone, use Connect a phone in Wish Jar's photo picker instead: it comes back by itself.")
+        .setPositiveButton("Open Frameo", (dialog, which) -> openFrameo())
+        .setNegativeButton("Back to Wish Jar", null).show();
+  }
+
   /** Remote debugging only when explicitly requested; any normal launch turns it back off. */
   private void applyDebugFlag(Intent intent) {
     boolean debug = intent != null && intent.getBooleanExtra("debug", false);
@@ -443,6 +482,12 @@ public class MainActivity extends Activity {
     if (!holdArmed) return;
     holdArmed = false;
     handler.removeCallbacks(showControls);
+  }
+
+  @Override
+  protected void onResume() {
+    super.onResume();
+    ReturnReceiver.cancel(this); // back, by the alarm or any other way
   }
 
   @Override

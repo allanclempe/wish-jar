@@ -27,6 +27,13 @@ export async function listFrameoPhotos(ask: boolean): Promise<FrameoPhotos> {
   return { status: 'ok', photos: await response.json() };
 }
 
+// Opens Frameo, where Add friend gives the code a phone's Frameo app needs. The
+// frame app brings Wish Jar back once a new photo arrives, or after 5 minutes
+// (frame/src/com/wishjar/frame/ReturnReceiver.java).
+export async function connectPhone(): Promise<void> {
+  await fetch('/frameo/connect', { method: 'POST' });
+}
+
 // The photo upright, cropped square and scaled to `size` px by the frame app.
 export function frameoPhotoUri(photo: FrameoPhoto, size: number): string {
   return `/frameo/photos/${encodeURIComponent(photo.name)}?size=${Math.round(size)}`;

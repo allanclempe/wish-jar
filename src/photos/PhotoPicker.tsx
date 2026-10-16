@@ -20,8 +20,15 @@ import {
   View,
 } from 'react-native';
 
+import { useParentLock } from '../parent/ParentLockProvider';
 import { colors, radius, spacing, typography } from '../theme';
-import { frameoPhotos, frameoPhotoUri, listFrameoPhotos, type FrameoPhotos } from './frameo';
+import {
+  connectPhone,
+  frameoPhotos,
+  frameoPhotoUri,
+  listFrameoPhotos,
+  type FrameoPhotos,
+} from './frameo';
 
 // Resolves with the picked photo's URI, or null when the grown-up backs out.
 type PickPhoto = () => Promise<string | null>;
@@ -60,6 +67,9 @@ async function pickFromLibrary(): Promise<string | null> {
 const PHOTO_SIZE = 512;
 const THUMB_SIZE = 150;
 const REFRESH_MS = 4000;
+// Back from Connect a phone sooner than this, the grown-up is still unlocked and
+// lands back in the picker. The frame app's 5-minute fallback return locks.
+const CONNECT_UNLOCKED_MS = 4 * 60_000;
 
 function FrameoPhotoPicker({ children }: PropsWithChildren) {
   const [request, setRequest] = useState<{ resolve: (uri: string | null) => void } | null>(null);
@@ -83,6 +93,15 @@ function FrameoPhotoPicker({ children }: PropsWithChildren) {
     [request],
   );
 
+  // Photos are only picked on grown-up screens, so locking (say, coming back
+  // from Connect a phone after too long) closes the picker along with them.
+  const { unlocked } = useParentLock();
+  const [wasUnlocked, setWasUnlocked] = useState(unlocked);
+  if (unlocked !== wasUnlocked) {
+    setWasUnlocked(unlocked);
+    if (!unlocked) setRequest(null);
+  }
+
   return (
     <PhotoPickerContext.Provider value={pick}>
       {children}
@@ -99,6 +118,7 @@ function FrameoPhotoPicker({ children }: PropsWithChildren) {
 }
 
 function FrameoPhotoSheet({ onDone }: { onDone: (uri: string | null) => void }) {
+  const { keepUnlockedWhileAway } = useParentLock();
   const [photos, setPhotos] = useState<FrameoPhotos | 'loading' | 'error'>('loading');
   // Bumped by "Ask again", which asks the frame for permission once more.
   const [askCount, setAskCount] = useState(0);
@@ -186,6 +206,22 @@ function FrameoPhotoSheet({ onDone }: { onDone: (uri: string | null) => void }) 
           </Pressable>
         </View>
         {content}
+        <View style={styles.connect}>
+          <Text style={styles.connectText}>
+            New phone? Connect it in Frameo: choose Add friend, then type the code into the Frameo
+            app on the phone. Wish Jar comes back when its first photo arrives.
+          </Text>
+          <Pressable
+            style={[styles.button, styles.connectButton]}
+            onPress={() => {
+              keepUnlockedWhileAway(CONNECT_UNLOCKED_MS);
+              connectPhone();
+            }}
+            accessibilityRole="button"
+          >
+            <Text style={styles.buttonText}>📱 Connect a phone</Text>
+          </Pressable>
+        </View>
       </View>
     </View>
   );
@@ -250,4 +286,14 @@ const styles = StyleSheet.create({
     marginTop: spacing.sm,
   },
   buttonText: { ...typography.body, color: colors.surface, fontWeight: '700' },
+  connect: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: colors.border,
+    paddingTop: spacing.md,
+  },
+  connectText: { ...typography.caption, color: colors.textMuted, flex: 1 },
+  connectButton: { marginTop: 0 },
 });
