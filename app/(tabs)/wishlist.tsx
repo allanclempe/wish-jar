@@ -5,6 +5,7 @@ import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Celebration, FadeInUp, Wiggle } from '../../src/components/Animations';
+import { EmptyState } from '../../src/components/EmptyState';
 import { IconBadge } from '../../src/components/Icons';
 import { ProgressBar } from '../../src/components/ProgressBar';
 import { claimWish, listWishes, useDatabase, type Wish } from '../../src/db';
@@ -88,12 +89,10 @@ export default function WishlistScreen() {
           activeKid ? <Text style={styles.heading}>{`🌟 ${activeKid.name}'s wishes`}</Text> : null
         }
         ListEmptyComponent={
-          <View style={styles.card}>
-            <Text style={styles.cardEmoji}>🎁</Text>
-            <Text style={styles.cardText}>
-              No wishes yet. Ask a grown-up to add one so you can start saving coins!
-            </Text>
-          </View>
+          <EmptyState
+            emoji="🎁"
+            text="No wishes yet. Ask a grown-up to add one so you can start saving coins!"
+          />
         }
         renderItem={({ item: { wish, state, coinsStillNeeded, progress }, index }) => {
           const unlocked = state === 'unlocked';
@@ -162,21 +161,6 @@ const styles = StyleSheet.create({
   list: { flexGrow: 1, padding: spacing.lg, gap: spacing.md },
   column: { gap: spacing.md },
   heading: { ...typography.title, color: colors.text, marginBottom: spacing.xs },
-  // Grows to fill the list, but never shrinks below its content on a short screen.
-  card: {
-    flexGrow: 1,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 3,
-    borderColor: colors.border,
-    padding: spacing.lg,
-    gap: spacing.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-    ...shadow,
-  },
-  cardEmoji: { fontSize: 64 },
-  cardText: { ...typography.body, color: colors.textMuted, textAlign: 'center' },
   // An equal share of the row each, so a lone last wish stays about the same size.
   cell: { flex: 1 },
   wish: {

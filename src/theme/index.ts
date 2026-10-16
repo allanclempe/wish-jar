@@ -36,6 +36,10 @@ export const typography = {
   caption: { fontSize: 14, fontWeight: '400' as const },
 };
 
+// The widest a column of rows or a form gets: stretched across a 1280-wide
+// frame they are hard to read.
+export const contentMaxWidth = 760;
+
 export const shadow = {
   shadowColor: colors.primary,
   shadowOpacity: 0.15,

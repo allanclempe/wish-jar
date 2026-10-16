@@ -3,6 +3,7 @@ import { useCallback, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { EmptyState } from '../../src/components/EmptyState';
 import { IconBadge } from '../../src/components/Icons';
 import { listConsequences, removeConsequence, useDatabase, type Consequence } from '../../src/db';
 import { useActiveKid } from '../../src/kids/ActiveKidProvider';
@@ -69,10 +70,7 @@ export default function ConsequencesScreen() {
             contentContainerStyle={styles.list}
             ListHeaderComponent={<Text style={styles.heading}>Today</Text>}
             ListEmptyComponent={
-              <View style={[styles.card, styles.cardInList]}>
-                <Text style={styles.cardEmoji}>😇</Text>
-                <Text style={styles.cardText}>Nothing today. Keep it that way!</Text>
-              </View>
+              <EmptyState emoji="😇" text="Nothing today. Keep it that way!" />
             }
             renderItem={({ item, index }) => (
               <FadeInUp index={index} style={columns > 1 && styles.cell}>
@@ -97,10 +95,7 @@ export default function ConsequencesScreen() {
             )}
           />
         ) : (
-          <View style={styles.card}>
-            <Text style={styles.cardEmoji}>🧒</Text>
-            <Text style={styles.cardText}>Ask a grown-up to add a kid first.</Text>
-          </View>
+          <EmptyState emoji="🧒" text="Ask a grown-up to add a kid first." />
         )}
 
         {activeKid ? (
@@ -124,23 +119,7 @@ const styles = StyleSheet.create({
   columns: { gap: spacing.md },
   // Half the row each, so a lone last consequence stays the same size.
   cell: { flex: 1, maxWidth: '50%' },
-  heading: { ...typography.heading, color: colors.text, marginBottom: spacing.sm },
-  card: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 2,
-    borderColor: colors.border,
-    padding: spacing.lg,
-    gap: spacing.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardEmoji: { fontSize: 64 },
-  cardText: { ...typography.body, color: colors.textMuted, textAlign: 'center' },
-  // Fills the list's free space, but never shrinks below its own content when
-  // the screen is short (a phone in landscape), or the button would cover it.
-  cardInList: { flex: 0, flexGrow: 1 },
+  heading: { ...typography.title, color: colors.text, marginBottom: spacing.xs },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

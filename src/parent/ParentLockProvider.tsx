@@ -133,16 +133,30 @@ export function ParentLockProvider({ children }: PropsWithChildren) {
   );
 }
 
+// How long the prompt stays up, showing the PIN was right, before it closes.
+// On a slow frame a grown-up taps the last digit again before the screen
+// catches up; while the prompt is up those taps land on it, not on whatever
+// opens under that spot (Change PIN, in settings).
+const ACCEPTED_MS = 700;
+
 function PinPrompt({ text, onDone }: { text?: PinPromptText; onDone: (ok: boolean) => void }) {
   const db = useDatabase();
   const [value, setValue] = useState('');
   const [shake, setShake] = useState(0);
+  const [accepted, setAccepted] = useState(false);
+
+  useEffect(() => {
+    if (!accepted) return;
+    const timer = setTimeout(() => onDone(true), ACCEPTED_MS);
+    return () => clearTimeout(timer);
+  }, [accepted, onDone]);
 
   async function change(next: string) {
+    if (accepted) return;
     setValue(next);
     if (next.length < PIN_LENGTH) return;
     if (next === (await getParentPin(db))) {
-      onDone(true);
+      setAccepted(true);
     } else {
       setValue('');
       setShake((count) => count + 1);
@@ -155,8 +169,13 @@ function PinPrompt({ text, onDone }: { text?: PinPromptText; onDone: (ok: boolea
         <Text style={styles.emoji}>{text?.emoji ?? '🔒'}</Text>
         <Text style={styles.title}>{text?.title ?? 'Grown-ups only'}</Text>
         <Text style={styles.subtitle}>{text?.subtitle ?? 'Enter the PIN to carry on.'}</Text>
-        <PinPad value={value} onChange={change} shake={shake} />
-        <Pressable onPress={() => onDone(false)} accessibilityRole="button" hitSlop={12}>
+        <PinPad value={value} onChange={change} shake={shake} accepted={accepted} />
+        <Pressable
+          onPress={() => onDone(false)}
+          disabled={accepted}
+          accessibilityRole="button"
+          hitSlop={12}
+        >
           <Text style={styles.cancel}>Cancel</Text>
         </Pressable>
       </View>

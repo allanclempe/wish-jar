@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { Platform, ScrollView, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { colors, spacing, useLargeScreen } from '../theme';
+import { colors, contentMaxWidth, spacing, useLargeScreen } from '../theme';
 
 type Props = {
   children: ReactNode;
@@ -39,5 +39,5 @@ const styles = StyleSheet.create({
   scroll: { flex: 1 },
   content: { flexGrow: 1, padding: spacing.lg, gap: spacing.md, alignItems: 'stretch' },
   // A form stretched across a 1280-wide frame is hard to read; keep it a column.
-  contentLarge: { width: '100%', maxWidth: 760, alignSelf: 'center', paddingVertical: spacing.xl },
+  contentLarge: { width: '100%', maxWidth: contentMaxWidth, alignSelf: 'center', paddingVertical: spacing.xl },
 });

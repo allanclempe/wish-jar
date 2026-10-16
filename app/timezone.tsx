@@ -10,7 +10,7 @@ import {
   timeZoneOffset,
   timeZones,
 } from '../src/device/frame';
-import { colors, radius, spacing, typography } from '../src/theme';
+import { colors, contentMaxWidth, radius, spacing, typography } from '../src/theme';
 
 export default function TimeZoneScreen() {
   const [current] = useState(currentTimeZone);
@@ -103,7 +103,7 @@ export default function TimeZoneScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  container: { flex: 1, padding: spacing.lg, gap: spacing.md, width: '100%', maxWidth: 760, alignSelf: 'center' },
+  container: { flex: 1, padding: spacing.lg, gap: spacing.md, width: '100%', maxWidth: contentMaxWidth, alignSelf: 'center' },
   subtitle: { ...typography.body, color: colors.textMuted },
   input: {
     ...typography.body,
