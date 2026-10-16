@@ -1,6 +1,6 @@
 import { LinearGradient } from 'expo-linear-gradient';
 import { useEffect, useState } from 'react';
-import { Animated, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import type { Kid, Period } from '../db';
 import { PERIOD_LABELS } from '../tasks/period';
@@ -25,6 +25,10 @@ type PeriodDoneOverlayProps = {
 // wish-unlocked screen, which opens after this one is closed.
 export function PeriodDoneOverlay({ kid, period, total, coinsToday, onSeeWishes, onKeepGoing }: PeriodDoneOverlayProps) {
   const large = useLargeScreen();
+  const { width, height } = useWindowDimensions();
+  // Held sideways (the frame, a phone in landscape) there is no room for the
+  // whole column, so the kid and the title go left and the jar and buttons right.
+  const landscape = width > height;
   const [appear] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
@@ -50,54 +54,66 @@ export function PeriodDoneOverlay({ kid, period, total, coinsToday, onSeeWishes,
           {item.emoji}
         </Text>
       ))}
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView contentContainerStyle={[styles.content, landscape && styles.contentLandscape]}>
         <Animated.View
           style={[
             styles.card,
+            landscape && styles.cardLandscape,
             { transform: [{ scale: appear.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }) }] },
           ]}
         >
-          <View style={styles.photoBox}>
-            <View style={[styles.ring, { width: photoSize + 16, height: photoSize + 16, borderRadius: (photoSize + 16) / 2 }]}>
-              {kid.photoUri ? (
-                <Image
-                  source={{ uri: kid.photoUri }}
-                  style={{ width: photoSize, height: photoSize, borderRadius: photoSize / 2 }}
-                />
-              ) : (
-                <View
-                  style={[styles.photoEmpty, { width: photoSize, height: photoSize, borderRadius: photoSize / 2 }]}
-                >
-                  <Text style={{ fontSize: photoSize * 0.55 }}>🙂</Text>
-                </View>
-              )}
+          <View style={[styles.column, landscape && styles.columnLandscape]}>
+            <View style={styles.photoBox}>
+              <View style={[styles.ring, { width: photoSize + 16, height: photoSize + 16, borderRadius: (photoSize + 16) / 2 }]}>
+                {kid.photoUri ? (
+                  <Image
+                    source={{ uri: kid.photoUri }}
+                    style={{ width: photoSize, height: photoSize, borderRadius: photoSize / 2 }}
+                  />
+                ) : (
+                  <View
+                    style={[styles.photoEmpty, { width: photoSize, height: photoSize, borderRadius: photoSize / 2 }]}
+                  >
+                    <Text style={{ fontSize: photoSize * 0.55 }}>🙂</Text>
+                  </View>
+                )}
+              </View>
+              <Wiggle active style={[styles.crown, large && styles.crownLarge]}>
+                <Text style={[styles.crownText, large && styles.crownTextLarge]}>👑</Text>
+              </Wiggle>
             </View>
-            <Wiggle active style={[styles.crown, large && styles.crownLarge]}>
-              <Text style={[styles.crownText, large && styles.crownTextLarge]}>👑</Text>
-            </Wiggle>
+            <Text style={[styles.title, large && styles.titleLarge]}>
+              {PERIOD_LABELS[period]} done, {kid.name}!
+            </Text>
+            <Text style={[styles.subtitle, large && styles.subtitleLarge]}>You filled the jar!</Text>
+            {landscape ? (
+              <Text style={[styles.today, large && styles.todayLarge]} accessibilityLabel={`${coinsToday} coins today`}>
+                +{coinsToday} 🪙 today
+              </Text>
+            ) : null}
           </View>
-          <Text style={[styles.title, large && styles.titleLarge]}>
-            {PERIOD_LABELS[period]} done, {kid.name}!
-          </Text>
-          <Text style={[styles.subtitle, large && styles.subtitleLarge]}>You filled the jar!</Text>
-          <CoinJar done={total} total={total} size={large ? JAR_SIZE_LARGE : JAR_SIZE} style={styles.jar} />
-          <Text style={[styles.today, large && styles.todayLarge]} accessibilityLabel={`${coinsToday} coins today`}>
-            +{coinsToday} 🪙 today
-          </Text>
-          <Pressable
-            style={({ pressed }) => [styles.button, large && styles.buttonLarge, pressed && styles.pressed]}
-            onPress={onSeeWishes}
-            accessibilityRole="button"
-          >
-            <Text style={[styles.buttonText, large && styles.buttonTextLarge]}>🎁 See my wishes</Text>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [styles.later, large && styles.laterLarge, pressed && styles.pressed]}
-            onPress={onKeepGoing}
-            accessibilityRole="button"
-          >
-            <Text style={[styles.laterText, large && styles.buttonTextLarge]}>Keep going</Text>
-          </Pressable>
+          <View style={[styles.column, landscape && styles.columnLandscape]}>
+            <CoinJar done={total} total={total} size={large ? JAR_SIZE_LARGE : JAR_SIZE} style={styles.jar} />
+            {landscape ? null : (
+              <Text style={[styles.today, large && styles.todayLarge]} accessibilityLabel={`${coinsToday} coins today`}>
+                +{coinsToday} 🪙 today
+              </Text>
+            )}
+            <Pressable
+              style={({ pressed }) => [styles.button, large && styles.buttonLarge, pressed && styles.pressed]}
+              onPress={onSeeWishes}
+              accessibilityRole="button"
+            >
+              <Text style={[styles.buttonText, large && styles.buttonTextLarge]}>🎁 See my wishes</Text>
+            </Pressable>
+            <Pressable
+              style={({ pressed }) => [styles.later, large && styles.laterLarge, pressed && styles.pressed]}
+              onPress={onKeepGoing}
+              accessibilityRole="button"
+            >
+              <Text style={[styles.laterText, large && styles.buttonTextLarge]}>Keep going</Text>
+            </Pressable>
+          </View>
         </Animated.View>
       </ScrollView>
       {/* Mounted fresh each time it opens, so one burst as it appears. */}
@@ -132,8 +148,14 @@ const styles = StyleSheet.create({
     maxWidth: 560,
     alignSelf: 'center',
   },
+  // Two columns side by side in landscape, one under the other upright.
+  contentLandscape: { maxWidth: 1040, paddingVertical: spacing.md },
   card: { alignItems: 'center', gap: spacing.sm },
+  cardLandscape: { flexDirection: 'row', alignItems: 'center', gap: spacing.xl },
+  column: { alignSelf: 'stretch', alignItems: 'center', gap: spacing.sm },
+  columnLandscape: { flex: 1, alignSelf: 'auto' },
   photoBox: { alignItems: 'center', paddingTop: spacing.lg },
+
   ring: {
     backgroundColor: colors.surface,
     alignItems: 'center',
