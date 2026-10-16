@@ -18,11 +18,13 @@ import { wishesUnlockedBy } from '../wishes/order';
 import { Celebration, FadeInUp } from './Animations';
 import { EmptyState } from './EmptyState';
 import { TaskCard } from './TaskCard';
+import { TILE_TILT_DEG } from './PhotoTile';
 
 const PERIOD_CHECK_INTERVAL_MS = 60_000;
 const GRID_GAP = spacing.md;
 // Tilted tiles poke a few pixels past the grid; the ScrollView would clip them.
 const GRID_PAD = spacing.sm;
+const LIST_PAD_BOTTOM = spacing.lg;
 // How tall or wide a tile may get while fitting the screen, as width / height;
 // past these the grid scrolls instead.
 const TALLEST_TILE = 0.68;
@@ -56,7 +58,10 @@ export function gridMetrics(
   const fullWidth = Math.floor((width - GRID_GAP * (columns - 1)) / columns);
   const tallest = fullWidth / TALLEST_TILE;
   const fits = gridFits(count, large) && height > 0;
-  const fitted = fits ? (height - GRID_GAP * (rows - 1)) / rows : tallest;
+  // On web a tilted tile's corners count towards the scrollable area, so each
+  // row gives the tilt its room or the screen scrolls by a few pixels.
+  const tiltRoom = Math.ceil(fullWidth * Math.sin((TILE_TILT_DEG * Math.PI) / 180));
+  const fitted = fits ? (height - GRID_GAP * (rows - 1) - tiltRoom * rows) / rows : tallest;
   const tileHeight = Math.floor(Math.min(tallest, fitted));
   // A lone task on the frame would otherwise stretch across the screen and
   // grow taller than it: a fitting tile gives up width before it stops fitting,
@@ -214,7 +219,7 @@ export function CurrentPeriodTasks() {
     currentTasks.length,
     large,
     listSize.width - GRID_PAD * 2,
-    listSize.height - bannerHeight - GRID_GAP - GRID_PAD,
+    listSize.height - bannerHeight - GRID_GAP - LIST_PAD_BOTTOM,
   );
   const tileBox = { width: metrics.tileWidth, height: metrics.tileHeight };
 
@@ -279,7 +284,7 @@ export function CurrentPeriodTasks() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { flex: 1 },
-  list: { gap: GRID_GAP, flexGrow: 1, paddingHorizontal: GRID_PAD, paddingBottom: spacing.lg },
+  list: { gap: GRID_GAP, flexGrow: 1, paddingHorizontal: GRID_PAD, paddingBottom: LIST_PAD_BOTTOM },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: GRID_GAP },
   tile: { flex: 1 },
   banner: {
