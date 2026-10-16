@@ -1,12 +1,12 @@
 import * as Haptics from 'expo-haptics';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Animated, Easing, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import type { Task } from '../db';
 import { useSound } from '../sound/SoundProvider';
-import { colors, fonts, offsetShadow, pastelFor, radius, spacing, sunshineShadow } from '../theme';
+import { colors, fonts, offsetShadow, pastelFor, spacing } from '../theme';
 import { Celebration, useNativeDriver } from './Animations';
-import { PhotoTile, tiltForIndex } from './PhotoTile';
+import { CoinPill, PhotoTile, Sticker, tiltForIndex } from './PhotoTile';
 
 type TaskCardProps = {
   task: Task;
@@ -90,27 +90,16 @@ export function TaskCard({ task, done, onPress, index = 0, large = false, style 
             done={done}
             large={large}
             style={styles.fill}
-            topLeft={
-              <View style={[styles.coinPill, large && styles.coinPillLarge]}>
-                <Text style={[styles.coinText, large && styles.coinTextLarge]}>🪙 {task.coinAmount}</Text>
-              </View>
-            }
+            topLeft={<CoinPill coins={task.coinAmount} large={large} />}
             sticker={
               <Animated.View
-                style={[
-                  styles.sticker,
-                  large && styles.stickerLarge,
-                  {
-                    opacity: check.interpolate({ inputRange: [0, 0.25, 1], outputRange: [0, 1, 1] }),
-                    transform: [
-                      { rotate: '-12deg' },
-                      // Lands from above the card and overshoots, like a real slap.
-                      { scale: check.interpolate({ inputRange: [0, 1], outputRange: [2.6, 1] }) },
-                    ],
-                  },
-                ]}
+                style={{
+                  opacity: check.interpolate({ inputRange: [0, 0.25, 1], outputRange: [0, 1, 1] }),
+                  // Lands from above the card and overshoots, like a real slap.
+                  transform: [{ scale: check.interpolate({ inputRange: [0, 1], outputRange: [2.6, 1] }) }],
+                }}
               >
-                <Text style={[styles.stickerText, large && styles.stickerTextLarge]}>DONE!</Text>
+                <Sticker label="DONE!" size={large ? 'large' : 'regular'} />
               </Animated.View>
             }
             bottomRight={
@@ -167,18 +156,6 @@ const CHECK_SIZE_LARGE = 62;
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
-  // White with a yellow rim, like the coin counter, so the gold coin stands out.
-  coinPill: {
-    backgroundColor: colors.surface,
-    borderWidth: 3,
-    borderColor: colors.sunshine,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.sm + 2,
-    ...sunshineShadow,
-  },
-  coinPillLarge: { paddingHorizontal: spacing.md - 2, paddingVertical: 1 },
-  coinText: { fontSize: 16, lineHeight: 26, fontFamily: fonts.display, color: colors.text },
-  coinTextLarge: { fontSize: 20, lineHeight: 30 },
   checkCircle: {
     borderWidth: 4,
     borderColor: colors.border,
@@ -188,19 +165,6 @@ const styles = StyleSheet.create({
     ...offsetShadow('rgba(0, 0, 0, 0.15)', 3),
   },
   checkCircleDone: { borderColor: colors.successDark, backgroundColor: colors.success },
-  // A yellow label slapped over the photo, tilted, with a dark lift under it.
-  sticker: {
-    backgroundColor: colors.sunshine,
-    borderRadius: radius.md,
-    borderWidth: 3,
-    borderColor: colors.surface,
-    paddingHorizontal: spacing.md + 2,
-    paddingVertical: spacing.xs,
-    ...offsetShadow('rgba(61, 44, 46, 0.35)', 5),
-  },
-  stickerLarge: { paddingHorizontal: spacing.lg, paddingVertical: spacing.sm, borderRadius: radius.lg },
-  stickerText: { fontFamily: fonts.display, fontSize: 30, lineHeight: 36, color: colors.text, letterSpacing: 1 },
-  stickerTextLarge: { fontSize: 40, lineHeight: 48 },
   checkMark: { fontSize: 28, fontFamily: fonts.display, color: colors.surface },
   checkMarkLarge: { fontSize: 34 },
   coinFloat: {

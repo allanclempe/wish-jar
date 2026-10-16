@@ -2,7 +2,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, View, type DimensionValue } from 'react-native';
 
 import type { Period } from '../db';
-import { skies, useLargeScreen } from '../theme';
+import { dreamSky, skies, useLargeScreen, type SkyColors } from '../theme';
 
 type SkyProps = { period: Period };
 
@@ -16,19 +16,38 @@ export function Sky({ period }: SkyProps) {
 
   return (
     <LinearGradient colors={sky.gradient} style={styles.sky}>
-      {period === 'morning' ? <Sun size={170} left={-40} top={30} period={period} /> : null}
-      {period === 'afternoon' ? <Sun size={220} right={-60} top={-70} period={period} /> : null}
+      {period === 'morning' ? <Sun size={170} left={-40} top={30} sky={sky} /> : null}
+      {period === 'afternoon' ? <Sun size={220} right={-60} top={-70} sky={sky} /> : null}
       {period === 'evening' ? (
         <>
-          <Moon right={large ? '22%' : 36} top={large ? 22 : 26} />
-          <Stars />
+          <Moon right={large ? '22%' : 36} top={large ? 22 : 26} sky={sky} />
+          <Stars stars={STARS} />
         </>
       ) : null}
-      <Cloud left="46%" top={large ? 40 : 190} width={large ? 96 : 110} period={period} />
-      <Cloud right="10%" top={large ? 230 : 300} width={80} period={period} />
-      {large ? <Cloud left="12%" top={250} width={70} period={period} /> : null}
+      <Cloud left="46%" top={large ? 40 : 190} width={large ? 96 : 110} sky={sky} />
+      <Cloud right="10%" top={large ? 230 : 300} width={80} sky={sky} />
+      {large ? <Cloud left="12%" top={250} width={70} sky={sky} /> : null}
       <View style={[styles.hills, styles.hillsA, { backgroundColor: sky.hills[0] }]} />
       <View style={[styles.hills, styles.hillsB, { backgroundColor: sky.hills[1] }]} />
+    </LinearGradient>
+  );
+}
+
+// The background of the wishes tab: a starry night at any hour, with the moon
+// and a couple of faint clouds, and stars all the way down since the wishes
+// scroll over it. The same pieces as the evening sky, so the two tabs match.
+export function DreamSky() {
+  const large = useLargeScreen();
+  const sky = dreamSky;
+
+  return (
+    <LinearGradient colors={sky.gradient} style={styles.sky}>
+      <Moon right={large ? '18%' : 30} top={large ? 20 : 18} sky={sky} />
+      <Stars stars={STARS} />
+      <Stars stars={DREAM_STARS} />
+      <Cloud left="40%" top={large ? 60 : 150} width={large ? 96 : 100} sky={sky} />
+      <Cloud right="8%" top={large ? 260 : 330} width={80} sky={sky} />
+      {large ? <Cloud left="10%" top={300} width={70} sky={sky} /> : null}
     </LinearGradient>
   );
 }
@@ -38,16 +57,15 @@ type Edge = DimensionValue | undefined;
 // A bright disc inside a soft halo, in place of the mockup's radial gradient.
 function Sun({
   size,
-  period,
+  sky,
   ...position
 }: {
   size: number;
-  period: Period;
+  sky: SkyColors;
   left?: Edge;
   right?: Edge;
   top?: Edge;
 }) {
-  const sky = skies[period];
   const inner = size * 0.56;
   return (
     <View style={[styles.round, { width: size, height: size }, position]}>
@@ -68,8 +86,7 @@ function Sun({
   );
 }
 
-function Moon({ right, top }: { right: Edge; top: Edge }) {
-  const sky = skies.evening;
+function Moon({ right, top, sky }: { right: Edge; top: Edge; sky: SkyColors }) {
   return (
     <View style={[styles.moonBox, { right, top }]}>
       <View style={[styles.round, StyleSheet.absoluteFill, { backgroundColor: sky.sunGlow, opacity: 0.35 }]} />
@@ -84,7 +101,9 @@ function Moon({ right, top }: { right: Edge; top: Edge }) {
   );
 }
 
-const STARS: { left: DimensionValue; top: number; size: number }[] = [
+type Star = { left: DimensionValue; top: number; size: number };
+
+const STARS: Star[] = [
   { left: '8%', top: 40, size: 7 },
   { left: '30%', top: 110, size: 5 },
   { left: '52%', top: 60, size: 8 },
@@ -94,11 +113,23 @@ const STARS: { left: DimensionValue; top: number; size: number }[] = [
   { left: '20%', top: 230, size: 4 },
 ];
 
+// Further down the dream board, where the wishes scroll past them.
+const DREAM_STARS: Star[] = [
+  { left: '14%', top: 330, size: 5 },
+  { left: '42%', top: 290, size: 4 },
+  { left: '76%', top: 380, size: 6 },
+  { left: '58%', top: 470, size: 4 },
+  { left: '10%', top: 540, size: 6 },
+  { left: '88%', top: 600, size: 5 },
+  { left: '36%', top: 660, size: 4 },
+  { left: '64%', top: 740, size: 5 },
+];
+
 // Tilted squares read as twinkles at this size and cost nothing to draw.
-function Stars() {
+function Stars({ stars }: { stars: Star[] }) {
   return (
     <>
-      {STARS.map((star, index) => (
+      {stars.map((star, index) => (
         <View
           key={index}
           style={[
@@ -114,16 +145,15 @@ function Stars() {
 // A pill with two bumps on top.
 function Cloud({
   width,
-  period,
+  sky,
   ...position
 }: {
   width: number;
-  period: Period;
+  sky: SkyColors;
   left?: Edge;
   right?: Edge;
   top: number;
 }) {
-  const sky = skies[period];
   const color = { backgroundColor: sky.cloud };
   return (
     <View style={[styles.cloud, { width, opacity: sky.cloudOpacity }, color, position]}>

@@ -1,13 +1,13 @@
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Celebration, FadeInUp, Wiggle } from '../src/components/Animations';
-import { IconBadge } from '../src/components/Icons';
+import { WishCard } from '../src/components/WishCard';
 import { listWishes, useDatabase, type Wish } from '../src/db';
-import { colors, offsetShadow, radius, spacing, sunshineShadow, typography } from '../src/theme';
+import { colors, offsetShadow, radius, spacing, typography, useLargeScreen } from '../src/theme';
 
 // Shown when a task tick gives the kid enough coins for one or more wishes.
 // `ids` is the comma-separated list of wishes it unlocked.
@@ -16,6 +16,7 @@ export default function WishUnlockedScreen() {
   const { ids } = useLocalSearchParams<{ ids: string }>();
   const [wishes, setWishes] = useState<Wish[]>([]);
   const [burst, setBurst] = useState(0);
+  const large = useLargeScreen();
 
   useEffect(() => {
     const wanted = new Set(String(ids ?? '').split(',').map(Number));
@@ -48,11 +49,15 @@ export default function WishUnlockedScreen() {
 
         {wishes.map((wish, index) => (
           <FadeInUp key={wish.id} index={index} style={styles.wish}>
-            <IconBadge icon={wish.icon} fallbackEmoji="🎁" size={96} />
-            <Text style={styles.name}>{wish.name}</Text>
-            <View style={styles.pill}>
-              <Text style={styles.pillText}>🪙 {wish.coinAmount}</Text>
-            </View>
+            <WishCard
+              wish={wish}
+              state="unlocked"
+              coinsStillNeeded={0}
+              progress={1}
+              hero
+              large={large}
+              style={styles.card}
+            />
           </FadeInUp>
         ))}
 
@@ -92,29 +97,9 @@ const styles = StyleSheet.create({
   trophy: { fontSize: 96 },
   title: { ...typography.hero, color: colors.text, textAlign: 'center' },
   subtitle: { ...typography.body, color: colors.textMuted, textAlign: 'center' },
-  wish: {
-    alignSelf: 'stretch',
-    alignItems: 'center',
-    gap: spacing.sm,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 4,
-    borderColor: colors.sunshine,
-    padding: spacing.lg,
-    ...sunshineShadow,
-  },
-  name: { ...typography.title, color: colors.text, textAlign: 'center' },
-  // White with a yellow rim, like the coin counter, so the gold coin stands out.
-  pill: {
-    backgroundColor: colors.surface,
-    borderWidth: 3,
-    borderColor: colors.sunshine,
-    borderRadius: radius.pill,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.xs - 3,
-    ...sunshineShadow,
-  },
-  pillText: { ...typography.heading, color: colors.text },
+  // The same card as on the wishes tab, with room around it for the glow.
+  wish: { alignSelf: 'stretch', height: 260, paddingHorizontal: spacing.sm, marginVertical: spacing.sm },
+  card: { flex: 1 },
   button: {
     alignSelf: 'stretch',
     backgroundColor: colors.primary,

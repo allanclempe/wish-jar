@@ -73,6 +73,19 @@ export const skies: Record<'morning' | 'afternoon' | 'evening', SkyColors> = {
   },
 };
 
+// The wishes tab is a dream board: a starry night at any hour, a touch more
+// violet than the evening sky so the two tabs read as different places.
+export const dreamSky: SkyColors = {
+  gradient: ['#22194F', '#4A3A8C', '#8A6BC4'],
+  title: '#FFFFFF',
+  subtitle: '#E4DAF7',
+  sun: '#FFF4C2',
+  sunGlow: '#E9D98F',
+  cloud: '#FFFFFF',
+  cloudOpacity: 0.16,
+  hills: ['#3B3F7A', '#2C3161'],
+};
+
 export const spacing = {
   xs: 4,
   sm: 8,

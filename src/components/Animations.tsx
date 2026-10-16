@@ -44,12 +44,14 @@ export function FadeInUp({ index = 0, style, children }: FadeInUpProps) {
 
 type WiggleProps = PropsWithChildren<{
   active: boolean;
+  // How far it rocks each way, in degrees. A big photo tile wants a few.
+  angle?: number;
   style?: StyleProp<ViewStyle>;
 }>;
 
 // Rocks its child side to side every couple of seconds while active, to draw
 // a small kid's eye to it.
-export function Wiggle({ active, style, children }: WiggleProps) {
+export function Wiggle({ active, angle = 10, style, children }: WiggleProps) {
   const [rotate] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
@@ -70,7 +72,11 @@ export function Wiggle({ active, style, children }: WiggleProps) {
     <Animated.View
       style={[
         style,
-        { transform: [{ rotate: rotate.interpolate({ inputRange: [-1, 1], outputRange: ['-10deg', '10deg'] }) }] },
+        {
+          transform: [
+            { rotate: rotate.interpolate({ inputRange: [-1, 1], outputRange: [`-${angle}deg`, `${angle}deg`] }) },
+          ],
+        },
       ]}
     >
       {children}
