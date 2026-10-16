@@ -71,6 +71,31 @@ by Mozilla under the Apache License 2.0.
 The frame's own Android SQLite (3.8.10) can't stand in: our migrations use
 `unixepoch()` and UPSERT, which need SQLite 3.38 and 3.24.
 
+### Photos from Frameo
+
+The frame has no camera roll to pick a kid's or an icon's photo from, and the
+photos are on the grown-ups' phones. So on the frame, Wish Jar picks from the
+photos sent to it with the Frameo phone app, which already gets them to the
+frame from anywhere, through Frameo's cloud.
+
+Frameo saves the photos it receives in `/sdcard/frameo_files/media/`, with a
+`.nomedia` file that keeps them out of Android's media index. Its captions and
+senders are in its own Realm database, which only Frameo can read. The frame
+app reads the folder directly, which needs Android's storage permission
+(`READ_EXTERNAL_STORAGE`) and nothing else:
+
+- `/frameo/photos` lists the newest 60 photos, skipping videos.
+- `/frameo/photos/<name>?size=N` turns one upright (EXIF), crops it to the
+  middle square and scales it to N px. The app keeps it at 512 px.
+
+It's a build option of the frame app. `frame/build.sh` writes
+`/frame/config.js`, which the app adds to every page, with
+`window.wishJarFrame = { frameoPhotos: true }`, or `false` when built with
+`FRAMEO_PHOTOS=0` (`src/photos/frameo.ts`). The web bundle is the same for
+every build, so Wish Jar on phones and on the dev server picks photos the
+usual way. (An `EXPO_PUBLIC_` variable would be baked into the bundle, and
+Metro's cache would carry it over to the next build, whatever it's for.)
+
 ## Step by step
 
 ### 1. Turn on ADB on the frame
@@ -130,6 +155,14 @@ The script exports the web build into the APK and signs it with
 `~/.android/debug.keystore` (or `KEYSTORE`), creating that key if it's
 missing. The result is `frame/build/wish-jar-frame.apk`.
 
+The photo buttons pick from the photos sent to the frame with Frameo (see
+[Photos from Frameo](#photos-from-frameo)). On a device without Frameo, build
+with `FRAMEO_PHOTOS=0` to keep Android's usual file picker:
+
+```bash
+FRAMEO_PHOTOS=0 JAVA_HOME=/path/to/jdk-17 ANDROID_HOME=/path/to/sdk frame/build.sh
+```
+
 **Keep that keystore.** An update signed with a different key won't install
 over the old one. The app would have to be uninstalled first, and that
 deletes the kids, tasks and savings stored on the frame.
@@ -158,7 +191,26 @@ Wish Jar also shows up in the frame's app list.
   # then open chrome://inspect, or http://localhost:9222/json
   ```
 
-### 7. Updating
+### 7. Adding photos from a phone
+
+1. Send the photo to the frame with the Frameo app on your phone, the usual
+   way. It also goes into the frame's slideshow. Delete it there once you've
+   picked it if you don't want it in the slideshow; Wish Jar keeps its own
+   copy.
+2. On the frame, open the grown-ups' screens and tap a photo button: the kid's
+   photo, or *Pick a photo sent with Frameo* for a task, wish or punishment.
+   The newest photos come first, and one sent while the list is open shows
+   up within a few seconds.
+
+The first time, Android asks whether Wish Jar may access photos, media and
+files: tap **Allow**. If it was denied for good, turn on *Storage* in Android
+settings → Apps → Wish Jar → Permissions, or from a computer:
+
+```bash
+adb shell pm grant com.wishjar.frame android.permission.READ_EXTERNAL_STORAGE
+```
+
+### 8. Updating
 
 Run `frame/build.sh` again, then `adb install -r`. The data stays as long as
 you use the same keystore.

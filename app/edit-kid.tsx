@@ -1,4 +1,3 @@
-import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Alert, Image, Pressable, StyleSheet, Text, TextInput } from 'react-native';
@@ -7,6 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ScrollScreen } from '../src/components/ScrollScreen';
 import { getKid, updateKid, useDatabase } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
+import { usePickPhoto } from '../src/photos/PhotoPicker';
 import { removePhoto, storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
@@ -20,6 +20,7 @@ export default function EditKidScreen() {
   const [photoUri, setPhotoUri] = useState<string | null>(null);
   const [originalPhotoUri, setOriginalPhotoUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const pickPhoto = usePickPhoto();
 
   const canSave = name.trim().length > 0 && !saving;
 
@@ -42,23 +43,9 @@ export default function EditKidScreen() {
     };
   }, [db, kidId]);
 
-  async function pickPhoto() {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) {
-      Alert.alert('Permission needed', 'Allow access to your photos to change the picture.');
-      return;
-    }
-
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.8,
-    });
-
-    if (!result.canceled) {
-      setPhotoUri(result.assets[0].uri);
-    }
+  async function choosePhoto() {
+    const uri = await pickPhoto();
+    if (uri) setPhotoUri(uri);
   }
 
   async function save() {
@@ -90,7 +77,7 @@ export default function EditKidScreen() {
 
   return (
     <ScrollScreen>
-      <Pressable style={styles.photo} onPress={pickPhoto} accessibilityRole="button">
+      <Pressable style={styles.photo} onPress={choosePhoto} accessibilityRole="button">
         {photoUri ? (
           <Image source={{ uri: photoUri }} style={styles.photoImage} />
         ) : (
