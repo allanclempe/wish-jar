@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import {
-  Animated,
   AppState,
   Image,
   Modal,
@@ -12,7 +11,6 @@ import {
   View,
 } from 'react-native';
 
-import { useNativeDriver } from '../components/Animations';
 import { IconBadge } from '../components/Icons';
 import { ProgressBar } from '../components/ProgressBar';
 import { getKidSavings, listWishes, useDatabase, type Kid } from '../db';
@@ -24,7 +22,9 @@ import { frameoSlideUri, listFrameoPhotos, type FrameoPhoto } from './frameo';
 // How long nobody has to touch the frame before the slideshow starts.
 const IDLE_MS = 3 * 60 * 1000;
 const SLIDE_MS = 15 * 1000;
-const FADE_MS = 1000;
+// Run by the browser as a CSS transition rather than stepped from JavaScript,
+// which the frame's slow chip can't keep smooth.
+const FADE_MS = 1500;
 // Anything that counts as someone using Wish Jar.
 const ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'wheel'] as const;
 
@@ -85,8 +85,8 @@ type SlideState = {
   // Counts every slide shown, so the same photo twice in a row still fades in.
   step: number;
   previous: string | null;
-  // Each slide's own, so the one showing never blinks out before the next is in.
-  fade: Animated.Value;
+  // The photo has loaded, so it can fade in.
+  loaded: boolean;
 };
 
 function Slides({ photos, onClose }: { photos: FrameoPhoto[]; onClose: () => void }) {
@@ -97,7 +97,7 @@ function Slides({ photos, onClose }: { photos: FrameoPhoto[]; onClose: () => voi
     index: 0,
     step: 0,
     previous: null,
-    fade: new Animated.Value(0),
+    loaded: false,
   }));
   const uri = frameoSlideUri(slide.photos[slide.index], width * ratio, height * ratio);
 
@@ -118,7 +118,7 @@ function Slides({ photos, onClose }: { photos: FrameoPhoto[]; onClose: () => voi
         }
       }
       if (cancelled) return;
-      setSlide({ photos: next, index, step: slide.step + 1, previous: uri, fade: new Animated.Value(0) });
+      setSlide({ photos: next, index, step: slide.step + 1, previous: uri, loaded: false });
     }, SLIDE_MS);
     return () => {
       cancelled = true;
@@ -127,7 +127,8 @@ function Slides({ photos, onClose }: { photos: FrameoPhoto[]; onClose: () => voi
   }, [slide, uri]);
 
   function fadeIn() {
-    Animated.timing(slide.fade, { toValue: 1, duration: FADE_MS, useNativeDriver }).start();
+    const step = slide.step;
+    setSlide((current) => (current.step === step ? { ...current, loaded: true } : current));
   }
 
   return (
@@ -140,9 +141,9 @@ function Slides({ photos, onClose }: { photos: FrameoPhoto[]; onClose: () => voi
       {slide.previous ? (
         <Image source={{ uri: slide.previous }} style={StyleSheet.absoluteFill} resizeMode="contain" />
       ) : null}
-      <Animated.View key={slide.step} style={[StyleSheet.absoluteFill, { opacity: slide.fade }]}>
+      <View key={slide.step} style={[styles.slide, fade, { opacity: slide.loaded ? 1 : 0 }]}>
         <Image source={{ uri }} style={StyleSheet.absoluteFill} resizeMode="contain" onLoad={fadeIn} />
-      </Animated.View>
+      </View>
       <KidsStrip />
     </Pressable>
   );
@@ -215,8 +216,18 @@ function KidsStrip() {
   );
 }
 
+// React Native Web passes these through to CSS; they aren't in React Native's style types.
+const fade = {
+  transitionProperty: 'opacity',
+  transitionDuration: `${FADE_MS}ms`,
+  transitionTimingFunction: 'ease-in-out',
+  willChange: 'opacity',
+} as object;
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#000000' },
+  // Opaque, so a narrower photo's bars hide the one before instead of showing it around the edges.
+  slide: { ...StyleSheet.absoluteFill, backgroundColor: '#000000' },
   strip: {
     position: 'absolute',
     left: spacing.lg,
