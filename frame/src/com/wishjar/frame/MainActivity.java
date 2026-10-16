@@ -62,6 +62,7 @@ import java.util.Map;
  *   slideshow of them while nobody is using Wish Jar.
  * - The frame's timezone is looked up from its IP address until one is set, and grown-ups can
  *   change it in Settings through /device/timezone (FrameTimeZone, serveDevice).
+ * - Wish Jar opens by itself after the frame restarts, in front of Frameo (BootReceiver).
  * - Remote debugging is off unless launched with the debug extra:
  *     adb shell am start -n com.wishjar.frame/.MainActivity --ez debug true
  */
@@ -77,6 +78,8 @@ public class MainActivity extends Activity {
   // Where Frameo keeps the photos it receives. A .nomedia file hides them from the media index.
   static final File FRAMEO_PHOTOS = new File(Environment.getExternalStorageDirectory(), "frameo_files/media");
   static final int MAX_PHOTOS = 60;
+  // Whether Wish Jar is in front, for BootReceiver.
+  static volatile boolean resumed;
 
   private WebView web;
   private FrameLayout root;
@@ -97,7 +100,7 @@ public class MainActivity extends Activity {
           .setTitle("Wish Jar")
           .setItems(new String[] {"Open Frameo", "Android settings", "Reload Wish Jar"}, (dialog, which) -> {
             if (which == 0) confirmOpenFrameo();
-            else if (which == 1) startActivity(new Intent(Settings.ACTION_SETTINGS));
+            else if (which == 1) openSettings();
             else web.reload();
           })
           .setNegativeButton("Back to Wish Jar", null).show();
@@ -483,6 +486,7 @@ public class MainActivity extends Activity {
    * first photo arrives, or after a few minutes.
    */
   private void connectPhone() {
+    BootReceiver.cancel(this); // ReturnReceiver brings it back instead
     ReturnReceiver.start(this);
     openFrameo();
   }
@@ -492,10 +496,20 @@ public class MainActivity extends Activity {
     new AlertDialog.Builder(this)
         .setTitle("Open Frameo?")
         .setMessage("Frameo can't open other apps, so the frame stays in Frameo until Wish Jar is "
-            + "started again (adb shell am start -n com.wishjar.frame/.MainActivity). To add a "
-            + "phone, use Connect a phone in Wish Jar's photo picker instead: it comes back by itself.")
-        .setPositiveButton("Open Frameo", (dialog, which) -> openFrameo())
+            + "started again (adb shell am start -n com.wishjar.frame/.MainActivity) or the frame "
+            + "restarts. To add a phone, use Connect a phone in Wish Jar's photo picker instead: it "
+            + "comes back by itself.")
+        .setPositiveButton("Open Frameo", (dialog, which) -> {
+          BootReceiver.cancel(this);
+          openFrameo();
+        })
         .setNegativeButton("Back to Wish Jar", null).show();
+  }
+
+  /** Android settings from the menu, which BootReceiver mustn't cover just after a restart. */
+  private void openSettings() {
+    BootReceiver.cancel(this);
+    startActivity(new Intent(Settings.ACTION_SETTINGS));
   }
 
   /** Remote debugging only when explicitly requested; any normal launch turns it back off. */
@@ -554,12 +568,14 @@ public class MainActivity extends Activity {
   @Override
   protected void onResume() {
     super.onResume();
+    resumed = true;
     ReturnReceiver.cancel(this); // back, by the alarm or any other way
     FrameTimeZone.detect(this); // until one is set: a new frame may only now be online
   }
 
   @Override
   protected void onPause() {
+    resumed = false;
     cancelHold();
     super.onPause();
   }

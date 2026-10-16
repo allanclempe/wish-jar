@@ -220,15 +220,42 @@ adb shell am start -n com.wishjar.frame/.MainActivity
 
 Frameo is the frame's home screen, and it has no app list and no way to open
 another app. Once the frame is in Frameo, Wish Jar only comes back if
-something starts it: the `am start` above, or Wish Jar's own return trip after
-*Connect a phone* (step 7).
+something starts it: the `am start` above, a restart of the frame, or Wish
+Jar's own return trip after *Connect a phone* (step 7).
+
+#### After a restart
+
+When the frame restarts, Frameo comes up first, as its home screen, and Wish
+Jar then opens by itself in front of it. Frameo's own boot steps can bring it
+back to the front, so for the next 2 minutes Wish Jar checks again and reopens
+if it isn't in front. Frameo keeps running behind Wish Jar, so photos sent
+with the Frameo phone app still arrive. Choosing *Open Frameo* or *Android
+settings* from the two-finger menu stops those checks.
+
+This frame's firmware doesn't send Android's "boot completed" signal to Wish
+Jar: Allwinner's `BackgroundManagerService` only sends it to the apps on a
+list built into the system image (`boot_completed_broadcast_whitelist`, with
+Frameo on it), and no setting changes that list. So Wish Jar opens on the
+signals that do reach it on every boot: the storage being mounted, or the
+Wi-Fi connecting, whichever comes first in the first 10 minutes after the
+frame starts. Once per boot only, so Wi-Fi dropping and coming back later in
+the day doesn't pull Wish Jar in front of Frameo. You can see it in the log:
+
+```bash
+adb logcat -d -s WishJarFrame | grep -i boot
+```
+
+Android sends none of these to an app that has been force-stopped, until it is
+opened again. Installing with `adb install -r` is fine, but run the `am start`
+above after installing anyway.
 
 ### 6. Using it on the frame
 
 - The app is full screen with no navigation bar. To get out, **hold two
   fingers still on the screen for 1.5 seconds**. A menu opens with *Open
   Frameo*, *Android settings* and *Reload Wish Jar*. *Open Frameo* warns
-  first: the frame stays in Frameo until Wish Jar is started again over ADB.
+  first: the frame stays in Frameo until Wish Jar is started again over ADB, or
+  the frame restarts.
 - To debug the page from Chrome DevTools, start it with remote debugging on.
   Any normal launch turns it off again.
 
