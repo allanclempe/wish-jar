@@ -59,7 +59,7 @@ export default function AddConsequenceScreen() {
         contentContainerStyle={styles.list}
         ListEmptyComponent={
           <View style={styles.card}>
-            <Text style={styles.cardEmoji}>🚫</Text>
+            <Text style={styles.cardEmoji}>⚖️</Text>
             <Text style={styles.cardText}>
               No consequences yet. Add some in Settings, then come back here.
             </Text>
@@ -72,7 +72,7 @@ export default function AddConsequenceScreen() {
             disabled={saving}
             accessibilityRole="button"
           >
-            <IconBadge icon={item.icon} fallbackEmoji="🚫" />
+            <IconBadge icon={item.icon} fallbackEmoji="⚖️" />
             <Text style={styles.name}>{item.name}</Text>
             <View style={styles.pill}>
               <Text style={styles.pillText}>

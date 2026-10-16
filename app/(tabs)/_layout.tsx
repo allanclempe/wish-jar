@@ -90,7 +90,7 @@ export default function TabsLayout() {
         name="consequences"
         options={{
           title: 'Consequences',
-          tabBarIcon: ({ focused }) => <TabEmoji emoji="🚫" focused={focused} />,
+          tabBarIcon: ({ focused }) => <TabEmoji emoji="⚖️" focused={focused} />,
         }}
       />
     </Tabs>

@@ -10,11 +10,12 @@ export const ICON_EMOJIS = [
   '🍦', '🍕', '🍭', '👟', '📺', '🎈', '🦄', '🚀',
 ];
 
-// What a kid did wrong: hitting, shouting, lying, too much screen, bedtime…
+// What a kid did (shouting, lying, too much screen, bedtime…) and ways to make
+// it right that cost no coins: a hug, saying sorry, tidying up.
 export const CONSEQUENCE_EMOJIS = [
-  '🚫', '🛑', '😡', '🤬', '😤', '😭', '😝', '🤥',
-  '🙉', '🗯️', '👊', '🦶', '🦷', '💦', '🥊', '💥',
-  '🚪', '🧦', '🍬', '📱', '📺', '🎮', '⏰', '🛏️',
+  '⚖️', '🛑', '😡', '😤', '😭', '😝', '🤥', '🙉',
+  '🗯️', '🦷', '💦', '🚪', '🧦', '🍬', '📱', '📺',
+  '🎮', '⏰', '🤗', '🙏', '🧹', '✍️', '🤝', '💐',
 ];
 
 type IconBadgeProps = {

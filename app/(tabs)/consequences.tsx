@@ -77,7 +77,7 @@ export default function ConsequencesScreen() {
             renderItem={({ item, index }) => (
               <FadeInUp index={index} style={columns > 1 && styles.cell}>
                 <View style={styles.row}>
-                  <IconBadge icon={item.icon} fallbackEmoji="🚫" size={56} />
+                  <IconBadge icon={item.icon} fallbackEmoji="⚖️" size={56} />
                   <Text style={styles.name}>{item.name}</Text>
                   <View style={styles.pill}>
                     <Text style={styles.pillText}>

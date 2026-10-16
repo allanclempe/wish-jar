@@ -83,7 +83,7 @@ export default function SettingsScreen() {
           onPress={() => router.push('/wishes')}
         />
         <MenuItem
-          emoji="🚫"
+          emoji="⚖️"
           title="Consequences"
           subtitle={plural(consequenceCount, 'consequence', 'consequences')}
           onPress={() => router.push('/consequence-types')}

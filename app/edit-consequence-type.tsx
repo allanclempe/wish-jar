@@ -92,7 +92,7 @@ export default function EditConsequenceTypeScreen() {
     <ScrollScreen>
       <IconPicker
         value={icon}
-        fallbackEmoji="🚫"
+        fallbackEmoji="⚖️"
         emojis={CONSEQUENCE_EMOJIS}
         onChange={setIcon}
       />

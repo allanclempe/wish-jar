@@ -32,7 +32,7 @@ export default function ConsequencesSettingsScreen() {
           contentContainerStyle={styles.list}
           ListEmptyComponent={
             <View style={styles.card}>
-              <Text style={styles.cardEmoji}>🚫</Text>
+              <Text style={styles.cardEmoji}>⚖️</Text>
               <Text style={styles.cardText}>
                 No consequences yet. Add one below, with what it costs in coins, if anything.
               </Text>
@@ -46,7 +46,7 @@ export default function ConsequencesSettingsScreen() {
               }
               accessibilityRole="button"
             >
-              <IconBadge icon={item.icon} fallbackEmoji="🚫" />
+              <IconBadge icon={item.icon} fallbackEmoji="⚖️" />
               <Text style={styles.name}>{item.name}</Text>
               <View style={styles.pill}>
                 <Text style={styles.pillText}>

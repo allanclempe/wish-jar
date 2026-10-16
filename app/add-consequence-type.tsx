@@ -56,7 +56,7 @@ export default function AddConsequenceTypeScreen() {
     <ScrollScreen>
       <IconPicker
         value={icon}
-        fallbackEmoji="🚫"
+        fallbackEmoji="⚖️"
         emojis={CONSEQUENCE_EMOJIS}
         onChange={setIcon}
       />
