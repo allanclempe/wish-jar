@@ -4,7 +4,10 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
+import android.content.BroadcastReceiver;
+import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
@@ -61,7 +64,8 @@ import java.util.Map;
  *   build.sh writes: on, unless built with FRAMEO_PHOTOS=0. The same setting turns on the page's
  *   slideshow of them while nobody is using Wish Jar.
  * - The frame's timezone is looked up from its IP address until one is set, and grown-ups can
- *   change it in Settings through /device/timezone (FrameTimeZone, serveDevice).
+ *   change it in Settings through /device/timezone (FrameTimeZone, serveDevice). It is set again
+ *   after Frameo puts back its own at boot.
  * - Wish Jar opens by itself after the frame restarts, in front of Frameo (BootReceiver).
  * - Remote debugging is off unless launched with the debug extra:
  *     adb shell am start -n com.wishjar.frame/.MainActivity --ez debug true
@@ -92,6 +96,14 @@ public class MainActivity extends Activity {
   private final float[] holdY = new float[2];
   private boolean holdArmed;
 
+  // Frameo sets its own timezone a few seconds after boot, which can be after Wish Jar is open.
+  private final BroadcastReceiver timeZoneChanged = new BroadcastReceiver() {
+    @Override
+    public void onReceive(Context context, Intent intent) {
+      FrameTimeZone.restore(context);
+    }
+  };
+
   private final Runnable showControls = new Runnable() {
     @Override
     public void run() {
@@ -113,6 +125,8 @@ public class MainActivity extends Activity {
     applyDebugFlag(getIntent());
     getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
         | WindowManager.LayoutParams.FLAG_FULLSCREEN);
+
+    registerReceiver(timeZoneChanged, new IntentFilter(Intent.ACTION_TIMEZONE_CHANGED));
 
     web = new WebView(this);
     WebSettings s = web.getSettings();
@@ -571,6 +585,7 @@ public class MainActivity extends Activity {
     resumed = true;
     ReturnReceiver.cancel(this); // back, by the alarm or any other way
     FrameTimeZone.detect(this); // until one is set: a new frame may only now be online
+    FrameTimeZone.restore(this); // after Frameo set its own at boot
   }
 
   @Override
@@ -604,6 +619,7 @@ public class MainActivity extends Activity {
   @Override
   protected void onDestroy() {
     handler.removeCallbacksAndMessages(null);
+    unregisterReceiver(timeZoneChanged);
     web.destroy();
     super.onDestroy();
   }

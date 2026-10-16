@@ -68,7 +68,8 @@ public class BootReceiver extends BroadcastReceiver {
    * Tells boots apart: ro.runtime.firstboot is the wall-clock time system_server started, set once
    * per boot. Falls back to the boot's own wall-clock time to the minute.
    */
-  private static String bootId() {
+  /** Tells one boot of the frame from the next. */
+  static String bootId() {
     try {
       String id = (String) Class.forName("android.os.SystemProperties")
           .getMethod("get", String.class).invoke(null, "ro.runtime.firstboot");
