@@ -2,10 +2,11 @@ import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { LargeHeader } from '../src/components/LargeHeader';
 import { ActiveKidProvider } from '../src/kids/ActiveKidProvider';
 import { DatabaseProvider } from '../src/db/provider';
 import { ParentLockProvider, useParentLock } from '../src/parent/ParentLockProvider';
-import { colors } from '../src/theme';
+import { colors, useLargeScreen } from '../src/theme';
 
 const headerStyle = {
   headerShown: true,
@@ -38,11 +39,14 @@ export default function RootLayout() {
 
 function RootStack() {
   const { unlocked } = useParentLock();
+  const large = useLargeScreen();
 
   return (
     <Stack
       screenOptions={{
         headerShown: false,
+        // Bigger back button and title on tablets and photo frames.
+        header: large ? (props) => <LargeHeader {...props} /> : undefined,
         contentStyle: { backgroundColor: colors.background },
       }}
     >

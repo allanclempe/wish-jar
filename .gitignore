@@ -39,3 +39,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Frameo kiosk build
+/frame/build
+/frame/.cache

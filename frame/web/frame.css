@@ -1,0 +1,30 @@
+/*
+ * Android 6's emoji font stops at Unicode 8, so newer emoji (🫙 🧹 🪥 🧸 …) are blank boxes.
+ * React Native Web's System font stack is -apple-system, BlinkMacSystemFont, "Segoe UI",
+ * Roboto, …, and the frame has no "Segoe UI". Naming Twemoji that, for emoji code points only,
+ * draws every emoji with Twemoji while other text falls through to Roboto.
+ * Twemoji graphics © Twitter, CC-BY 4.0; font build by Mozilla (github.com/mozilla/twemoji-colr).
+ */
+@font-face {
+  font-family: 'Segoe UI';
+  src: url('/frame/Twemoji.Mozilla.ttf') format('truetype');
+  font-display: block;
+  unicode-range:
+    U+200D, U+20E3, U+231A-23FF, U+24C2, U+25AA-25FE, U+2600-27BF, U+2934-2935,
+    U+2B05-2B55, U+3030, U+303D, U+3297, U+3299, U+FE0F, U+1F000-1FAFF, U+E0020-E007F;
+}
+
+/*
+ * A long press is how a grown-up opens the 🔒 settings, but WebView turns a long press into a text
+ * selection, which swallows the hold. Nothing outside a text field needs selecting on the frame.
+ */
+* {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+input,
+textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}

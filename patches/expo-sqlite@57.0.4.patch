@@ -1,0 +1,140 @@
+diff --git a/web/wa-sqlite/IndexedDBSnapshotVFS.js b/web/wa-sqlite/IndexedDBSnapshotVFS.js
+new file mode 100644
+index 0000000000000000000000000000000000000000..387c697d326ae6039ccae8adbfd42bd073d42471
+--- /dev/null
++++ b/web/wa-sqlite/IndexedDBSnapshotVFS.js
+@@ -0,0 +1,89 @@
++// In-memory filesystem whose database files are saved to IndexedDB, for browsers without OPFS
++// sync access handles (Android WebView 106 on Android 6, the last version it gets).
++//
++// SQLite calls xSync on the main database file once a transaction's pages are written, so a copy
++// taken there is always a committed state. That copy is written to IndexedDB in one transaction.
++// Only the newest copy waits while a write is in flight, so a burst of commits costs one extra
++// write, not one per commit. Journals stay in memory: a saved file never needs one to recover.
++import { MemoryVFS } from './MemoryVFS.js';
++import * as VFS from './VFS.js';
++
++const STORE = 'files';
++
++function request(req) {
++  return new Promise((resolve, reject) => {
++    req.onsuccess = () => resolve(req.result);
++    req.onerror = () => reject(req.error);
++  });
++}
++
++export class IndexedDBSnapshotVFS extends MemoryVFS {
++  static isNeeded() {
++    return typeof navigator.storage?.getDirectory !== 'function';
++  }
++
++  static async create(name, module) {
++    const vfs = new IndexedDBSnapshotVFS(name, module);
++    await vfs.isReady();
++    return vfs;
++  }
++
++  db = null;
++  // Newest committed copy waiting to be saved, and whether a save is running, keyed by pathname.
++  pendingCopies = new Map();
++  saving = new Set();
++
++  async isReady() {
++    const open = indexedDB.open(this.name, 1);
++    open.onupgradeneeded = () => open.result.createObjectStore(STORE);
++    this.db = await request(open);
++    const tx = this.db.transaction(STORE, 'readonly');
++    const [names, contents] = await Promise.all([
++      request(tx.objectStore(STORE).getAllKeys()),
++      request(tx.objectStore(STORE).getAll()),
++    ]);
++    names.forEach((pathname, i) => {
++      const data = contents[i];
++      this.mapNameToFile.set(pathname, {
++        pathname,
++        flags: VFS.SQLITE_OPEN_MAIN_DB,
++        size: data.byteLength,
++        data,
++      });
++    });
++    return true;
++  }
++
++  jSync(fileId, flags) {
++    const file = this.mapIdToFile.get(fileId);
++    if (file && file.flags & VFS.SQLITE_OPEN_MAIN_DB) {
++      this.pendingCopies.set(file.pathname, file.data.slice(0, file.size));
++      if (!this.saving.has(file.pathname)) this.saveNext(file.pathname);
++    }
++    return VFS.SQLITE_OK;
++  }
++
++  jDelete(name, syncDir) {
++    const pathname = new URL(name, 'file://').pathname;
++    this.pendingCopies.delete(pathname);
++    this.db.transaction(STORE, 'readwrite').objectStore(STORE).delete(pathname);
++    return super.jDelete(name, syncDir);
++  }
++
++  saveNext(pathname) {
++    const data = this.pendingCopies.get(pathname);
++    if (!data) {
++      this.saving.delete(pathname);
++      return;
++    }
++    this.pendingCopies.delete(pathname);
++    this.saving.add(pathname);
++    const tx = this.db.transaction(STORE, 'readwrite');
++    tx.objectStore(STORE).put(data, pathname);
++    tx.oncomplete = () => this.saveNext(pathname);
++    tx.onerror = tx.onabort = () => {
++      console.error(`Failed to save ${pathname} to IndexedDB`, tx.error);
++      this.saveNext(pathname);
++    };
++  }
++}
+diff --git a/web/worker.ts b/web/worker.ts
+index deaf7218f98add013b73876130f2c496ec3820fa..cd4f9e8b30c57c8702a175bde2994b47aedf565a 100644
+--- a/web/worker.ts
++++ b/web/worker.ts
+@@ -8,6 +8,7 @@ import { sendWorkerResult } from './WorkerChannel';
+ import { type Changeset } from '../src/NativeSession';
+ import { type SQLiteColumnNames, type SQLiteColumnValues } from '../src/NativeStatement';
+ import { AccessHandlePoolVFS } from './wa-sqlite/AccessHandlePoolVFS';
++import { IndexedDBSnapshotVFS } from './wa-sqlite/IndexedDBSnapshotVFS';
+ import { MemoryVFS } from './wa-sqlite/MemoryVFS';
+ import * as SQLite from './wa-sqlite/sqlite-api';
+ import {
+@@ -52,7 +53,7 @@ const MAX_INT32 = 0x7fffffff;
+ const MIN_INT32 = -0x80000000;
+ 
+ let _sqlite3: SQLiteAPI | null = null;
+-let _vfs: AccessHandlePoolVFS | null = null;
++let _vfs: AccessHandlePoolVFS | IndexedDBSnapshotVFS | null = null;
+ let _vfsMemory: MemoryVFS | null = null;
+ 
+ const databaseIdMap = new Map<number, DatabaseEntity>();
+@@ -774,7 +775,7 @@ async function maybeFinalizeAllStatements(nativeDatabaseId: number) {
+ 
+ async function maybeInitAsync(): Promise<{
+   sqlite3: SQLiteAPI;
+-  vfs: AccessHandlePoolVFS;
++  vfs: AccessHandlePoolVFS | IndexedDBSnapshotVFS;
+   vfsMemory: MemoryVFS;
+ }> {
+   if (!_sqlite3) {
+@@ -787,9 +788,12 @@ async function maybeInitAsync(): Promise<{
+     }
+ 
+     if (_vfs == null) {
+-      _vfs = await AccessHandlePoolVFS.create(VFS_NAME_PERSISTENT, module);
++      // Without OPFS sync access handles, keep databases in memory and save them to IndexedDB.
++      _vfs = IndexedDBSnapshotVFS.isNeeded()
++        ? await IndexedDBSnapshotVFS.create(VFS_NAME_PERSISTENT, module)
++        : await AccessHandlePoolVFS.create(VFS_NAME_PERSISTENT, module);
+       if (_vfs == null) {
+-        throw new Error('Failed to initialize AccessHandlePoolVFS');
++        throw new Error('Failed to initialize the persistent VFS');
+       }
+     }
+     _sqlite3.vfs_register(_vfs, true);

@@ -10,12 +10,13 @@ import { ProgressBar } from '../../src/components/ProgressBar';
 import { claimWish, listWishes, useDatabase, type Wish } from '../../src/db';
 import { useActiveKid } from '../../src/kids/ActiveKidProvider';
 import { useParentLock } from '../../src/parent/ParentLockProvider';
-import { colors, radius, shadow, spacing, typography } from '../../src/theme';
+import { colors, radius, shadow, spacing, typography, useLargeScreen } from '../../src/theme';
 import { orderWishes } from '../../src/wishes/order';
 
 export default function WishlistScreen() {
   const db = useDatabase();
   const { activeKid, savings, recordSavingsChange } = useActiveKid();
+  const large = useLargeScreen();
   const { requestPin } = useParentLock();
   const [wishes, setWishes] = useState<Wish[]>([]);
   const [burst, setBurst] = useState(0);
@@ -65,6 +66,7 @@ export default function WishlistScreen() {
   }
 
   const coins = activeKid ? (savings[activeKid.id] ?? 0) : 0;
+  const columns = large ? 4 : 2;
   const ordered = useMemo(() => {
     if (!activeKid) return [];
     const kidWishes = wishes.filter((wish) => wish.kidId === activeKid.id);
@@ -76,7 +78,9 @@ export default function WishlistScreen() {
       <FlatList
         data={ordered}
         keyExtractor={({ wish }) => String(wish.id)}
-        numColumns={2}
+        // FlatList can't change its column count in place, so remount on change.
+        key={columns}
+        numColumns={columns}
         style={styles.listView}
         contentContainerStyle={styles.list}
         columnWrapperStyle={styles.column}
@@ -96,7 +100,7 @@ export default function WishlistScreen() {
           const locked = state === 'locked';
           const claimed = state === 'claimed';
           return (
-            <FadeInUp index={index} style={styles.cell}>
+            <FadeInUp index={index} style={[styles.cell, { maxWidth: `${100 / columns}%` }]}>
               <Pressable
                 style={({ pressed }) => [
                   styles.wish,
@@ -172,8 +176,8 @@ const styles = StyleSheet.create({
   },
   cardEmoji: { fontSize: 64 },
   cardText: { ...typography.body, color: colors.textMuted, textAlign: 'center' },
-  // Half the row each, so a lone last wish stays about the same size.
-  cell: { flex: 1, maxWidth: '50%' },
+  // An equal share of the row each, so a lone last wish stays about the same size.
+  cell: { flex: 1 },
   wish: {
     flex: 1,
     alignItems: 'center',
