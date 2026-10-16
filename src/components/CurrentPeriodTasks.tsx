@@ -16,6 +16,7 @@ import { fonts, skies, spacing, typography, useLargeScreen } from '../theme';
 import { PERIOD_EMOJIS, tasksForPeriod } from '../tasks/period';
 import { wishesUnlockedBy } from '../wishes/order';
 import { Celebration, FadeInUp } from './Animations';
+import { CoinJar } from './CoinJar';
 import { EmptyState } from './EmptyState';
 import { TaskCard } from './TaskCard';
 import { TILE_TILT_DEG } from './PhotoTile';
@@ -24,8 +25,9 @@ const GRID_GAP = spacing.md;
 // Tilted tiles poke a few pixels past the grid; the ScrollView would clip them.
 const LIST_PAD_TOP = spacing.md;
 const LIST_PAD_BOTTOM = spacing.lg;
-// Kept clear on the right of the header for the jar WJ-26 adds there.
-const JAR_SPACE = 140;
+// The jar in the header, as tall as the mockup's: taller on the frame.
+const JAR_SIZE = 112;
+const JAR_SIZE_LARGE = 160;
 // How tall or wide a tile may get while fitting the screen, as width / height;
 // past these the grid scrolls instead.
 const TALLEST_TILE = 0.68;
@@ -203,8 +205,14 @@ export function CurrentPeriodTasks({ period, day }: CurrentPeriodTasksProps) {
   }
 
   const doneCount = currentTasks.filter((task) => doneKeys.has(`${day}:${kidId}:${task.id}`)).length;
-  const allDone = currentTasks.length > 0 && doneCount === currentTasks.length;
+  const leftCount = currentTasks.length - doneCount;
+  const allDone = currentTasks.length > 0 && leftCount === 0;
   const sky = skies[period];
+  const subtitle = allDone
+    ? 'All done! The jar is full 🎉'
+    : leftCount === 1
+      ? 'One more and the jar is full!'
+      : `${leftCount} more to fill the jar!`;
 
   // The sky reaches the edges of the screen, so the list keeps its own gutter.
   const gutter = large ? spacing.lg : spacing.md;
@@ -233,18 +241,29 @@ export function CurrentPeriodTasks({ period, day }: CurrentPeriodTasksProps) {
         onLayout={onListLayout}
       >
         {/* The header sits on the sky: the period's emoji, whose morning it
-            is, and how many tasks are left. */}
+            is and how many tasks are left, with the jar filling up on the
+            right. */}
         <View style={styles.header} onLayout={onBannerLayout}>
-          <Text style={[styles.title, large && styles.titleLarge, { color: sky.title }]}>
-            {PERIOD_EMOJIS[period]} {activeKid.name}&apos;s {period}
-          </Text>
-          {currentTasks.length > 0 ? (
-            <Text
-              style={[styles.subtitle, large && styles.subtitleLarge, { color: sky.subtitle }]}
-              accessibilityLabel={`${doneCount} of ${currentTasks.length} done`}
-            >
-              {allDone ? 'All done! 🎉' : `${currentTasks.length - doneCount} more to go!`}
+          <View style={styles.headerText}>
+            <Text style={[styles.title, large && styles.titleLarge, { color: sky.title }]}>
+              {PERIOD_EMOJIS[period]} {activeKid.name}&apos;s {period}
             </Text>
+            {currentTasks.length > 0 ? (
+              <Text style={[styles.subtitle, large && styles.subtitleLarge, { color: sky.subtitle }]}>
+                {subtitle}
+              </Text>
+            ) : null}
+          </View>
+          {currentTasks.length > 0 ? (
+            <View style={styles.jarBox}>
+              <CoinJar done={doneCount} total={currentTasks.length} size={large ? JAR_SIZE_LARGE : JAR_SIZE} />
+              <View accessible accessibilityLabel={`${doneCount} of ${currentTasks.length} done`}>
+                <Text style={[styles.count, large && styles.countLarge, { color: sky.title }]}>{doneCount}</Text>
+                <Text style={[styles.countOf, large && styles.countOfLarge, { color: sky.subtitle }]}>
+                  of {currentTasks.length}
+                </Text>
+              </View>
+            </View>
           ) : null}
         </View>
         {currentTasks.length === 0 ? (
@@ -287,10 +306,16 @@ const styles = StyleSheet.create({
   list: { gap: GRID_GAP, flexGrow: 1, paddingTop: LIST_PAD_TOP, paddingBottom: LIST_PAD_BOTTOM },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: GRID_GAP },
   tile: { flex: 1 },
-  header: { gap: spacing.xs, paddingRight: JAR_SPACE, marginBottom: spacing.xs },
+  header: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, marginBottom: spacing.xs },
+  headerText: { flex: 1, gap: spacing.xs },
   title: { ...typography.hero },
   titleLarge: { fontSize: 44, lineHeight: 52 },
   subtitle: { fontFamily: fonts.semibold, fontSize: 17 },
   subtitleLarge: { fontSize: 22 },
+  jarBox: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  count: { fontFamily: fonts.display, fontSize: 24, lineHeight: 26, textAlign: 'center' },
+  countLarge: { fontSize: 32, lineHeight: 34 },
+  countOf: { fontFamily: fonts.semibold, fontSize: 14, textAlign: 'center' },
+  countOfLarge: { fontSize: 18 },
   loading: { ...typography.body, textAlign: 'center' },
 });
