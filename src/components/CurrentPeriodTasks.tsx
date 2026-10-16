@@ -22,7 +22,6 @@ import { TILE_TILT_DEG } from './PhotoTile';
 
 const GRID_GAP = spacing.md;
 // Tilted tiles poke a few pixels past the grid; the ScrollView would clip them.
-const GRID_PAD = spacing.sm;
 const LIST_PAD_TOP = spacing.md;
 const LIST_PAD_BOTTOM = spacing.lg;
 // Kept clear on the right of the header for the jar WJ-26 adds there.
