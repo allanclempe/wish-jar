@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-export const DATABASE_VERSION = 9;
+export const DATABASE_VERSION = 10;
 
 const MIGRATIONS: Record<number, string> = {
   1: `
@@ -154,6 +154,25 @@ const MIGRATIONS: Record<number, string> = {
     DROP TABLE IF EXISTS punishment_types;
 
     CREATE INDEX IF NOT EXISTS consequences_kid_day_idx ON consequences (kid_id, day_key);
+  `,
+  // A starter list, mostly ways to make it right, so new families see repair
+  // before deduction. Skipped when a family already has consequences, and run
+  // once, so ones a parent deletes stay deleted.
+  10: `
+    INSERT INTO consequence_types (name, coin_amount, icon_emoji)
+      SELECT name, coin_amount, icon_emoji FROM (
+        SELECT 1 AS position, 'Give a hug' AS name, 0 AS coin_amount, '🤗' AS icon_emoji
+        UNION ALL SELECT 2, 'Say sorry', 0, '🙏'
+        UNION ALL SELECT 3, 'Tidy up the mess', 0, '🧹'
+        UNION ALL SELECT 4, 'Write a sorry note', 0, '✍️'
+        UNION ALL SELECT 5, 'Make up with a brother or sister', 0, '🤝'
+        UNION ALL SELECT 6, 'Told a lie', 3, '🤥'
+        UNION ALL SELECT 7, 'Too much screen time', 2, '📱'
+        UNION ALL SELECT 8, 'Not in bed on time', 2, '⏰'
+        UNION ALL SELECT 9, 'Hurt someone', 5, '😡'
+      )
+      WHERE NOT EXISTS (SELECT 1 FROM consequence_types)
+      ORDER BY position;
   `,
 };
 

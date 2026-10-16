@@ -70,7 +70,7 @@ function RootStack() {
         <Stack.Screen name="consequence-types" options={page('Consequences')} />
         <Stack.Screen name="add-consequence-type" options={modal('Add a consequence')} />
         <Stack.Screen name="edit-consequence-type" options={modal('Edit a consequence')} />
-        <Stack.Screen name="add-consequence" options={modal('What did they do?')} />
+        <Stack.Screen name="add-consequence" options={modal('Pick a consequence')} />
       </Stack.Protected>
     </Stack>
   );
