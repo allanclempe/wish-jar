@@ -67,7 +67,7 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     borderWidth: 3,
     borderColor: colors.border,
-    backgroundColor: colors.background,
+    backgroundColor: colors.border,
   },
   tab: {
     alignItems: 'center',
@@ -84,7 +84,8 @@ const styles = StyleSheet.create({
     width: TAB_WIDTH,
     height: TAB_HEIGHT,
     borderRadius: radius.pill,
-    backgroundColor: colors.primary,
+    // White, so the colourful emoji stand out on it.
+    backgroundColor: colors.surface,
     ...shadow,
   },
   pressed: { transform: [{ scale: 0.94 }] },
