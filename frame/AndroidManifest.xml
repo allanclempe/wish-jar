@@ -6,6 +6,8 @@
   <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
   <!-- To look the frame's timezone up from its IP address (FrameTimeZone). -->
   <uses-permission android:name="android.permission.INTERNET" />
+  <!-- To open Wish Jar after the frame restarts (BootReceiver). -->
+  <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
   <application
       android:label="Wish Jar"
@@ -24,5 +26,17 @@
       </intent-filter>
     </activity>
     <receiver android:name=".ReturnReceiver" android:exported="false" />
+    <!-- This frame's firmware keeps BOOT_COMPLETED from Wish Jar, so the storage being mounted and
+         the network connecting stand in for it (BootReceiver). -->
+    <receiver android:name=".BootReceiver">
+      <intent-filter>
+        <action android:name="android.intent.action.BOOT_COMPLETED" />
+        <action android:name="android.net.conn.CONNECTIVITY_CHANGE" />
+      </intent-filter>
+      <intent-filter>
+        <action android:name="android.intent.action.MEDIA_MOUNTED" />
+        <data android:scheme="file" />
+      </intent-filter>
+    </receiver>
   </application>
 </manifest>
