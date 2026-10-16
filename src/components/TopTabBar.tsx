@@ -1,14 +1,15 @@
 import type { Tabs } from 'expo-router';
 import type { ComponentProps } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { KidSwitcher } from '../kids/KidSwitcher';
-import { colors, radius, spacing } from '../theme';
+import { colors, radius, shadow, spacing } from '../theme';
 
 type TabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar']>>[0];
 
 // On large screens there is plenty of room across the top, so the tabs join
 // the kids, coins and lock in one bar instead of a thin strip at the bottom.
+// They are one toggle, icons only, with the chosen one filled in.
 export function TopTabBar({ state, descriptors, navigation }: TabBarProps) {
   const tabs = (
     <View style={styles.tabs} accessibilityRole="tablist">
@@ -29,12 +30,12 @@ export function TopTabBar({ state, descriptors, navigation }: TabBarProps) {
             key={route.key}
             onPress={press}
             style={({ pressed }) => [styles.tab, focused && styles.tabFocused, pressed && styles.pressed]}
+            hitSlop={spacing.xs}
             accessibilityRole="tab"
             accessibilityState={{ selected: focused }}
             accessibilityLabel={options.title}
           >
             {options.tabBarIcon?.({ focused, color, size: 34 })}
-            <Text style={[styles.label, { color }]}>{options.title}</Text>
           </Pressable>
         );
       })}
@@ -45,18 +46,22 @@ export function TopTabBar({ state, descriptors, navigation }: TabBarProps) {
 }
 
 const styles = StyleSheet.create({
-  tabs: { flexDirection: 'row', gap: spacing.sm },
-  tab: {
+  tabs: {
     flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-    minHeight: 72,
-    paddingHorizontal: spacing.lg,
+    gap: spacing.xs,
+    padding: spacing.xs,
     borderRadius: radius.pill,
     borderWidth: 3,
-    borderColor: 'transparent',
+    borderColor: colors.border,
+    backgroundColor: colors.background,
   },
-  tabFocused: { backgroundColor: colors.background, borderColor: colors.border },
-  pressed: { transform: [{ scale: 0.96 }] },
-  label: { fontSize: 22, fontWeight: '800' },
+  tab: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: 96,
+    height: 64,
+    borderRadius: radius.pill,
+  },
+  tabFocused: { backgroundColor: colors.primary, ...shadow },
+  pressed: { transform: [{ scale: 0.94 }] },
 });
