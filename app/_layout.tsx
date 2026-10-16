@@ -62,6 +62,7 @@ function RootStack() {
       <Stack.Protected guard={unlocked}>
         <Stack.Screen name="settings" options={page('Grown-ups')} />
         <Stack.Screen name="change-pin" options={modal('Change PIN')} />
+        <Stack.Screen name="timezone" options={modal('Timezone')} />
         <Stack.Screen name="add-kid" options={modal('Add a kid')} />
         <Stack.Screen name="kids" options={page('Kids')} />
         <Stack.Screen name="edit-kid" options={modal('Edit a kid')} />

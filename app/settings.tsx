@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ScrollScreen } from '../src/components/ScrollScreen';
 import { listConsequenceTypes, listTasks, listWishes, useDatabase } from '../src/db';
+import { currentTimeZone, onFrame, timeZoneName } from '../src/device/frame';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { colors, radius, spacing, typography } from '../src/theme';
 
@@ -43,10 +44,12 @@ export default function SettingsScreen() {
   const [taskCount, setTaskCount] = useState(0);
   const [wishCount, setWishCount] = useState(0);
   const [consequenceCount, setConsequenceCount] = useState(0);
+  const [timeZone, setTimeZone] = useState(currentTimeZone);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
+      setTimeZone(currentTimeZone());
       Promise.all([listTasks(db), listWishes(db), listConsequenceTypes(db)]).then(
         ([tasks, wishes, consequenceTypes]) => {
           if (cancelled) return;
@@ -94,6 +97,14 @@ export default function SettingsScreen() {
           subtitle="The code that opens this page"
           onPress={() => router.push('/change-pin')}
         />
+        {onFrame ? (
+          <MenuItem
+            emoji="🕰️"
+            title="Timezone"
+            subtitle={timeZoneName(timeZone)}
+            onPress={() => router.push('/timezone')}
+          />
+        ) : null}
       </View>
     </ScrollScreen>
   );
