@@ -140,6 +140,14 @@ runs `su 0 service call alarm 3 s16 <zone>`, which works because this frame's
 adb shell su 0 service call alarm 3 s16 Australia/Brisbane
 ```
 
+Frameo keeps a timezone of its own and sets it again about 5 seconds after
+every boot, so a timezone set like that, or any way but Frameo's settings, only
+lasts until the frame restarts. So the frame app keeps the zone it set, from
+the lookup or from Settings, and sets it again whenever Wish Jar comes to the
+front or the timezone changes under it, at most 3 times a boot. Frameo's sleep
+schedule follows the frame's clock, so it then sleeps at night in the right
+timezone. Frameo's own settings still show its zone.
+
 ## Step by step
 
 ### 1. Turn on ADB on the frame

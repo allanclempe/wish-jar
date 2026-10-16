@@ -26,6 +26,10 @@ import java.util.concurrent.atomic.AtomicBoolean;
  *   comes to the front (detect), and sets it.
  * - A grown-up can pick another in Settings, which the page sends as
  *   POST /device/timezone?zone=… (MainActivity.serveDevice). A lookup never overrides it.
+ * - Frameo sets its own timezone again a few seconds after every boot. So the zone Wish Jar set is
+ *   kept, and set again when Wish Jar comes to the front or the timezone changes under it (restore),
+ *   at most MAX_RESTORES times a boot so it can't go back and forth with Frameo for ever. Frames
+ *   that set theirs before the zone was kept need it picked in Settings once more.
  *
  * Setting it needs root: SET_TIME_ZONE is only granted to system apps. The page's clock follows the
  * change straight away, with no reload.
@@ -36,6 +40,10 @@ final class FrameTimeZone {
   private static final int TIMEOUT_MS = 10000;
   private static final String PREFS = "timezone";
   private static final String SET = "set";
+  private static final String ZONE = "zone";
+  private static final String RESTORED_BOOT = "restoredBoot";
+  private static final String RESTORES = "restores";
+  private static final int MAX_RESTORES = 3;
   private static final AtomicBoolean detecting = new AtomicBoolean();
 
   private FrameTimeZone() {}
@@ -54,6 +62,29 @@ final class FrameTimeZone {
     }, "detect-timezone").start();
   }
 
+  /** Sets the zone Wish Jar set again, in the background, if the frame's timezone has moved off it. */
+  static void restore(Context context) {
+    Context app = context.getApplicationContext();
+    String zone = prefs(app).getString(ZONE, null);
+    // The process's default follows the frame's timezone once Android has told it of a change.
+    TimeZone.setDefault(null);
+    if (zone == null || zone.equals(TimeZone.getDefault().getID())) return;
+    new Thread(() -> restoreNow(app, zone), "restore-timezone").start();
+  }
+
+  private static synchronized void restoreNow(Context context, String zone) {
+    SharedPreferences prefs = prefs(context);
+    // Checked again: another restore may have set it while this one waited.
+    TimeZone.setDefault(null);
+    if (!zone.equals(prefs.getString(ZONE, null)) || zone.equals(TimeZone.getDefault().getID())) return;
+    String boot = BootReceiver.bootId();
+    int restores = boot.equals(prefs.getString(RESTORED_BOOT, null)) ? prefs.getInt(RESTORES, 0) : 0;
+    if (restores >= MAX_RESTORES) return;
+    prefs.edit().putString(RESTORED_BOOT, boot).putInt(RESTORES, restores + 1).apply();
+    Log.i(MainActivity.TAG, "Timezone moved to " + TimeZone.getDefault().getID() + ": setting " + zone + " again");
+    apply(zone);
+  }
+
   /**
    * Sets the frame's timezone, an IANA id such as "Australia/Brisbane". A detected one is skipped
    * once a timezone has been set, so it can't undo a grown-up's choice made while it was looked up.
@@ -65,6 +96,14 @@ final class FrameTimeZone {
       Log.w(MainActivity.TAG, "Unknown timezone " + zone);
       return false;
     }
+    if (!apply(zone)) return false;
+    prefs.edit().putBoolean(SET, true).putString(ZONE, zone).apply();
+    Log.i(MainActivity.TAG, "Timezone set to " + zone + (detected ? " (detected)" : ""));
+    return true;
+  }
+
+  /** Asks Android to set the timezone, as root. */
+  private static boolean apply(String zone) {
     try {
       // Transaction 3 of Android 6's IAlarmManager is setTimeZone, which also tells every app.
       Process su = new ProcessBuilder("su", "0", "service", "call", "alarm", "3", "s16", zone)
@@ -82,8 +121,6 @@ final class FrameTimeZone {
       Thread.currentThread().interrupt();
       return false;
     }
-    prefs.edit().putBoolean(SET, true).apply();
-    Log.i(MainActivity.TAG, "Timezone set to " + zone + (detected ? " (detected)" : ""));
     return true;
   }
 
