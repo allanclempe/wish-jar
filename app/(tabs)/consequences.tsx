@@ -10,7 +10,7 @@ import { useActiveKid } from '../../src/kids/ActiveKidProvider';
 import { useParentLock } from '../../src/parent/ParentLockProvider';
 import { dayKey } from '../../src/tasks/day';
 import { FadeInUp } from '../../src/components/Animations';
-import { colors, radius, shadow, spacing, typography, useLargeScreen } from '../../src/theme';
+import { colors, fonts, offsetShadow, radius, shadow, spacing, typography, useLargeScreen } from '../../src/theme';
 
 export default function ConsequencesScreen() {
   const db = useDatabase();
@@ -131,26 +131,24 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     ...shadow,
   },
-  name: { ...typography.body, fontSize: 18, color: colors.text, fontWeight: '700', flex: 1 },
+  name: { ...typography.body, fontSize: 18, color: colors.text, fontFamily: fonts.bold, flex: 1 },
   pill: {
     backgroundColor: colors.border,
     borderRadius: radius.pill,
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm + 2,
   },
-  pillText: { fontSize: 16, fontWeight: '800', color: colors.accent },
-  remove: { fontSize: 20, fontWeight: '800', color: colors.textMuted, paddingHorizontal: spacing.xs },
+  pillText: { fontSize: 16, fontFamily: fonts.display, color: colors.accent },
+  remove: { fontSize: 20, fontFamily: fonts.display, color: colors.textMuted, paddingHorizontal: spacing.xs },
   removeLarge: { fontSize: 30, padding: spacing.sm },
   button: {
     backgroundColor: colors.primary,
     borderRadius: radius.pill,
-    paddingVertical: spacing.md,
+    borderWidth: 4,
+    borderColor: colors.surface,
+    paddingVertical: spacing.md - 2,
     alignItems: 'center',
-    shadowColor: colors.primary,
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
+    ...offsetShadow(colors.primaryDark, 6),
   },
   buttonLarge: { alignSelf: 'center', minWidth: 420, paddingHorizontal: spacing.xl, paddingVertical: spacing.lg },
   buttonText: { ...typography.heading, color: colors.surface },

@@ -13,7 +13,7 @@ import {
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { dayKey } from '../src/tasks/day';
 import { EmptyState } from '../src/components/EmptyState';
-import { colors, contentMaxWidth, radius, spacing, typography } from '../src/theme';
+import { colors, contentMaxWidth, fonts, radius, spacing, typography } from '../src/theme';
 
 export default function AddConsequenceScreen() {
   const db = useDatabase();
@@ -101,12 +101,12 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   rowPressed: { backgroundColor: colors.border },
-  name: { ...typography.body, color: colors.text, fontWeight: '600', flex: 1 },
+  name: { ...typography.body, color: colors.text, fontFamily: fonts.semibold, flex: 1 },
   pill: {
     backgroundColor: colors.border,
     borderRadius: radius.pill,
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm + 2,
   },
-  pillText: { fontSize: 13, fontWeight: '700', color: colors.accent },
+  pillText: { fontSize: 13, fontFamily: fonts.bold, color: colors.accent },
 });

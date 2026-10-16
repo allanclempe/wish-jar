@@ -21,7 +21,7 @@ import {
 } from 'react-native';
 
 import { useParentLock } from '../parent/ParentLockProvider';
-import { colors, radius, spacing, typography } from '../theme';
+import { colors, fonts, radius, spacing, typography } from '../theme';
 import {
   connectPhone,
   frameoPhotos,
@@ -264,7 +264,7 @@ const styles = StyleSheet.create({
   headerText: { flex: 1, gap: spacing.xs },
   title: { ...typography.heading, color: colors.text },
   subtitle: { ...typography.caption, color: colors.textMuted },
-  cancel: { ...typography.body, color: colors.textMuted, fontWeight: '600' },
+  cancel: { ...typography.body, color: colors.textMuted, fontFamily: fonts.semibold },
   loading: { padding: spacing.xl },
   scroll: { flexShrink: 1 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: spacing.md },
@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     marginTop: spacing.sm,
   },
-  buttonText: { ...typography.body, color: colors.surface, fontWeight: '700' },
+  buttonText: { ...typography.body, color: colors.surface, fontFamily: fonts.bold },
   connect: {
     flexDirection: 'row',
     alignItems: 'center',

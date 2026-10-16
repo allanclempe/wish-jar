@@ -9,7 +9,7 @@ import { IconPicker } from '../src/components/Icons';
 import { deleteWish, getWish, updateWish, useDatabase, type Icon } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { removePhoto, storePhoto } from '../src/photos/photos';
-import { colors, radius, spacing, typography } from '../src/theme';
+import { colors, fonts, radius, spacing, typography } from '../src/theme';
 
 type Errors = { name?: string; coinAmount?: string; kidId?: string };
 
@@ -214,7 +214,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.md,
   },
   kidSelected: { borderColor: colors.primary, backgroundColor: colors.primary },
-  kidText: { ...typography.body, color: colors.text, fontWeight: '600' },
+  kidText: { ...typography.body, color: colors.text, fontFamily: fonts.semibold },
   kidTextSelected: { color: colors.surface },
   button: {
     marginTop: spacing.lg,

@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNativeDriver } from '../components/Animations';
 import { ParentLockButton } from '../parent/ParentLockButton';
 import { useActiveKid } from './ActiveKidProvider';
-import { colors, radius, spacing, typography, useLargeScreen } from '../theme';
+import { colors, fonts, offsetShadow, radius, spacing, sunshineShadow, typography, useLargeScreen } from '../theme';
 
 type KidSwitcherProps = {
   // On large screens and in landscape the tabs sit in this bar instead of at the bottom.
@@ -77,10 +77,15 @@ function KidAvatar({ name, photoUri, active, large, onPress }: KidAvatarProps) {
       accessibilityState={{ selected: active }}
     >
       <Animated.View
-        style={{
-          opacity: pop.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] }),
-          transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1.05] }) }],
-        }}
+        style={[
+          styles.ring,
+          large && styles.ringLarge,
+          active && styles.ringActive,
+          {
+            opacity: pop.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] }),
+            transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1.08] }) }],
+          },
+        ]}
       >
         {photoUri ? (
           <Image
@@ -127,28 +132,25 @@ const AVATAR_SIZE = 52;
 const AVATAR_SIZE_LARGE = 84;
 
 const styles = StyleSheet.create({
-  safe: { backgroundColor: colors.surface, borderBottomWidth: 2, borderBottomColor: colors.border },
+  safe: { backgroundColor: colors.surface, borderBottomWidth: 3, borderBottomColor: colors.border },
   bar: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingRight: spacing.md, minHeight: 64 },
   barLarge: { gap: spacing.md, paddingRight: spacing.lg, minHeight: 112 },
   scroll: { flex: 1 },
   row: { paddingHorizontal: spacing.md, paddingVertical: spacing.sm, gap: spacing.md },
-  // White inside, so the gold coin stands out; the yellow rim keeps it the coins spot.
+  // White inside, so the gold coin stands out; the yellow rim and its darker
+  // shadow make it a chunky coin of its own.
   coins: {
     backgroundColor: colors.surface,
     borderRadius: radius.pill,
-    paddingVertical: spacing.xs + 2,
+    paddingVertical: 2,
     paddingHorizontal: spacing.md,
     borderWidth: 3,
     borderColor: colors.sunshine,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.3,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 3,
+    ...sunshineShadow,
   },
-  coinsLarge: { paddingVertical: spacing.sm, paddingHorizontal: spacing.lg },
-  coinsText: { fontSize: 26, fontWeight: '900', color: colors.text },
-  coinsTextLarge: { fontSize: 36 },
+  coinsLarge: { paddingVertical: spacing.xs, paddingHorizontal: spacing.lg - 2 },
+  coinsText: { fontFamily: fonts.display, fontSize: 26, lineHeight: 36, color: colors.text },
+  coinsTextLarge: { fontSize: 34, lineHeight: 46 },
   kid: { alignItems: 'center', gap: spacing.xs },
   avatar: {
     width: AVATAR_SIZE,
@@ -159,10 +161,15 @@ const styles = StyleSheet.create({
   },
   avatarLarge: { width: AVATAR_SIZE_LARGE, height: AVATAR_SIZE_LARGE, borderRadius: AVATAR_SIZE_LARGE / 2 },
   avatarActive: { borderColor: colors.primary, borderWidth: 4 },
+  // The shadow sits on the wrapper, which has the avatar's round shape, so it
+  // follows the pop animation.
+  ring: { borderRadius: AVATAR_SIZE / 2 },
+  ringLarge: { borderRadius: AVATAR_SIZE_LARGE / 2 },
+  ringActive: { ...offsetShadow(colors.primaryDark, 3) },
   avatarEmpty: { backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center' },
   avatarEmoji: { fontSize: 26 },
   avatarEmojiLarge: { fontSize: 44 },
-  name: { ...typography.caption, color: colors.textMuted, maxWidth: 72 },
+  name: { ...typography.caption, fontFamily: fonts.semibold, color: colors.textMuted, maxWidth: 72 },
   nameLarge: { fontSize: 18, maxWidth: 110 },
-  nameActive: { color: colors.text, fontWeight: '800' },
+  nameActive: { color: colors.text, fontFamily: fonts.bold },
 });

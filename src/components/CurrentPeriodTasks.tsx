@@ -11,7 +11,7 @@ import {
   type Task,
 } from '../db';
 import { useActiveKid } from '../kids/ActiveKidProvider';
-import { colors, radius, spacing, typography, useLargeScreen } from '../theme';
+import { colors, fonts, radius, spacing, typography, useLargeScreen } from '../theme';
 import { currentPeriod, PERIOD_EMOJIS, PERIOD_LABELS, tasksForPeriod } from '../tasks/period';
 import { dayKey } from '../tasks/day';
 import { wishesUnlockedBy } from '../wishes/order';
@@ -232,7 +232,7 @@ const styles = StyleSheet.create({
   bannerEmoji: { fontSize: 44 },
   bannerText: { flex: 1, gap: 2 },
   heading: { ...typography.heading, color: colors.text },
-  stars: { fontSize: 22, color: colors.sunshine, fontWeight: '800', letterSpacing: 2 },
+  stars: { fontSize: 22, color: colors.sunshine, fontFamily: fonts.display, letterSpacing: 2 },
   allDone: { color: colors.successDark, letterSpacing: 0 },
   loading: { ...typography.body, color: colors.textMuted, textAlign: 'center' },
 });

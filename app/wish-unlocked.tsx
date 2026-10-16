@@ -7,7 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Celebration, FadeInUp, Wiggle } from '../src/components/Animations';
 import { IconBadge } from '../src/components/Icons';
 import { listWishes, useDatabase, type Wish } from '../src/db';
-import { colors, radius, shadow, spacing, typography } from '../src/theme';
+import { colors, offsetShadow, radius, spacing, sunshineShadow, typography } from '../src/theme';
 
 // Shown when a task tick gives the kid enough coins for one or more wishes.
 // `ids` is the comma-separated list of wishes it unlocked.
@@ -63,8 +63,12 @@ export default function WishUnlockedScreen() {
         >
           <Text style={styles.buttonText}>🎁 Go to my wishes</Text>
         </Pressable>
-        <Pressable onPress={() => router.back()} accessibilityRole="button" hitSlop={12}>
-          <Text style={styles.later}>Keep doing tasks</Text>
+        <Pressable
+          style={({ pressed }) => [styles.later, pressed && styles.pressed]}
+          onPress={() => router.back()}
+          accessibilityRole="button"
+        >
+          <Text style={styles.laterText}>Keep doing tasks</Text>
         </Pressable>
       </ScrollView>
       <Celebration burst={burst} />
@@ -97,7 +101,7 @@ const styles = StyleSheet.create({
     borderWidth: 4,
     borderColor: colors.sunshine,
     padding: spacing.lg,
-    ...shadow,
+    ...sunshineShadow,
   },
   name: { ...typography.title, color: colors.text, textAlign: 'center' },
   // White with a yellow rim, like the coin counter, so the gold coin stands out.
@@ -108,18 +112,32 @@ const styles = StyleSheet.create({
     borderRadius: radius.pill,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.xs - 3,
+    ...sunshineShadow,
   },
   pillText: { ...typography.heading, color: colors.text },
   button: {
     alignSelf: 'stretch',
     backgroundColor: colors.primary,
     borderRadius: radius.pill,
-    paddingVertical: spacing.md,
+    borderWidth: 4,
+    borderColor: colors.surface,
+    paddingVertical: spacing.md - 2,
     alignItems: 'center',
     marginTop: spacing.sm,
-    ...shadow,
+    ...offsetShadow(colors.primaryDark, 6),
   },
   pressed: { transform: [{ scale: 0.97 }] },
   buttonText: { ...typography.heading, color: colors.surface },
-  later: { ...typography.body, color: colors.textMuted, fontWeight: '700' },
+  // A white twin of the button, for the way back to the tasks.
+  later: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.pill,
+    borderWidth: 4,
+    borderColor: colors.surface,
+    paddingVertical: spacing.sm + 2,
+    paddingHorizontal: spacing.xl,
+    marginTop: spacing.xs,
+    ...offsetShadow('rgba(0, 0, 0, 0.12)', 6),
+  },
+  laterText: { ...typography.heading, color: colors.text },
 });

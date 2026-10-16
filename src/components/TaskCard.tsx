@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Task } from '../db';
-import { colors, radius, shadow, spacing, typography } from '../theme';
+import { colors, fonts, radius, shadow, spacing, typography } from '../theme';
 import { useNativeDriver } from './Animations';
 import { IconBadge } from './Icons';
 
@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
     paddingHorizontal: spacing.sm + 2,
   },
-  coinText: { fontSize: 15, fontWeight: '800', color: colors.text },
+  coinText: { fontSize: 15, fontFamily: fonts.display, color: colors.text },
   checkCircle: {
     width: CHECK_SIZE,
     height: CHECK_SIZE,
@@ -151,13 +151,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   checkCircleDone: { borderColor: colors.successDark, backgroundColor: colors.success },
-  checkMark: { fontSize: 30, fontWeight: '900', color: colors.surface },
+  checkMark: { fontSize: 30, fontFamily: fonts.display, color: colors.surface },
   coinFloat: {
     position: 'absolute',
     right: spacing.md,
     top: 0,
     fontSize: 22,
-    fontWeight: '900',
+    fontFamily: fonts.display,
     color: colors.primary,
   },
 });

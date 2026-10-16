@@ -2,7 +2,7 @@ import { SQLiteProvider, useSQLiteContext, type SQLiteDatabase } from 'expo-sqli
 import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { colors, radius, spacing, typography } from '../theme';
+import { colors, fonts, radius, spacing, typography } from '../theme';
 import { migrateDatabase } from './migrations';
 
 export const DATABASE_NAME = 'wish-jar.db';
@@ -189,5 +189,5 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm + 4,
     paddingHorizontal: spacing.lg,
   },
-  buttonText: { ...typography.body, color: colors.surface, fontWeight: '700' },
+  buttonText: { ...typography.body, color: colors.surface, fontFamily: fonts.bold },
 });

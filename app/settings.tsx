@@ -6,7 +6,7 @@ import { ScrollScreen } from '../src/components/ScrollScreen';
 import { listConsequenceTypes, listTasks, listWishes, useDatabase } from '../src/db';
 import { currentTimeZone, onFrame, timeZoneName } from '../src/device/frame';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
-import { colors, radius, spacing, typography } from '../src/theme';
+import { colors, fonts, radius, shadow, spacing, typography } from '../src/theme';
 
 type MenuItemProps = {
   emoji: string;
@@ -123,11 +123,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.border,
     padding: spacing.md,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
+    ...shadow,
   },
   menuItemPressed: { transform: [{ scale: 0.98 }], opacity: 0.9 },
   menuIcon: {
@@ -142,5 +138,5 @@ const styles = StyleSheet.create({
   menuText: { flex: 1, gap: 2 },
   menuTitle: { ...typography.heading, color: colors.text },
   menuSubtitle: { ...typography.caption, color: colors.textMuted },
-  chevron: { fontSize: 32, color: colors.primary, fontWeight: '600' },
+  chevron: { fontSize: 32, color: colors.primary, fontFamily: fonts.semibold },
 });

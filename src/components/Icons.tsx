@@ -3,7 +3,7 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import type { Icon } from '../db';
 import { frameoPhotos } from '../photos/frameo';
 import { usePickPhoto } from '../photos/PhotoPicker';
-import { colors, radius, spacing, typography } from '../theme';
+import { colors, fonts, radius, spacing, typography } from '../theme';
 
 export const ICON_EMOJIS = [
   '🧹', '🪥', '🛏️', '🧽', '🧺', '🍽️', '📚', '🐶',
@@ -120,5 +120,5 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.md,
     alignItems: 'center',
   },
-  galleryText: { ...typography.body, color: colors.text, fontWeight: '600' },
+  galleryText: { ...typography.body, color: colors.text, fontFamily: fonts.semibold },
 });

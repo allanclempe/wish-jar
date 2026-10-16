@@ -11,7 +11,7 @@ import { ProgressBar } from '../../src/components/ProgressBar';
 import { claimWish, listWishes, useDatabase, type Wish } from '../../src/db';
 import { useActiveKid } from '../../src/kids/ActiveKidProvider';
 import { useParentLock } from '../../src/parent/ParentLockProvider';
-import { colors, radius, shadow, spacing, typography, useLargeScreen } from '../../src/theme';
+import { colors, fonts, radius, shadow, spacing, typography, useLargeScreen } from '../../src/theme';
 import { orderWishes } from '../../src/wishes/order';
 
 export default function WishlistScreen() {
@@ -169,7 +169,7 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
-    borderWidth: 3,
+    borderWidth: 4,
     borderColor: colors.border,
     padding: spacing.md,
     ...shadow,
@@ -194,10 +194,10 @@ const styles = StyleSheet.create({
   },
   badgeClaimed: { borderColor: colors.success },
   badgeText: { fontSize: 16 },
-  name: { ...typography.body, fontWeight: '800', color: colors.text, textAlign: 'center', minHeight: 44 },
+  name: { ...typography.body, fontFamily: fonts.display, color: colors.text, textAlign: 'center', minHeight: 44 },
   nameLocked: { color: colors.textMuted },
   progress: { alignSelf: 'stretch' },
-  needed: { ...typography.caption, fontWeight: '700', color: colors.textMuted },
+  needed: { ...typography.caption, fontFamily: fonts.bold, color: colors.textMuted },
   neededReady: { color: colors.successDark, fontSize: 16 },
   neededClaimed: { color: colors.successDark, fontSize: 16 },
 });
