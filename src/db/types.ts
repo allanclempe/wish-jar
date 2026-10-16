@@ -23,7 +23,7 @@ export type Task = {
   createdAt: number;
 };
 
-export type PunishmentType = {
+export type ConsequenceType = {
   id: number;
   name: string;
   coinAmount: number;
@@ -31,10 +31,10 @@ export type PunishmentType = {
   createdAt: number;
 };
 
-export type Punishment = {
+export type Consequence = {
   id: number;
   kidId: number;
-  punishmentTypeId: number | null;
+  consequenceTypeId: number | null;
   name: string;
   coinAmount: number;
   icon: Icon;

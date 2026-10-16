@@ -5,25 +5,25 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IconBadge } from '../src/components/Icons';
 import {
-  addPunishment,
-  listPunishmentTypes,
+  addConsequence,
+  listConsequenceTypes,
   useDatabase,
-  type PunishmentType,
+  type ConsequenceType,
 } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { dayKey } from '../src/tasks/day';
 import { colors, radius, spacing, typography } from '../src/theme';
 
-export default function AddPunishmentScreen() {
+export default function AddConsequenceScreen() {
   const db = useDatabase();
   const { activeKid, recordSavingsChange } = useActiveKid();
-  const [types, setTypes] = useState<PunishmentType[]>([]);
+  const [types, setTypes] = useState<ConsequenceType[]>([]);
   const [saving, setSaving] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      listPunishmentTypes(db).then((loaded) => {
+      listConsequenceTypes(db).then((loaded) => {
         if (!cancelled) setTypes(loaded);
       });
       return () => {
@@ -32,13 +32,13 @@ export default function AddPunishmentScreen() {
     }, [db]),
   );
 
-  async function choose(type: PunishmentType) {
+  async function choose(type: ConsequenceType) {
     if (!activeKid || saving) return;
     setSaving(true);
     try {
-      const change = await addPunishment(db, {
+      const change = await addConsequence(db, {
         kidId: activeKid.id,
-        punishmentType: type,
+        consequenceType: type,
         dayKey: dayKey(),
       });
       if (change.changed) {
@@ -61,7 +61,7 @@ export default function AddPunishmentScreen() {
           <View style={styles.card}>
             <Text style={styles.cardEmoji}>🚫</Text>
             <Text style={styles.cardText}>
-              No punishments yet. Add some in Settings, then come back here.
+              No consequences yet. Add some in Settings, then come back here.
             </Text>
           </View>
         }
@@ -76,7 +76,9 @@ export default function AddPunishmentScreen() {
             <Text style={styles.name}>{item.name}</Text>
             <View style={styles.pill}>
               <Text style={styles.pillText}>
-                −{item.coinAmount} {item.coinAmount === 1 ? 'coin' : 'coins'}
+                {item.coinAmount === 0
+                  ? 'No coins'
+                  : `−${item.coinAmount} ${item.coinAmount === 1 ? 'coin' : 'coins'}`}
               </Text>
             </View>
           </Pressable>

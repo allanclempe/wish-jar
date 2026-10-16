@@ -67,10 +67,10 @@ function RootStack() {
         <Stack.Screen name="edit-task" options={modal('Edit a task')} />
         <Stack.Screen name="wishes" options={page('Wishes')} />
         <Stack.Screen name="add-wish" options={modal('Add a wish')} />
-        <Stack.Screen name="punishment-types" options={page('Punishments')} />
-        <Stack.Screen name="add-punishment-type" options={modal('Add a punishment')} />
-        <Stack.Screen name="edit-punishment-type" options={modal('Edit a punishment')} />
-        <Stack.Screen name="add-punishment" options={modal('What did they do?')} />
+        <Stack.Screen name="consequence-types" options={page('Consequences')} />
+        <Stack.Screen name="add-consequence-type" options={modal('Add a consequence')} />
+        <Stack.Screen name="edit-consequence-type" options={modal('Edit a consequence')} />
+        <Stack.Screen name="add-consequence" options={modal('What did they do?')} />
       </Stack.Protected>
     </Stack>
   );

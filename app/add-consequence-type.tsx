@@ -1,56 +1,31 @@
-import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { router } from 'expo-router';
+import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ScrollScreen } from '../src/components/ScrollScreen';
-import { IconPicker, PUNISHMENT_EMOJIS } from '../src/components/Icons';
-import { getPunishmentType, updatePunishmentType, useDatabase, type Icon } from '../src/db';
+import { IconPicker, CONSEQUENCE_EMOJIS } from '../src/components/Icons';
+import { insertConsequenceType, useDatabase, type Icon } from '../src/db';
 import { removePhoto, storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
 type Errors = { name?: string; coinAmount?: string };
 
-export default function EditPunishmentTypeScreen() {
+export default function AddConsequenceTypeScreen() {
   const db = useDatabase();
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const punishmentTypeId = Number(id);
-  const [loaded, setLoaded] = useState(false);
   const [name, setName] = useState('');
   const [coinAmount, setCoinAmount] = useState('');
   const [icon, setIcon] = useState<Icon>({ emoji: null, photoUri: null });
-  const [originalPhotoUri, setOriginalPhotoUri] = useState<string | null>(null);
   const [errors, setErrors] = useState<Errors>({});
   const [saving, setSaving] = useState(false);
-
-  useEffect(() => {
-    let cancelled = false;
-    getPunishmentType(db, punishmentTypeId).then((type) => {
-      if (cancelled) return;
-      if (!type) {
-        Alert.alert('Punishment not found', 'This punishment may have been removed.');
-        router.back();
-        return;
-      }
-      setName(type.name);
-      setCoinAmount(String(type.coinAmount));
-      setIcon(type.icon);
-      setOriginalPhotoUri(type.icon.photoUri);
-      setLoaded(true);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [db, punishmentTypeId]);
 
   function validate(): Errors {
     const next: Errors = {};
     if (name.trim().length === 0) {
-      next.name = 'Name the punishment.';
+      next.name = 'Name the consequence.';
     }
     const coins = coinAmount.trim();
-    if (!/^\d+$/.test(coins) || Number(coins) === 0) {
-      next.coinAmount = 'Coins must be a whole number, 1 or more.';
+    if (!/^\d+$/.test(coins)) {
+      next.coinAmount = 'Coins must be a whole number, 0 or more.';
     }
     return next;
   }
@@ -61,31 +36,20 @@ export default function EditPunishmentTypeScreen() {
     if (nextErrors.name || nextErrors.coinAmount || saving) return;
 
     setSaving(true);
-    let savedPhotoUri = icon.photoUri;
+    let storedPhotoUri: string | null = null;
     try {
-      if (icon.photoUri && icon.photoUri !== originalPhotoUri) {
-        savedPhotoUri = await storePhoto(icon.photoUri);
-      }
-      const previousPhotoUri = await updatePunishmentType(db, punishmentTypeId, {
+      storedPhotoUri = icon.photoUri ? await storePhoto(icon.photoUri) : null;
+      await insertConsequenceType(db, {
         name,
         coinAmount: Number(coinAmount.trim()),
-        icon: { emoji: icon.emoji, photoUri: savedPhotoUri },
+        icon: { emoji: icon.emoji, photoUri: storedPhotoUri },
       });
-      if (previousPhotoUri !== savedPhotoUri) {
-        removePhoto(previousPhotoUri);
-      }
       router.back();
     } catch {
-      if (savedPhotoUri !== icon.photoUri) {
-        removePhoto(savedPhotoUri);
-      }
+      removePhoto(storedPhotoUri);
       Alert.alert('Could not save', 'Something went wrong while saving. Please try again.');
       setSaving(false);
     }
-  }
-
-  if (!loaded) {
-    return <SafeAreaView style={styles.safe} />;
   }
 
   return (
@@ -93,11 +57,11 @@ export default function EditPunishmentTypeScreen() {
       <IconPicker
         value={icon}
         fallbackEmoji="🚫"
-        emojis={PUNISHMENT_EMOJIS}
+        emojis={CONSEQUENCE_EMOJIS}
         onChange={setIcon}
       />
 
-      <Text style={styles.label}>Punishment</Text>
+      <Text style={styles.label}>Consequence</Text>
       <TextInput
         style={styles.input}
         value={name}
@@ -130,6 +94,7 @@ export default function EditPunishmentTypeScreen() {
         onSubmitEditing={save}
       />
       {errors.coinAmount ? <Text style={styles.error}>{errors.coinAmount}</Text> : null}
+      <Text style={styles.hint}>Use 0 for a consequence that doesn’t cost coins.</Text>
 
       <Pressable
         style={[styles.button, saving && styles.buttonDisabled]}
@@ -144,7 +109,6 @@ export default function EditPunishmentTypeScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: colors.background },
   label: { ...typography.caption, color: colors.textMuted, marginTop: spacing.md },
   input: {
     ...typography.body,
@@ -157,6 +121,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm + 4,
   },
   error: { ...typography.caption, color: colors.accent, marginTop: -spacing.sm },
+  hint: { ...typography.caption, color: colors.textMuted, marginTop: -spacing.sm },
   button: {
     marginTop: spacing.lg,
     backgroundColor: colors.primary,

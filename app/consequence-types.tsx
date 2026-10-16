@@ -4,17 +4,17 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IconBadge } from '../src/components/Icons';
-import { listPunishmentTypes, useDatabase, type PunishmentType } from '../src/db';
+import { listConsequenceTypes, useDatabase, type ConsequenceType } from '../src/db';
 import { colors, radius, spacing, typography } from '../src/theme';
 
-export default function PunishmentsSettingsScreen() {
+export default function ConsequencesSettingsScreen() {
   const db = useDatabase();
-  const [types, setTypes] = useState<PunishmentType[]>([]);
+  const [types, setTypes] = useState<ConsequenceType[]>([]);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      listPunishmentTypes(db).then((loaded) => {
+      listConsequenceTypes(db).then((loaded) => {
         if (!cancelled) setTypes(loaded);
       });
       return () => {
@@ -34,7 +34,7 @@ export default function PunishmentsSettingsScreen() {
             <View style={styles.card}>
               <Text style={styles.cardEmoji}>🚫</Text>
               <Text style={styles.cardText}>
-                No punishments yet. Add one below, with what it costs in coins.
+                No consequences yet. Add one below, with what it costs in coins, if anything.
               </Text>
             </View>
           }
@@ -42,7 +42,7 @@ export default function PunishmentsSettingsScreen() {
             <Pressable
               style={styles.row}
               onPress={() =>
-                router.push({ pathname: '/edit-punishment-type', params: { id: String(item.id) } })
+                router.push({ pathname: '/edit-consequence-type', params: { id: String(item.id) } })
               }
               accessibilityRole="button"
             >
@@ -50,7 +50,9 @@ export default function PunishmentsSettingsScreen() {
               <Text style={styles.name}>{item.name}</Text>
               <View style={styles.pill}>
                 <Text style={styles.pillText}>
-                  −{item.coinAmount} {item.coinAmount === 1 ? 'coin' : 'coins'}
+                  {item.coinAmount === 0
+                    ? 'No coins'
+                    : `−${item.coinAmount} ${item.coinAmount === 1 ? 'coin' : 'coins'}`}
                 </Text>
               </View>
             </Pressable>
@@ -59,10 +61,10 @@ export default function PunishmentsSettingsScreen() {
 
         <Pressable
           style={styles.button}
-          onPress={() => router.push('/add-punishment-type')}
+          onPress={() => router.push('/add-consequence-type')}
           accessibilityRole="button"
         >
-          <Text style={styles.buttonText}>＋ Add a punishment</Text>
+          <Text style={styles.buttonText}>＋ Add a consequence</Text>
         </Pressable>
       </View>
     </SafeAreaView>

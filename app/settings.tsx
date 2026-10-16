@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ScrollScreen } from '../src/components/ScrollScreen';
-import { listPunishmentTypes, listTasks, listWishes, useDatabase } from '../src/db';
+import { listConsequenceTypes, listTasks, listWishes, useDatabase } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { colors, radius, spacing, typography } from '../src/theme';
 
@@ -42,17 +42,17 @@ export default function SettingsScreen() {
   const { kids } = useActiveKid();
   const [taskCount, setTaskCount] = useState(0);
   const [wishCount, setWishCount] = useState(0);
-  const [punishmentCount, setPunishmentCount] = useState(0);
+  const [consequenceCount, setConsequenceCount] = useState(0);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      Promise.all([listTasks(db), listWishes(db), listPunishmentTypes(db)]).then(
-        ([tasks, wishes, punishmentTypes]) => {
+      Promise.all([listTasks(db), listWishes(db), listConsequenceTypes(db)]).then(
+        ([tasks, wishes, consequenceTypes]) => {
           if (cancelled) return;
           setTaskCount(tasks.length);
           setWishCount(wishes.length);
-          setPunishmentCount(punishmentTypes.length);
+          setConsequenceCount(consequenceTypes.length);
         },
       );
       return () => {
@@ -84,9 +84,9 @@ export default function SettingsScreen() {
         />
         <MenuItem
           emoji="🚫"
-          title="Punishments"
-          subtitle={plural(punishmentCount, 'punishment', 'punishments')}
-          onPress={() => router.push('/punishment-types')}
+          title="Consequences"
+          subtitle={plural(consequenceCount, 'consequence', 'consequences')}
+          onPress={() => router.push('/consequence-types')}
         />
         <MenuItem
           emoji="🔢"

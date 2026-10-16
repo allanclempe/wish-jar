@@ -11,7 +11,7 @@ export const ICON_EMOJIS = [
 ];
 
 // What a kid did wrong: hitting, shouting, lying, too much screen, bedtime…
-export const PUNISHMENT_EMOJIS = [
+export const CONSEQUENCE_EMOJIS = [
   '🚫', '🛑', '😡', '🤬', '😤', '😭', '😝', '🤥',
   '🙉', '🗯️', '👊', '🦶', '🦷', '💦', '🥊', '💥',
   '🚪', '🧦', '🍬', '📱', '📺', '🎮', '⏰', '🛏️',

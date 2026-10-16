@@ -4,20 +4,20 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IconBadge } from '../../src/components/Icons';
-import { listPunishments, removePunishment, useDatabase, type Punishment } from '../../src/db';
+import { listConsequences, removeConsequence, useDatabase, type Consequence } from '../../src/db';
 import { useActiveKid } from '../../src/kids/ActiveKidProvider';
 import { useParentLock } from '../../src/parent/ParentLockProvider';
 import { dayKey } from '../../src/tasks/day';
 import { FadeInUp } from '../../src/components/Animations';
 import { colors, radius, shadow, spacing, typography, useLargeScreen } from '../../src/theme';
 
-export default function PunishmentsScreen() {
+export default function ConsequencesScreen() {
   const db = useDatabase();
   const { activeKid, recordSavingsChange } = useActiveKid();
   const large = useLargeScreen();
   const columns = large ? 2 : 1;
   const kidId = activeKid?.id ?? null;
-  const [punishments, setPunishments] = useState<Punishment[]>([]);
+  const [consequences, setConsequences] = useState<Consequence[]>([]);
   const { requestPin, openParentScreen } = useParentLock();
   const [day, setDay] = useState(dayKey);
 
@@ -26,14 +26,14 @@ export default function PunishmentsScreen() {
   useFocusEffect(
     useCallback(() => {
       if (kidId == null) {
-        setPunishments([]);
+        setConsequences([]);
         return;
       }
       let cancelled = false;
       const today = dayKey();
       setDay(today);
-      listPunishments(db, kidId, today).then((loaded) => {
-        if (!cancelled) setPunishments(loaded);
+      listConsequences(db, kidId, today).then((loaded) => {
+        if (!cancelled) setConsequences(loaded);
       });
       return () => {
         cancelled = true;
@@ -41,18 +41,18 @@ export default function PunishmentsScreen() {
     }, [db, kidId]),
   );
 
-  // Kids can see their punishments, but only a grown-up with the PIN can take one back.
-  async function remove(punishment: Punishment) {
+  // Kids can see their consequences, but only a grown-up with the PIN can take one back.
+  async function remove(consequence: Consequence) {
     if (kidId == null || !(await requestPin())) return;
-    const change = await removePunishment(db, {
-      punishmentId: punishment.id,
+    const change = await removeConsequence(db, {
+      consequenceId: consequence.id,
       kidId,
       dayKey: day,
     });
     if (change.changed) {
       recordSavingsChange(kidId, change.coins);
     }
-    setPunishments(await listPunishments(db, kidId, day));
+    setConsequences(await listConsequences(db, kidId, day));
   }
 
   return (
@@ -62,7 +62,7 @@ export default function PunishmentsScreen() {
           <FlatList
             // FlatList can't change its column count in place, so remount on change.
             key={columns}
-            data={punishments}
+            data={consequences}
             keyExtractor={(item) => String(item.id)}
             numColumns={columns}
             columnWrapperStyle={columns > 1 ? styles.columns : undefined}
@@ -80,7 +80,9 @@ export default function PunishmentsScreen() {
                   <IconBadge icon={item.icon} fallbackEmoji="🚫" size={56} />
                   <Text style={styles.name}>{item.name}</Text>
                   <View style={styles.pill}>
-                    <Text style={styles.pillText}>−{item.coinAmount} 🪙</Text>
+                    <Text style={styles.pillText}>
+                      {item.coinAmount === 0 ? 'No coins' : `−${item.coinAmount} 🪙`}
+                    </Text>
                   </View>
                   <Pressable
                     onPress={() => remove(item)}
@@ -104,10 +106,10 @@ export default function PunishmentsScreen() {
         {activeKid ? (
           <Pressable
             style={[styles.button, large && styles.buttonLarge]}
-            onPress={() => openParentScreen('/add-punishment')}
+            onPress={() => openParentScreen('/add-consequence')}
             accessibilityRole="button"
           >
-            <Text style={styles.buttonText}>🔒 Add a punishment</Text>
+            <Text style={styles.buttonText}>🔒 Add a consequence</Text>
           </Pressable>
         ) : null}
       </View>
@@ -120,7 +122,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, padding: spacing.lg, gap: spacing.md },
   list: { gap: spacing.sm, flexGrow: 1 },
   columns: { gap: spacing.md },
-  // Half the row each, so a lone last punishment stays the same size.
+  // Half the row each, so a lone last consequence stays the same size.
   cell: { flex: 1, maxWidth: '50%' },
   heading: { ...typography.heading, color: colors.text, marginBottom: spacing.sm },
   card: {
