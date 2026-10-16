@@ -76,11 +76,15 @@ export async function setKidPhoto(
   return previous?.photo_uri ?? null;
 }
 
-export async function deleteKid(db: SQLiteDatabase, kidId: number): Promise<string | null> {
-  const row = await db.getFirstAsync<{ photo_uri: string | null }>(
-    'SELECT photo_uri FROM kids WHERE id = ?',
+// Their wishes, ticks, consequences and savings go with them (ON DELETE
+// CASCADE). Returns the photos left behind, so the caller can remove them.
+export async function deleteKid(db: SQLiteDatabase, kidId: number): Promise<string[]> {
+  const rows = await db.getAllAsync<{ photo_uri: string | null }>(
+    `SELECT photo_uri FROM kids WHERE id = ?
+      UNION ALL SELECT icon_photo_uri FROM wishes WHERE kid_id = ?`,
+    kidId,
     kidId,
   );
   await db.runAsync('DELETE FROM kids WHERE id = ?', kidId);
-  return row?.photo_uri ?? null;
+  return rows.flatMap((row) => (row.photo_uri ? [row.photo_uri] : []));
 }

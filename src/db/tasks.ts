@@ -74,6 +74,13 @@ export async function updateTask(
   return previous?.icon_photo_uri ?? null;
 }
 
-export async function deleteTask(db: SQLiteDatabase, taskId: number): Promise<void> {
+// Its ticks go with it, but the coins they earned stay in the kids' savings.
+// Returns the task's photo, so the caller can remove it.
+export async function deleteTask(db: SQLiteDatabase, taskId: number): Promise<string | null> {
+  const row = await db.getFirstAsync<{ icon_photo_uri: string | null }>(
+    'SELECT icon_photo_uri FROM tasks WHERE id = ?',
+    taskId,
+  );
   await db.runAsync('DELETE FROM tasks WHERE id = ?', taskId);
+  return row?.icon_photo_uri ?? null;
 }

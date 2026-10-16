@@ -46,7 +46,15 @@ export function ActiveKidProvider({ children }: PropsWithChildren) {
   }, []);
 
   const refreshKids = useCallback(async () => {
-    setKids(await listKids(db));
+    const [loadedKids, savedId] = await Promise.all([listKids(db), getActiveKidId(db)]);
+    let nextId = savedId;
+    // The playing kid was deleted, so the first kid left takes over.
+    if (savedId != null && !loadedKids.some((kid) => kid.id === savedId) && loadedKids.length > 0) {
+      nextId = loadedKids[0].id;
+      await setActiveKidId(db, nextId);
+    }
+    setKids(loadedKids);
+    setActiveKidIdState(nextId);
   }, [db]);
 
   useEffect(() => {

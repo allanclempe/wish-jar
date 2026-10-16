@@ -72,3 +72,18 @@ export async function updateConsequenceType(
   );
   return previous?.icon_photo_uri ?? null;
 }
+
+// Entries already logged keep their name and coins (ON DELETE SET NULL), and
+// show the fallback icon from then on. Returns the type's photo, so the caller
+// can remove it.
+export async function deleteConsequenceType(
+  db: SQLiteDatabase,
+  consequenceTypeId: number,
+): Promise<string | null> {
+  const row = await db.getFirstAsync<{ icon_photo_uri: string | null }>(
+    'SELECT icon_photo_uri FROM consequence_types WHERE id = ?',
+    consequenceTypeId,
+  );
+  await db.runAsync('DELETE FROM consequence_types WHERE id = ?', consequenceTypeId);
+  return row?.icon_photo_uri ?? null;
+}
