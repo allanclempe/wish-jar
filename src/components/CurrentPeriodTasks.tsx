@@ -53,11 +53,15 @@ export function gridMetrics(
 ): GridMetrics {
   const columns = gridColumns(count, large);
   const rows = Math.max(1, Math.ceil(count / columns));
-  const tileWidth = Math.floor((width - GRID_GAP * (columns - 1)) / columns);
-  const tallest = tileWidth / TALLEST_TILE;
-  const widest = tileWidth / WIDEST_TILE;
-  const fitted = gridFits(count, large) && height > 0 ? (height - GRID_GAP * (rows - 1)) / rows : tallest;
-  const tileHeight = Math.floor(Math.min(tallest, Math.max(widest, fitted)));
+  const fullWidth = Math.floor((width - GRID_GAP * (columns - 1)) / columns);
+  const tallest = fullWidth / TALLEST_TILE;
+  const fits = gridFits(count, large) && height > 0;
+  const fitted = fits ? (height - GRID_GAP * (rows - 1)) / rows : tallest;
+  const tileHeight = Math.floor(Math.min(tallest, fitted));
+  // A lone task on the frame would otherwise stretch across the screen and
+  // grow taller than it: a fitting tile gives up width before it stops fitting,
+  // and the row centres it.
+  const tileWidth = fits ? Math.min(fullWidth, Math.floor(tileHeight * WIDEST_TILE)) : fullWidth;
   return { columns, tileWidth, tileHeight };
 }
 // Lets the tick's coin float and confetti play before the achievement opens.
@@ -276,7 +280,7 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { flex: 1 },
   list: { gap: GRID_GAP, flexGrow: 1, paddingHorizontal: GRID_PAD, paddingBottom: spacing.lg },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GRID_GAP },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: GRID_GAP },
   tile: { flex: 1 },
   banner: {
     flexDirection: 'row',
