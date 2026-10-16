@@ -9,7 +9,9 @@ import { useActiveKid } from '../../src/kids/ActiveKidProvider';
 import { KidSwitcher } from '../../src/kids/KidSwitcher';
 import { colors, useLargeScreen } from '../../src/theme';
 
-// Jumps and grows when its tab is chosen.
+// Jumps and grows when its tab is chosen. On large screens it only brightens:
+// the top toggle's sliding thumb already shows the choice, and a bigger icon
+// would sit off-centre in it.
 function TabEmoji({ emoji, focused }: { emoji: string; focused: boolean }) {
   const large = useLargeScreen();
   const [focus] = useState(() => new Animated.Value(focused ? 1 : 0));
@@ -30,10 +32,12 @@ function TabEmoji({ emoji, focused }: { emoji: string; focused: boolean }) {
         large && styles.emojiLarge,
         {
           opacity: focus.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] }),
-          transform: [
-            { scale: focus.interpolate({ inputRange: [0, 1], outputRange: [1, 1.3] }) },
-            { translateY: focus.interpolate({ inputRange: [0, 1], outputRange: [0, -4] }) },
-          ],
+          transform: large
+            ? []
+            : [
+                { scale: focus.interpolate({ inputRange: [0, 1], outputRange: [1, 1.3] }) },
+                { translateY: focus.interpolate({ inputRange: [0, 1], outputRange: [0, -4] }) },
+              ],
         },
       ]}
     >
