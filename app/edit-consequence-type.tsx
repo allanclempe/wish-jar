@@ -3,9 +3,16 @@ import { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { DeleteButton } from '../src/components/DeleteButton';
 import { ScrollScreen } from '../src/components/ScrollScreen';
 import { IconPicker, CONSEQUENCE_EMOJIS } from '../src/components/Icons';
-import { getConsequenceType, updateConsequenceType, useDatabase, type Icon } from '../src/db';
+import {
+  deleteConsequenceType,
+  getConsequenceType,
+  updateConsequenceType,
+  useDatabase,
+  type Icon,
+} from '../src/db';
 import { removePhoto, storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
@@ -84,6 +91,18 @@ export default function EditConsequenceTypeScreen() {
     }
   }
 
+  async function remove() {
+    if (saving) return;
+    setSaving(true);
+    try {
+      removePhoto(await deleteConsequenceType(db, consequenceTypeId));
+      router.back();
+    } catch {
+      Alert.alert('Could not delete', 'Something went wrong while deleting. Please try again.');
+      setSaving(false);
+    }
+  }
+
   if (!loaded) {
     return <SafeAreaView style={styles.safe} />;
   }
@@ -140,6 +159,13 @@ export default function EditConsequenceTypeScreen() {
       >
         <Text style={styles.buttonText}>Save</Text>
       </Pressable>
+      <DeleteButton
+        label="Delete consequence"
+        title={`Delete "${name.trim() || 'this consequence'}"?`}
+        message="It can't be picked any more. Times it was already given stay as they were."
+        disabled={saving}
+        onDelete={remove}
+      />
     </ScrollScreen>
   );
 }

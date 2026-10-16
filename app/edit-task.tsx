@@ -3,10 +3,11 @@ import { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { DeleteButton } from '../src/components/DeleteButton';
 import { ScrollScreen } from '../src/components/ScrollScreen';
 import { IconPicker } from '../src/components/Icons';
 import { PeriodPicker } from '../src/components/PeriodPicker';
-import { getTask, updateTask, useDatabase, type Icon, type Period } from '../src/db';
+import { deleteTask, getTask, updateTask, useDatabase, type Icon, type Period } from '../src/db';
 import { removePhoto, storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
@@ -88,6 +89,18 @@ export default function EditTaskScreen() {
     }
   }
 
+  async function remove() {
+    if (saving) return;
+    setSaving(true);
+    try {
+      removePhoto(await deleteTask(db, taskId));
+      router.back();
+    } catch {
+      Alert.alert('Could not delete', 'Something went wrong while deleting. Please try again.');
+      setSaving(false);
+    }
+  }
+
   if (!loaded) {
     return <SafeAreaView style={styles.safe} />;
   }
@@ -141,6 +154,13 @@ export default function EditTaskScreen() {
       >
         <Text style={styles.buttonText}>Save</Text>
       </Pressable>
+      <DeleteButton
+        label="Delete task"
+        title={`Delete "${name.trim() || 'this task'}"?`}
+        message="It comes off every kid's list for good. Coins already earned from it stay in their savings."
+        disabled={saving}
+        onDelete={remove}
+      />
     </ScrollScreen>
   );
 }

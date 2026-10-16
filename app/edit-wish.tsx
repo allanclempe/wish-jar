@@ -3,9 +3,10 @@ import { useEffect, useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { DeleteButton } from '../src/components/DeleteButton';
 import { ScrollScreen } from '../src/components/ScrollScreen';
 import { IconPicker } from '../src/components/Icons';
-import { getWish, updateWish, useDatabase, type Icon } from '../src/db';
+import { deleteWish, getWish, updateWish, useDatabase, type Icon } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { removePhoto, storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
@@ -94,6 +95,18 @@ export default function EditWishScreen() {
     }
   }
 
+  async function remove() {
+    if (saving) return;
+    setSaving(true);
+    try {
+      removePhoto(await deleteWish(db, wishId));
+      router.back();
+    } catch {
+      Alert.alert('Could not delete', 'Something went wrong while deleting. Please try again.');
+      setSaving(false);
+    }
+  }
+
   if (!loaded) {
     return <SafeAreaView style={styles.safe} />;
   }
@@ -166,6 +179,13 @@ export default function EditWishScreen() {
       >
         <Text style={styles.buttonText}>Save</Text>
       </Pressable>
+      <DeleteButton
+        label="Delete wish"
+        title={`Delete "${name.trim() || 'this wish'}"?`}
+        message="It comes off the wish list for good. Coins already spent on it stay spent."
+        disabled={saving}
+        onDelete={remove}
+      />
     </ScrollScreen>
   );
 }

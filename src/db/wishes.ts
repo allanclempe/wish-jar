@@ -78,6 +78,17 @@ export async function updateWish(
   return previous?.icon_photo_uri ?? null;
 }
 
+// A claimed wish's coins stay spent. Returns the wish's photo, so the caller
+// can remove it.
+export async function deleteWish(db: SQLiteDatabase, wishId: number): Promise<string | null> {
+  const row = await db.getFirstAsync<{ icon_photo_uri: string | null }>(
+    'SELECT icon_photo_uri FROM wishes WHERE id = ?',
+    wishId,
+  );
+  await db.runAsync('DELETE FROM wishes WHERE id = ?', wishId);
+  return row?.icon_photo_uri ?? null;
+}
+
 // The coins a claim took from the kid's savings. `changed` is false when the
 // wish was already claimed or the kid no longer has enough coins for it.
 export type WishClaim = {

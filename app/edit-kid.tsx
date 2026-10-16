@@ -3,8 +3,9 @@ import { useEffect, useState } from 'react';
 import { Alert, Image, Pressable, StyleSheet, Text, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { DeleteButton } from '../src/components/DeleteButton';
 import { ScrollScreen } from '../src/components/ScrollScreen';
-import { getKid, updateKid, useDatabase } from '../src/db';
+import { deleteKid, getKid, updateKid, useDatabase } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { usePickPhoto } from '../src/photos/PhotoPicker';
 import { removePhoto, storePhoto } from '../src/photos/photos';
@@ -71,6 +72,19 @@ export default function EditKidScreen() {
     }
   }
 
+  async function remove() {
+    if (saving) return;
+    setSaving(true);
+    try {
+      (await deleteKid(db, kidId)).forEach(removePhoto);
+      await refreshKids();
+      router.back();
+    } catch {
+      Alert.alert('Could not delete', 'Something went wrong while deleting. Please try again.');
+      setSaving(false);
+    }
+  }
+
   if (!loaded) {
     return <SafeAreaView style={styles.safe} />;
   }
@@ -108,6 +122,13 @@ export default function EditKidScreen() {
       >
         <Text style={styles.buttonText}>Save</Text>
       </Pressable>
+      <DeleteButton
+        label="Delete kid"
+        title={`Delete ${name.trim() || 'this kid'}?`}
+        message="Their wishes, coins and everything they've done go too. This can't be undone."
+        disabled={saving}
+        onDelete={remove}
+      />
     </ScrollScreen>
   );
 }
