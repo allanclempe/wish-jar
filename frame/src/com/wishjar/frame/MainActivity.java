@@ -58,7 +58,8 @@ import java.util.Map;
  * - Hold two fingers still on the screen for 1.5 s to open the Frameo app, Android settings or reload.
  * - Photos sent to the frame with the Frameo phone app are served under /frameo/ for the page's
  *   photo picker (serveFrameo). The page uses them when /frame/config.js says so, which
- *   build.sh writes: on, unless built with FRAMEO_PHOTOS=0.
+ *   build.sh writes: on, unless built with FRAMEO_PHOTOS=0. The same setting turns on the page's
+ *   slideshow of them while nobody is using Wish Jar.
  * - The frame's timezone is looked up from its IP address until one is set, and grown-ups can
  *   change it in Settings through /device/timezone (FrameTimeZone, serveDevice).
  * - Remote debugging is off unless launched with the debug extra:
@@ -253,6 +254,8 @@ public class MainActivity extends Activity {
    * (src/photos/frameo.ts):
    *   /frameo/photos               the newest ones first, as [{"name": "…", "time": <ms>}]
    *   /frameo/photos/<name>?size=N  one of them upright, cropped square and N px wide, as JPEG
+   *   /frameo/photos/<name>?width=W&height=H  the whole photo upright, fitted inside W x H, as
+   *                                 JPEG: for the idle slideshow (src/photos/Slideshow.tsx)
    *   POST /frameo/connect          opens Frameo to add a friend, and comes back (connectPhone)
    * The photo routes answer 403 until Wish Jar may read shared storage. /frameo/photos?ask=1 also
    * asks for that permission; the picker passes it when it opens, so a "Deny" isn't asked again on
@@ -279,15 +282,13 @@ public class MainActivity extends Activity {
     if (list) return json(200, "OK", listPhotos());
 
     String name = segments.get(2);
-    int size = 512;
-    try {
-      size = Math.max(64, Math.min(1024, Integer.parseInt(url.getQueryParameter("size"))));
-    } catch (NumberFormatException e) {
-      // No size or a bad one: keep the default.
-    }
     // A name is one file straight in Frameo's folder, never a path out of it.
-    byte[] jpeg = name.contains("/") || name.startsWith(".")
-        ? null : squarePhoto(new File(FRAMEO_PHOTOS, name), size);
+    File file = name.contains("/") || name.startsWith(".") ? null : new File(FRAMEO_PHOTOS, name);
+    int width = intParameter(url, "width", 0, 64, 1920);
+    int height = intParameter(url, "height", 0, 64, 1920);
+    byte[] jpeg = file == null ? null
+        : width > 0 && height > 0 ? wholePhoto(file, width, height)
+        : squarePhoto(file, intParameter(url, "size", 512, 64, 1024));
     if (jpeg == null) return json(404, "Not Found", "{\"error\":\"not found\"}");
     return new WebResourceResponse("image/jpeg", null, 200, "OK", headers(), new ByteArrayInputStream(jpeg));
   }
@@ -373,6 +374,50 @@ public class MainActivity extends Activity {
     if (square != decoded) square.recycle();
     decoded.recycle();
     return out.toByteArray();
+  }
+
+  /**
+   * The whole photo turned upright and scaled down to fit inside width x height px, as JPEG: a
+   * slideshow slide. Decoded at a power-of-two sample like squarePhoto, so it never has to fit in
+   * memory at full size.
+   */
+  private static byte[] wholePhoto(File file, int width, int height) {
+    BitmapFactory.Options options = new BitmapFactory.Options();
+    options.inJustDecodeBounds = true;
+    BitmapFactory.decodeFile(file.getPath(), options);
+    if (options.outWidth <= 0) return null;
+    int rotation = exifRotation(file);
+    boolean sideways = rotation == 90 || rotation == 270;
+    // The box in the photo's own orientation, before it's turned upright.
+    int boxWidth = sideways ? height : width;
+    int boxHeight = sideways ? width : height;
+    float fit = Math.min(1f, Math.min((float) boxWidth / options.outWidth, (float) boxHeight / options.outHeight));
+    options.inJustDecodeBounds = false;
+    options.inSampleSize = 1;
+    while (fit * options.inSampleSize * 2 <= 1) options.inSampleSize *= 2;
+    Bitmap decoded = BitmapFactory.decodeFile(file.getPath(), options);
+    if (decoded == null) return null;
+
+    float scale = Math.min(1f,
+        Math.min((float) boxWidth / decoded.getWidth(), (float) boxHeight / decoded.getHeight()));
+    Matrix matrix = new Matrix();
+    matrix.postScale(scale, scale);
+    matrix.postRotate(rotation);
+    Bitmap slide = Bitmap.createBitmap(decoded, 0, 0, decoded.getWidth(), decoded.getHeight(), matrix, true);
+    ByteArrayOutputStream out = new ByteArrayOutputStream();
+    slide.compress(Bitmap.CompressFormat.JPEG, 85, out);
+    if (slide != decoded) slide.recycle();
+    decoded.recycle();
+    return out.toByteArray();
+  }
+
+  /** A whole-number query parameter clamped to min..max, or fallback when it's missing or bad. */
+  private static int intParameter(Uri url, String name, int fallback, int min, int max) {
+    try {
+      return Math.max(min, Math.min(max, Integer.parseInt(url.getQueryParameter(name))));
+    } catch (NumberFormatException e) {
+      return fallback;
+    }
   }
 
   private static int exifRotation(File file) {
