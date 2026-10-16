@@ -1,6 +1,6 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 
 import {
   listCompletedTaskIds,
@@ -8,23 +8,25 @@ import {
   listWishes,
   setTaskCompletion,
   useDatabase,
+  type Period,
   type Task,
 } from '../db';
 import { useActiveKid } from '../kids/ActiveKidProvider';
-import { colors, fonts, radius, spacing, typography, useLargeScreen } from '../theme';
-import { currentPeriod, PERIOD_EMOJIS, PERIOD_LABELS, tasksForPeriod } from '../tasks/period';
-import { dayKey } from '../tasks/day';
+import { fonts, skies, spacing, typography, useLargeScreen } from '../theme';
+import { PERIOD_EMOJIS, tasksForPeriod } from '../tasks/period';
 import { wishesUnlockedBy } from '../wishes/order';
 import { Celebration, FadeInUp } from './Animations';
 import { EmptyState } from './EmptyState';
 import { TaskCard } from './TaskCard';
 import { TILE_TILT_DEG } from './PhotoTile';
 
-const PERIOD_CHECK_INTERVAL_MS = 60_000;
 const GRID_GAP = spacing.md;
 // Tilted tiles poke a few pixels past the grid; the ScrollView would clip them.
 const GRID_PAD = spacing.sm;
+const LIST_PAD_TOP = spacing.md;
 const LIST_PAD_BOTTOM = spacing.lg;
+// Kept clear on the right of the header for the jar WJ-26 adds there.
+const JAR_SPACE = 140;
 // How tall or wide a tile may get while fitting the screen, as width / height;
 // past these the grid scrolls instead.
 const TALLEST_TILE = 0.68;
@@ -72,15 +74,20 @@ export function gridMetrics(
 // Lets the tick's coin float and confetti play before the achievement opens.
 const UNLOCK_DELAY_MS = 900;
 
-export function CurrentPeriodTasks() {
+type CurrentPeriodTasksProps = {
+  // The period and day from the screen's clock (useClock), which also drives
+  // the sky behind this list.
+  period: Period;
+  day: string;
+};
+
+export function CurrentPeriodTasks({ period, day }: CurrentPeriodTasksProps) {
   const db = useDatabase();
   const { activeKid, recordTaskCompletion } = useActiveKid();
   const large = useLargeScreen();
   const activeKidId = activeKid?.id ?? null;
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState(currentPeriod);
-  const [day, setDay] = useState(dayKey);
   const [doneKeys, setDoneKeys] = useState<Set<string>>(() => new Set());
   // Read and written synchronously so rapid taps see each other before re-render.
   const doneRef = useRef(new Set<string>());
@@ -102,23 +109,6 @@ export function CurrentPeriodTasks() {
     [],
   );
 
-  // Ticks are keyed by day, so once the day key changes no task looks done.
-  const refreshClock = useCallback(() => {
-    setPeriod(currentPeriod());
-    setDay(dayKey());
-  }, []);
-
-  useEffect(() => {
-    const timer = setInterval(refreshClock, PERIOD_CHECK_INTERVAL_MS);
-    const subscription = AppState.addEventListener('change', (state) => {
-      if (state === 'active') refreshClock();
-    });
-    return () => {
-      clearInterval(timer);
-      subscription.remove();
-    };
-  }, [refreshClock]);
-
   // Tasks are shared across kids today, so activeKidId only triggers a reload
   // when the selected kid changes.
   useFocusEffect(
@@ -137,7 +127,8 @@ export function CurrentPeriodTasks() {
     }, [db, activeKidId]),
   );
 
-  // Saved ticks are for one kid on one day, so reload them when either changes.
+  // Saved ticks are for one kid on one day, so reload them when either changes;
+  // once the day key changes no task looks done.
   useEffect(() => {
     if (activeKidId == null) return;
     let cancelled = false;
@@ -214,12 +205,15 @@ export function CurrentPeriodTasks() {
 
   const doneCount = currentTasks.filter((task) => doneKeys.has(`${day}:${kidId}:${task.id}`)).length;
   const allDone = currentTasks.length > 0 && doneCount === currentTasks.length;
+  const sky = skies[period];
 
+  // The sky reaches the edges of the screen, so the list keeps its own gutter.
+  const gutter = large ? spacing.lg : spacing.md;
   const metrics = gridMetrics(
     currentTasks.length,
     large,
-    listSize.width - GRID_PAD * 2,
-    listSize.height - bannerHeight - GRID_GAP - LIST_PAD_BOTTOM,
+    listSize.width - gutter * 2,
+    listSize.height - LIST_PAD_TOP - bannerHeight - GRID_GAP - LIST_PAD_BOTTOM,
   );
   const tileBox = { width: metrics.tileWidth, height: metrics.tileHeight };
 
@@ -234,28 +228,35 @@ export function CurrentPeriodTasks() {
 
   return (
     <View style={styles.container}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.list} onLayout={onListLayout}>
-        <View style={styles.banner} onLayout={onBannerLayout}>
-          <Text style={styles.bannerEmoji}>{PERIOD_EMOJIS[period]}</Text>
-          <View style={styles.bannerText}>
-            <Text style={styles.heading}>{PERIOD_LABELS[period]} tasks</Text>
-            {currentTasks.length > 0 ? (
-              <Text
-                style={[styles.stars, allDone && styles.allDone]}
-                accessibilityLabel={`${doneCount} of ${currentTasks.length} done`}
-              >
-                {allDone
-                  ? 'All done! 🎉'
-                  : '⭐'.repeat(doneCount) + '☆'.repeat(currentTasks.length - doneCount)}
-              </Text>
-            ) : null}
-          </View>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[styles.list, { paddingHorizontal: gutter }]}
+        onLayout={onListLayout}
+      >
+        {/* The header sits on the sky: the period's emoji, whose morning it
+            is, and how many tasks are left. */}
+        <View style={styles.header} onLayout={onBannerLayout}>
+          <Text style={[styles.title, large && styles.titleLarge, { color: sky.title }]}>
+            {PERIOD_EMOJIS[period]} {activeKid.name}&apos;s {period}
+          </Text>
+          {currentTasks.length > 0 ? (
+            <Text
+              style={[styles.subtitle, large && styles.subtitleLarge, { color: sky.subtitle }]}
+              accessibilityLabel={`${doneCount} of ${currentTasks.length} done`}
+            >
+              {allDone ? 'All done! 🎉' : `${currentTasks.length - doneCount} more to go!`}
+            </Text>
+          ) : null}
         </View>
         {currentTasks.length === 0 ? (
           loading ? (
-            <Text style={styles.loading}>Loading tasks…</Text>
+            <Text style={[styles.loading, { color: sky.subtitle }]}>Loading tasks…</Text>
           ) : (
-            <EmptyState emoji="😴" text="No tasks right now. Time to play!" />
+            <EmptyState
+              emoji="😴"
+              text="No tasks right now. Time to play!"
+              textColor={sky.subtitle}
+            />
           )
         ) : listSize.width > 0 ? (
           // A wrapping row rather than a FlatList: changing a FlatList's column
@@ -284,22 +285,13 @@ export function CurrentPeriodTasks() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   scroll: { flex: 1 },
-  list: { gap: GRID_GAP, flexGrow: 1, paddingHorizontal: GRID_PAD, paddingBottom: LIST_PAD_BOTTOM },
+  list: { gap: GRID_GAP, flexGrow: 1, paddingTop: LIST_PAD_TOP, paddingBottom: LIST_PAD_BOTTOM },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: GRID_GAP },
   tile: { flex: 1 },
-  banner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.sky,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.xs,
-  },
-  bannerEmoji: { fontSize: 44 },
-  bannerText: { flex: 1, gap: 2 },
-  heading: { ...typography.heading, color: colors.text },
-  stars: { fontSize: 22, color: colors.sunshine, fontFamily: fonts.display, letterSpacing: 2 },
-  allDone: { color: colors.successDark, letterSpacing: 0 },
-  loading: { ...typography.body, color: colors.textMuted, textAlign: 'center' },
+  header: { gap: spacing.xs, paddingRight: JAR_SPACE, marginBottom: spacing.xs },
+  title: { ...typography.hero },
+  titleLarge: { fontSize: 44, lineHeight: 52 },
+  subtitle: { fontFamily: fonts.semibold, fontSize: 17 },
+  subtitleLarge: { fontSize: 22 },
+  loading: { ...typography.body, textAlign: 'center' },
 });

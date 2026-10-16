@@ -25,6 +25,54 @@ export function pastelFor(id: number): string {
   return pastels[Math.abs(id) % pastels.length];
 }
 
+// The tasks screen is a sky that follows the task period. The title and
+// subtitle colours pass 4.5:1 on the top of each gradient, where the header
+// sits: the mockup's grey subtitle on the afternoon sky and its yellow stars
+// do not.
+export type SkyColors = {
+  gradient: readonly [string, string, string];
+  title: string;
+  subtitle: string;
+  sun: string;
+  sunGlow: string;
+  cloud: string;
+  cloudOpacity: number;
+  hills: readonly [string, string];
+};
+
+export const skies: Record<'morning' | 'afternoon' | 'evening', SkyColors> = {
+  morning: {
+    gradient: ['#FFB86B', '#FFD9A6', '#FFF1DA'],
+    title: colors.text,
+    subtitle: '#6B3F1D',
+    sun: '#FFF6C8',
+    sunGlow: '#FFD24D',
+    cloud: '#FFFFFF',
+    cloudOpacity: 0.92,
+    hills: ['#BFE59A', '#A9D97F'],
+  },
+  afternoon: {
+    gradient: ['#45C3F2', '#9EE0FA', '#E3F6FD'],
+    title: colors.text,
+    subtitle: '#173D52',
+    sun: '#FFFBE0',
+    sunGlow: '#FFE066',
+    cloud: '#FFFFFF',
+    cloudOpacity: 0.92,
+    hills: ['#BFE59A', '#A9D97F'],
+  },
+  evening: {
+    gradient: ['#1B1F55', '#3E3A86', '#7A62B1'],
+    title: '#FFFFFF',
+    subtitle: '#D9CFF2',
+    sun: '#FFF4C2',
+    sunGlow: '#E9D98F',
+    cloud: '#FFFFFF',
+    cloudOpacity: 0.18,
+    hills: ['#2F4A63', '#243A50'],
+  },
+};
+
 export const spacing = {
   xs: 4,
   sm: 8,
