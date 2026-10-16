@@ -11,11 +11,12 @@ import {
   type Task,
 } from '../db';
 import { useActiveKid } from '../kids/ActiveKidProvider';
-import { colors, radius, shadow, spacing, typography, useLargeScreen } from '../theme';
+import { colors, radius, spacing, typography, useLargeScreen } from '../theme';
 import { currentPeriod, PERIOD_EMOJIS, PERIOD_LABELS, tasksForPeriod } from '../tasks/period';
 import { dayKey } from '../tasks/day';
 import { wishesUnlockedBy } from '../wishes/order';
 import { Celebration, FadeInUp } from './Animations';
+import { EmptyState } from './EmptyState';
 import { TaskCard } from './TaskCard';
 
 const PERIOD_CHECK_INTERVAL_MS = 60_000;
@@ -193,12 +194,9 @@ export function CurrentPeriodTasks() {
         }
         ListEmptyComponent={
           loading ? (
-            <Text style={styles.cardText}>Loading tasks…</Text>
+            <Text style={styles.loading}>Loading tasks…</Text>
           ) : (
-            <View style={styles.card}>
-              <Text style={styles.cardEmoji}>😴</Text>
-              <Text style={styles.cardText}>No tasks right now. Time to play!</Text>
-            </View>
+            <EmptyState emoji="😴" text="No tasks right now. Time to play!" />
           )
         }
         renderItem={({ item, index }) => (
@@ -236,16 +234,5 @@ const styles = StyleSheet.create({
   heading: { ...typography.heading, color: colors.text },
   stars: { fontSize: 22, color: colors.sunshine, fontWeight: '800', letterSpacing: 2 },
   allDone: { color: colors.successDark, letterSpacing: 0 },
-  card: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 3,
-    borderColor: colors.border,
-    padding: spacing.lg,
-    gap: spacing.md,
-    alignItems: 'center',
-    ...shadow,
-  },
-  cardEmoji: { fontSize: 64 },
-  cardText: { ...typography.body, color: colors.textMuted, textAlign: 'center' },
+  loading: { ...typography.body, color: colors.textMuted, textAlign: 'center' },
 });

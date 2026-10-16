@@ -80,6 +80,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: spacing.lg,
     gap: spacing.md,
+    // In landscape and on a frame, a full-width wish card and button look stretched.
+    width: '100%',
+    maxWidth: 560,
+    alignSelf: 'center',
   },
   trophy: { fontSize: 96 },
   title: { ...typography.hero, color: colors.text, textAlign: 'center' },

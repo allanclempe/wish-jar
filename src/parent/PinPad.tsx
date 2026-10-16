@@ -13,9 +13,11 @@ type PinPadProps = {
   onChange: (value: string) => void;
   // Each new value shakes the dots, to say the PIN was wrong.
   shake?: number;
+  // The PIN was right: the dots turn green and the keys stop answering.
+  accepted?: boolean;
 };
 
-export function PinPad({ value, onChange, shake = 0 }: PinPadProps) {
+export function PinPad({ value, onChange, shake = 0, accepted = false }: PinPadProps) {
   const [offset] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
@@ -27,6 +29,7 @@ export function PinPad({ value, onChange, shake = 0 }: PinPadProps) {
   }, [shake, offset]);
 
   function press(key: string) {
+    if (accepted) return;
     if (key === '⌫') {
       onChange(value.slice(0, -1));
       return;
@@ -43,7 +46,10 @@ export function PinPad({ value, onChange, shake = 0 }: PinPadProps) {
         accessibilityLabel={`${value.length} of ${PIN_LENGTH} digits entered`}
       >
         {Array.from({ length: PIN_LENGTH }, (_, i) => (
-          <View key={i} style={[styles.dot, i < value.length && styles.dotFilled]} />
+          <View
+            key={i}
+            style={[styles.dot, i < value.length && styles.dotFilled, accepted && styles.dotAccepted]}
+          />
         ))}
       </Animated.View>
 
@@ -82,6 +88,7 @@ const styles = StyleSheet.create({
     borderColor: colors.primary,
   },
   dotFilled: { backgroundColor: colors.primary },
+  dotAccepted: { backgroundColor: colors.success, borderColor: colors.success },
   keys: {
     flexDirection: 'row',
     flexWrap: 'wrap',

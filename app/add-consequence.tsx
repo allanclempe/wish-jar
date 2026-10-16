@@ -12,7 +12,8 @@ import {
 } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { dayKey } from '../src/tasks/day';
-import { colors, radius, spacing, typography } from '../src/theme';
+import { EmptyState } from '../src/components/EmptyState';
+import { colors, contentMaxWidth, radius, spacing, typography } from '../src/theme';
 
 export default function AddConsequenceScreen() {
   const db = useDatabase();
@@ -58,12 +59,10 @@ export default function AddConsequenceScreen() {
         keyExtractor={(item) => String(item.id)}
         contentContainerStyle={styles.list}
         ListEmptyComponent={
-          <View style={styles.card}>
-            <Text style={styles.cardEmoji}>⚖️</Text>
-            <Text style={styles.cardText}>
-              No consequences yet. Add some in Settings, then come back here.
-            </Text>
-          </View>
+          <EmptyState
+            emoji="⚖️"
+            text="No consequences yet. Add some in Settings, then come back here."
+          />
         }
         renderItem={({ item }) => (
           <Pressable
@@ -90,21 +89,7 @@ export default function AddConsequenceScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  list: { gap: spacing.sm, padding: spacing.lg, flexGrow: 1 },
-  // Grows to fill the list, but never shrinks below its content on a short screen.
-  card: {
-    flexGrow: 1,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 2,
-    borderColor: colors.border,
-    padding: spacing.lg,
-    gap: spacing.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardEmoji: { fontSize: 48 },
-  cardText: { ...typography.body, color: colors.textMuted, textAlign: 'center' },
+  list: { gap: spacing.sm, padding: spacing.lg, flexGrow: 1, width: '100%', maxWidth: contentMaxWidth, alignSelf: 'center' },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

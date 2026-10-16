@@ -3,7 +3,8 @@ import { FlatList, Image, Pressable, StyleSheet, Text, View } from 'react-native
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
-import { colors, radius, spacing, typography } from '../src/theme';
+import { EmptyState } from '../src/components/EmptyState';
+import { colors, contentMaxWidth, radius, spacing, typography } from '../src/theme';
 
 export default function KidsScreen() {
   const { kids, activeKid } = useActiveKid();
@@ -16,10 +17,10 @@ export default function KidsScreen() {
           keyExtractor={(kid) => String(kid.id)}
           contentContainerStyle={styles.list}
           ListEmptyComponent={
-            <View style={styles.card}>
-              <Text style={styles.cardEmoji}>🙂</Text>
-              <Text style={styles.cardText}>No kids yet. Add one below to get started!</Text>
-            </View>
+            <EmptyState
+              emoji="🙂"
+              text="No kids yet. Add one below to get started!"
+            />
           }
           renderItem={({ item }) => {
             const isActive = item.id === activeKid?.id;
@@ -63,22 +64,8 @@ const AVATAR_SIZE = 64;
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  container: { flex: 1, padding: spacing.lg, gap: spacing.md },
+  container: { flex: 1, padding: spacing.lg, gap: spacing.md, width: '100%', maxWidth: contentMaxWidth, alignSelf: 'center' },
   list: { gap: spacing.md, flexGrow: 1 },
-  // Grows to fill the list, but never shrinks below its content on a short screen.
-  card: {
-    flexGrow: 1,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 2,
-    borderColor: colors.border,
-    padding: spacing.lg,
-    gap: spacing.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cardEmoji: { fontSize: 48 },
-  cardText: { ...typography.body, color: colors.textMuted, textAlign: 'center' },
   row: {
     flexDirection: 'row',
     alignItems: 'center',

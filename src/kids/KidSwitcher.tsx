@@ -1,3 +1,4 @@
+import { router } from 'expo-router';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Animated, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,6 +18,13 @@ export function KidSwitcher({ tabs }: KidSwitcherProps) {
   const coins = activeKid ? (savings[activeKid.id] ?? 0) : 0;
   const large = useLargeScreen();
 
+  // A new kid starts on their tasks, not on the last kid's wishes or consequences.
+  function switchTo(kidId: number) {
+    if (kidId === activeKid?.id) return;
+    selectKid(kidId);
+    router.navigate('/');
+  }
+
   return (
     <SafeAreaView edges={['top']} style={styles.safe}>
       <View style={[styles.bar, large && styles.barLarge]}>
@@ -33,7 +41,7 @@ export function KidSwitcher({ tabs }: KidSwitcherProps) {
               photoUri={kid.photoUri}
               active={kid.id === activeKid?.id}
               large={large}
-              onPress={() => selectKid(kid.id)}
+              onPress={() => switchTo(kid.id)}
             />
           ))}
         </ScrollView>
