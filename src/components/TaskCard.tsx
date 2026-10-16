@@ -130,10 +130,13 @@ const styles = StyleSheet.create({
   details: { flex: 1, gap: spacing.xs, alignItems: 'flex-start' },
   name: { ...typography.heading, fontSize: 20, color: colors.text },
   nameDone: { color: colors.textMuted },
+  // White with a yellow rim, like the coin counter, so the gold coin stands out.
   coinPill: {
-    backgroundColor: colors.sunshine,
+    backgroundColor: colors.surface,
+    borderWidth: 2,
+    borderColor: colors.sunshine,
     borderRadius: radius.pill,
-    paddingVertical: 2,
+    paddingVertical: 0,
     paddingHorizontal: spacing.sm + 2,
   },
   coinText: { fontSize: 15, fontWeight: '800', color: colors.text },
