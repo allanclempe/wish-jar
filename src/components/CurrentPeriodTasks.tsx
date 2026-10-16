@@ -1,6 +1,6 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { AppState, FlatList, StyleSheet, Text, View } from 'react-native';
+import { AppState, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 
 import {
   listCompletedTaskIds,
@@ -20,6 +20,46 @@ import { EmptyState } from './EmptyState';
 import { TaskCard } from './TaskCard';
 
 const PERIOD_CHECK_INTERVAL_MS = 60_000;
+const GRID_GAP = spacing.md;
+// Tilted tiles poke a few pixels past the grid; the ScrollView would clip them.
+const GRID_PAD = spacing.sm;
+// How tall or wide a tile may get while fitting the screen, as width / height;
+// past these the grid scrolls instead.
+const TALLEST_TILE = 0.68;
+const WIDEST_TILE = 1.4;
+
+// Kids have three or four tasks per period, so the tiles are big. Phones show
+// two columns and three once there are five tasks; the frame shows a row of up
+// to four, two rows up to eight and scrolls from nine.
+export function gridColumns(count: number, large: boolean): number {
+  if (large) return count <= 4 ? Math.max(count, 1) : 4;
+  return count <= 4 ? 2 : 3;
+}
+
+// The grid fits the screen on a phone with up to four tasks and on the frame
+// with up to eight; more than that scrolls.
+export function gridFits(count: number, large: boolean): boolean {
+  return count <= (large ? 8 : 4);
+}
+
+type GridMetrics = { columns: number; tileWidth: number; tileHeight: number };
+
+// Tiles share the width; their height fits the space, between tall and wide.
+export function gridMetrics(
+  count: number,
+  large: boolean,
+  width: number,
+  height: number,
+): GridMetrics {
+  const columns = gridColumns(count, large);
+  const rows = Math.max(1, Math.ceil(count / columns));
+  const tileWidth = Math.floor((width - GRID_GAP * (columns - 1)) / columns);
+  const tallest = tileWidth / TALLEST_TILE;
+  const widest = tileWidth / WIDEST_TILE;
+  const fitted = gridFits(count, large) && height > 0 ? (height - GRID_GAP * (rows - 1)) / rows : tallest;
+  const tileHeight = Math.floor(Math.min(tallest, Math.max(widest, fitted)));
+  return { columns, tileWidth, tileHeight };
+}
 // Lets the tick's coin float and confetti play before the achievement opens.
 const UNLOCK_DELAY_MS = 900;
 
@@ -42,6 +82,9 @@ export function CurrentPeriodTasks() {
   // Wishes unlocked by quick ticks in a row open together on one screen, keyed
   // by id with their coin amount so an un-tick before it opens can drop them.
   const pendingUnlocks = useRef(new Map<number, number>());
+  // The space the grid may fill: the list minus the banner above it.
+  const [listSize, setListSize] = useState({ width: 0, height: 0 });
+  const [bannerHeight, setBannerHeight] = useState(0);
 
   useEffect(
     () => () => {
@@ -160,55 +203,70 @@ export function CurrentPeriodTasks() {
     }, UNLOCK_DELAY_MS);
   }
 
-  const columns = large ? 2 : 1;
   const doneCount = currentTasks.filter((task) => doneKeys.has(`${day}:${kidId}:${task.id}`)).length;
   const allDone = currentTasks.length > 0 && doneCount === currentTasks.length;
 
+  const metrics = gridMetrics(
+    currentTasks.length,
+    large,
+    listSize.width - GRID_PAD * 2,
+    listSize.height - bannerHeight - GRID_GAP - GRID_PAD,
+  );
+  const tileBox = { width: metrics.tileWidth, height: metrics.tileHeight };
+
+  function onListLayout(event: LayoutChangeEvent) {
+    const { width, height } = event.nativeEvent.layout;
+    setListSize((size) => (size.width === width && size.height === height ? size : { width, height }));
+  }
+
+  function onBannerLayout(event: LayoutChangeEvent) {
+    setBannerHeight(Math.ceil(event.nativeEvent.layout.height));
+  }
+
   return (
     <View style={styles.container}>
-      <FlatList
-        // FlatList can't change its column count in place, so remount on change.
-        key={columns}
-        data={currentTasks}
-        keyExtractor={(task) => String(task.id)}
-        numColumns={columns}
-        columnWrapperStyle={columns > 1 ? styles.columns : undefined}
-        contentContainerStyle={styles.list}
-        ListHeaderComponent={
-          <View style={styles.banner}>
-            <Text style={styles.bannerEmoji}>{PERIOD_EMOJIS[period]}</Text>
-            <View style={styles.bannerText}>
-              <Text style={styles.heading}>{PERIOD_LABELS[period]} tasks</Text>
-              {currentTasks.length > 0 ? (
-                <Text
-                  style={[styles.stars, allDone && styles.allDone]}
-                  accessibilityLabel={`${doneCount} of ${currentTasks.length} done`}
-                >
-                  {allDone
-                    ? 'All done! 🎉'
-                    : '⭐'.repeat(doneCount) + '☆'.repeat(currentTasks.length - doneCount)}
-                </Text>
-              ) : null}
-            </View>
+      <ScrollView style={styles.scroll} contentContainerStyle={styles.list} onLayout={onListLayout}>
+        <View style={styles.banner} onLayout={onBannerLayout}>
+          <Text style={styles.bannerEmoji}>{PERIOD_EMOJIS[period]}</Text>
+          <View style={styles.bannerText}>
+            <Text style={styles.heading}>{PERIOD_LABELS[period]} tasks</Text>
+            {currentTasks.length > 0 ? (
+              <Text
+                style={[styles.stars, allDone && styles.allDone]}
+                accessibilityLabel={`${doneCount} of ${currentTasks.length} done`}
+              >
+                {allDone
+                  ? 'All done! 🎉'
+                  : '⭐'.repeat(doneCount) + '☆'.repeat(currentTasks.length - doneCount)}
+              </Text>
+            ) : null}
           </View>
-        }
-        ListEmptyComponent={
+        </View>
+        {currentTasks.length === 0 ? (
           loading ? (
             <Text style={styles.loading}>Loading tasks…</Text>
           ) : (
             <EmptyState emoji="😴" text="No tasks right now. Time to play!" />
           )
-        }
-        renderItem={({ item, index }) => (
-          <FadeInUp index={index} style={columns > 1 && styles.cell}>
-            <TaskCard
-              task={item}
-              done={doneKeys.has(`${day}:${kidId}:${item.id}`)}
-              onPress={() => toggleDone(item)}
-            />
-          </FadeInUp>
-        )}
-      />
+        ) : listSize.width > 0 ? (
+          // A wrapping row rather than a FlatList: changing a FlatList's column
+          // count remounts it, which replays every tile's fade-in mid-tick.
+          <View style={styles.grid}>
+            {currentTasks.map((task, index) => (
+              <FadeInUp key={task.id} index={index} style={tileBox}>
+                <TaskCard
+                  task={task}
+                  done={doneKeys.has(`${day}:${kidId}:${task.id}`)}
+                  onPress={() => toggleDone(task)}
+                  index={index}
+                  large={large}
+                  style={styles.tile}
+                />
+              </FadeInUp>
+            ))}
+          </View>
+        ) : null}
+      </ScrollView>
       <Celebration burst={burst} />
     </View>
   );
@@ -216,10 +274,10 @@ export function CurrentPeriodTasks() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  list: { gap: spacing.md, flexGrow: 1, paddingBottom: spacing.lg },
-  columns: { gap: spacing.md },
-  // Half the row each, so a lone last task stays the same size.
-  cell: { flex: 1, maxWidth: '50%' },
+  scroll: { flex: 1 },
+  list: { gap: GRID_GAP, flexGrow: 1, paddingHorizontal: GRID_PAD, paddingBottom: spacing.lg },
+  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: GRID_GAP },
+  tile: { flex: 1 },
   banner: {
     flexDirection: 'row',
     alignItems: 'center',

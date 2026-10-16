@@ -17,6 +17,14 @@ export const colors = {
   border: '#FFE3CC',
 };
 
+// Pastel backgrounds for tiles with an emoji instead of a photo. A tile picks
+// one from its id so neighbours differ and a task keeps its colour.
+export const pastels = ['#FFE3CC', '#E3F6FD', '#E6F7EC', '#F1E6FF', '#FFF3C4'] as const;
+
+export function pastelFor(id: number): string {
+  return pastels[Math.abs(id) % pastels.length];
+}
+
 export const spacing = {
   xs: 4,
   sm: 8,
