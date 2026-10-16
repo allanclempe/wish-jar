@@ -3,14 +3,14 @@ import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput } from 'react-native';
 
 import { ScrollScreen } from '../src/components/ScrollScreen';
-import { IconPicker, PUNISHMENT_EMOJIS } from '../src/components/Icons';
-import { insertPunishmentType, useDatabase, type Icon } from '../src/db';
+import { IconPicker, CONSEQUENCE_EMOJIS } from '../src/components/Icons';
+import { insertConsequenceType, useDatabase, type Icon } from '../src/db';
 import { removePhoto, storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
 type Errors = { name?: string; coinAmount?: string };
 
-export default function AddPunishmentTypeScreen() {
+export default function AddConsequenceTypeScreen() {
   const db = useDatabase();
   const [name, setName] = useState('');
   const [coinAmount, setCoinAmount] = useState('');
@@ -21,11 +21,11 @@ export default function AddPunishmentTypeScreen() {
   function validate(): Errors {
     const next: Errors = {};
     if (name.trim().length === 0) {
-      next.name = 'Name the punishment.';
+      next.name = 'Name the consequence.';
     }
     const coins = coinAmount.trim();
-    if (!/^\d+$/.test(coins) || Number(coins) === 0) {
-      next.coinAmount = 'Coins must be a whole number, 1 or more.';
+    if (!/^\d+$/.test(coins)) {
+      next.coinAmount = 'Coins must be a whole number, 0 or more.';
     }
     return next;
   }
@@ -39,7 +39,7 @@ export default function AddPunishmentTypeScreen() {
     let storedPhotoUri: string | null = null;
     try {
       storedPhotoUri = icon.photoUri ? await storePhoto(icon.photoUri) : null;
-      await insertPunishmentType(db, {
+      await insertConsequenceType(db, {
         name,
         coinAmount: Number(coinAmount.trim()),
         icon: { emoji: icon.emoji, photoUri: storedPhotoUri },
@@ -56,12 +56,12 @@ export default function AddPunishmentTypeScreen() {
     <ScrollScreen>
       <IconPicker
         value={icon}
-        fallbackEmoji="🚫"
-        emojis={PUNISHMENT_EMOJIS}
+        fallbackEmoji="⚖️"
+        emojis={CONSEQUENCE_EMOJIS}
         onChange={setIcon}
       />
 
-      <Text style={styles.label}>Punishment</Text>
+      <Text style={styles.label}>Consequence</Text>
       <TextInput
         style={styles.input}
         value={name}
@@ -94,6 +94,7 @@ export default function AddPunishmentTypeScreen() {
         onSubmitEditing={save}
       />
       {errors.coinAmount ? <Text style={styles.error}>{errors.coinAmount}</Text> : null}
+      <Text style={styles.hint}>Use 0 for a consequence that doesn’t cost coins.</Text>
 
       <Pressable
         style={[styles.button, saving && styles.buttonDisabled]}
@@ -120,6 +121,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm + 4,
   },
   error: { ...typography.caption, color: colors.accent, marginTop: -spacing.sm },
+  hint: { ...typography.caption, color: colors.textMuted, marginTop: -spacing.sm },
   button: {
     marginTop: spacing.lg,
     backgroundColor: colors.primary,

@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from 'expo-sqlite';
 
-export const DATABASE_VERSION = 8;
+export const DATABASE_VERSION = 10;
 
 const MIGRATIONS: Record<number, string> = {
   1: `
@@ -118,6 +118,61 @@ const MIGRATIONS: Record<number, string> = {
   // Set once a grown-up has handed the wish over and its coins were taken.
   8: `
     ALTER TABLE wishes ADD COLUMN claimed_at INTEGER;
+  `,
+  // Punishments become consequences, and a consequence may cost no coins (a
+  // hug, saying sorry). SQLite can't change a CHECK in place, so the tables are
+  // rebuilt. Logged entries go first: with foreign keys on, dropping the types
+  // table while they still pointed at it would clear their type ids.
+  9: `
+    CREATE TABLE IF NOT EXISTS consequence_types (
+      id INTEGER PRIMARY KEY NOT NULL,
+      name TEXT NOT NULL,
+      coin_amount INTEGER NOT NULL CHECK (coin_amount >= 0),
+      icon_emoji TEXT,
+      icon_photo_uri TEXT,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+    );
+
+    CREATE TABLE IF NOT EXISTS consequences (
+      id INTEGER PRIMARY KEY NOT NULL,
+      kid_id INTEGER NOT NULL REFERENCES kids(id) ON DELETE CASCADE,
+      consequence_type_id INTEGER REFERENCES consequence_types(id) ON DELETE SET NULL,
+      name TEXT NOT NULL,
+      coin_amount INTEGER NOT NULL CHECK (coin_amount >= 0),
+      day_key TEXT NOT NULL,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+    );
+
+    INSERT INTO consequence_types (id, name, coin_amount, icon_emoji, icon_photo_uri, created_at)
+      SELECT id, name, coin_amount, icon_emoji, icon_photo_uri, created_at FROM punishment_types;
+
+    INSERT INTO consequences (id, kid_id, consequence_type_id, name, coin_amount, day_key, created_at)
+      SELECT id, kid_id, punishment_type_id, name, coin_amount, day_key, created_at FROM punishments;
+
+    DROP INDEX IF EXISTS punishments_kid_day_idx;
+    DROP TABLE IF EXISTS punishments;
+    DROP TABLE IF EXISTS punishment_types;
+
+    CREATE INDEX IF NOT EXISTS consequences_kid_day_idx ON consequences (kid_id, day_key);
+  `,
+  // A starter list, mostly ways to make it right, so new families see repair
+  // before deduction. Skipped when a family already has consequences, and run
+  // once, so ones a parent deletes stay deleted.
+  10: `
+    INSERT INTO consequence_types (name, coin_amount, icon_emoji)
+      SELECT name, coin_amount, icon_emoji FROM (
+        SELECT 1 AS position, 'Give a hug' AS name, 0 AS coin_amount, '🤗' AS icon_emoji
+        UNION ALL SELECT 2, 'Say sorry', 0, '🙏'
+        UNION ALL SELECT 3, 'Tidy up the mess', 0, '🧹'
+        UNION ALL SELECT 4, 'Write a sorry note', 0, '✍️'
+        UNION ALL SELECT 5, 'Make up with a brother or sister', 0, '🤝'
+        UNION ALL SELECT 6, 'Told a lie', 3, '🤥'
+        UNION ALL SELECT 7, 'Too much screen time', 2, '📱'
+        UNION ALL SELECT 8, 'Not in bed on time', 2, '⏰'
+        UNION ALL SELECT 9, 'Hurt someone', 5, '😡'
+      )
+      WHERE NOT EXISTS (SELECT 1 FROM consequence_types)
+      ORDER BY position;
   `,
 };
 

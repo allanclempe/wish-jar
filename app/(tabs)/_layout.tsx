@@ -87,10 +87,10 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="punishments"
+        name="consequences"
         options={{
-          title: 'Punishments',
-          tabBarIcon: ({ focused }) => <TabEmoji emoji="🚫" focused={focused} />,
+          title: 'Consequences',
+          tabBarIcon: ({ focused }) => <TabEmoji emoji="⚖️" focused={focused} />,
         }}
       />
     </Tabs>

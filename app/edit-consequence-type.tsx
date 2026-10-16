@@ -4,17 +4,17 @@ import { Alert, Pressable, StyleSheet, Text, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ScrollScreen } from '../src/components/ScrollScreen';
-import { IconPicker, PUNISHMENT_EMOJIS } from '../src/components/Icons';
-import { getPunishmentType, updatePunishmentType, useDatabase, type Icon } from '../src/db';
+import { IconPicker, CONSEQUENCE_EMOJIS } from '../src/components/Icons';
+import { getConsequenceType, updateConsequenceType, useDatabase, type Icon } from '../src/db';
 import { removePhoto, storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
 type Errors = { name?: string; coinAmount?: string };
 
-export default function EditPunishmentTypeScreen() {
+export default function EditConsequenceTypeScreen() {
   const db = useDatabase();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const punishmentTypeId = Number(id);
+  const consequenceTypeId = Number(id);
   const [loaded, setLoaded] = useState(false);
   const [name, setName] = useState('');
   const [coinAmount, setCoinAmount] = useState('');
@@ -25,10 +25,10 @@ export default function EditPunishmentTypeScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    getPunishmentType(db, punishmentTypeId).then((type) => {
+    getConsequenceType(db, consequenceTypeId).then((type) => {
       if (cancelled) return;
       if (!type) {
-        Alert.alert('Punishment not found', 'This punishment may have been removed.');
+        Alert.alert('Consequence not found', 'This consequence may have been removed.');
         router.back();
         return;
       }
@@ -41,16 +41,16 @@ export default function EditPunishmentTypeScreen() {
     return () => {
       cancelled = true;
     };
-  }, [db, punishmentTypeId]);
+  }, [db, consequenceTypeId]);
 
   function validate(): Errors {
     const next: Errors = {};
     if (name.trim().length === 0) {
-      next.name = 'Name the punishment.';
+      next.name = 'Name the consequence.';
     }
     const coins = coinAmount.trim();
-    if (!/^\d+$/.test(coins) || Number(coins) === 0) {
-      next.coinAmount = 'Coins must be a whole number, 1 or more.';
+    if (!/^\d+$/.test(coins)) {
+      next.coinAmount = 'Coins must be a whole number, 0 or more.';
     }
     return next;
   }
@@ -66,7 +66,7 @@ export default function EditPunishmentTypeScreen() {
       if (icon.photoUri && icon.photoUri !== originalPhotoUri) {
         savedPhotoUri = await storePhoto(icon.photoUri);
       }
-      const previousPhotoUri = await updatePunishmentType(db, punishmentTypeId, {
+      const previousPhotoUri = await updateConsequenceType(db, consequenceTypeId, {
         name,
         coinAmount: Number(coinAmount.trim()),
         icon: { emoji: icon.emoji, photoUri: savedPhotoUri },
@@ -92,12 +92,12 @@ export default function EditPunishmentTypeScreen() {
     <ScrollScreen>
       <IconPicker
         value={icon}
-        fallbackEmoji="🚫"
-        emojis={PUNISHMENT_EMOJIS}
+        fallbackEmoji="⚖️"
+        emojis={CONSEQUENCE_EMOJIS}
         onChange={setIcon}
       />
 
-      <Text style={styles.label}>Punishment</Text>
+      <Text style={styles.label}>Consequence</Text>
       <TextInput
         style={styles.input}
         value={name}
@@ -130,6 +130,7 @@ export default function EditPunishmentTypeScreen() {
         onSubmitEditing={save}
       />
       {errors.coinAmount ? <Text style={styles.error}>{errors.coinAmount}</Text> : null}
+      <Text style={styles.hint}>Use 0 for a consequence that doesn’t cost coins.</Text>
 
       <Pressable
         style={[styles.button, saving && styles.buttonDisabled]}
@@ -157,6 +158,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm + 4,
   },
   error: { ...typography.caption, color: colors.accent, marginTop: -spacing.sm },
+  hint: { ...typography.caption, color: colors.textMuted, marginTop: -spacing.sm },
   button: {
     marginTop: spacing.lg,
     backgroundColor: colors.primary,
