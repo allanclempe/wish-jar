@@ -1,9 +1,8 @@
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Icon } from '../db';
-import { frameoPhotos } from '../photos/frameo';
-import { usePickPhoto } from '../photos/PhotoPicker';
-import { colors, fonts, radius, spacing, typography } from '../theme';
+import { PhotoSourceButtons } from '../photos/PhotoPicker';
+import { colors, radius, spacing } from '../theme';
 
 export const ICON_EMOJIS = [
   '🧹', '🪥', '🛏️', '🧽', '🧺', '🍽️', '📚', '🐶',
@@ -49,12 +48,6 @@ type IconPickerProps = {
 
 export function IconPicker({ value, fallbackEmoji, onChange, emojis = ICON_EMOJIS }: IconPickerProps) {
   const selectedEmoji = value.photoUri ? null : (value.emoji ?? fallbackEmoji);
-  const pickPhoto = usePickPhoto();
-
-  async function choosePhoto() {
-    const uri = await pickPhoto();
-    if (uri) onChange({ emoji: null, photoUri: uri });
-  }
 
   return (
     <View style={styles.container}>
@@ -79,15 +72,10 @@ export function IconPicker({ value, fallbackEmoji, onChange, emojis = ICON_EMOJI
         })}
       </View>
 
-      <Pressable
-        style={[styles.gallery, value.photoUri && styles.selected]}
-        onPress={choosePhoto}
-        accessibilityRole="button"
-      >
-        <Text style={styles.galleryText}>
-          {frameoPhotos ? '📷 Pick a photo sent with Frameo' : '📷 Pick a photo from your gallery'}
-        </Text>
-      </Pressable>
+      <PhotoSourceButtons
+        selected={value.photoUri != null}
+        onPhoto={(uri) => onChange({ emoji: null, photoUri: uri })}
+      />
     </View>
   );
 }
@@ -112,13 +100,4 @@ const styles = StyleSheet.create({
   },
   emoji: { fontSize: 26 },
   selected: { borderColor: colors.primary, backgroundColor: colors.border },
-  gallery: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.pill,
-    borderWidth: 2,
-    borderColor: colors.border,
-    paddingVertical: spacing.md,
-    alignItems: 'center',
-  },
-  galleryText: { ...typography.body, color: colors.text, fontFamily: fonts.semibold },
 });

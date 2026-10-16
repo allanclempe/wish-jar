@@ -7,7 +7,7 @@ import { DeleteButton } from '../src/components/DeleteButton';
 import { ScrollScreen } from '../src/components/ScrollScreen';
 import { deleteKid, getKid, updateKid, useDatabase } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
-import { usePickPhoto } from '../src/photos/PhotoPicker';
+import { PhotoSourceButtons, usePickPhoto } from '../src/photos/PhotoPicker';
 import { removePhoto, storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
@@ -99,6 +99,7 @@ export default function EditKidScreen() {
         )}
       </Pressable>
       <Text style={styles.caption}>Tap to change the photo</Text>
+      <PhotoSourceButtons onPhoto={setPhotoUri} />
 
       <Text style={styles.label}>Name</Text>
       <TextInput

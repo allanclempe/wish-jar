@@ -32,6 +32,13 @@
             "Cross-Origin-Opener-Policy": "same-origin"
           }
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow $(PRODUCT_NAME) to use your photos for kids, tasks and wishes.",
+          "cameraPermission": "Allow $(PRODUCT_NAME) to take photos for kids, tasks and wishes."
+        }
       ]
     ],
     "extra": {
