@@ -7,7 +7,7 @@ import { IconBadge } from '../src/components/Icons';
 import { listWishes, useDatabase, type Wish } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { EmptyState } from '../src/components/EmptyState';
-import { colors, contentMaxWidth, radius, spacing, typography } from '../src/theme';
+import { colors, contentMaxWidth, fonts, primaryShadow, radius, spacing, typography } from '../src/theme';
 
 export default function WishesScreen() {
   const db = useDatabase();
@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   text: { flex: 1, gap: 2 },
-  name: { ...typography.body, color: colors.text, fontWeight: '600' },
+  name: { ...typography.body, color: colors.text, fontFamily: fonts.semibold },
   kid: { ...typography.caption, color: colors.textMuted },
   pill: {
     backgroundColor: colors.border,
@@ -100,17 +100,13 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm + 2,
   },
-  pillText: { fontSize: 13, fontWeight: '700', color: colors.primary },
+  pillText: { fontSize: 13, fontFamily: fonts.bold, color: colors.primary },
   button: {
     backgroundColor: colors.primary,
     borderRadius: radius.pill,
     paddingVertical: spacing.md,
     alignItems: 'center',
-    shadowColor: colors.primary,
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
+    ...primaryShadow,
   },
   buttonText: { ...typography.heading, color: colors.surface },
 });

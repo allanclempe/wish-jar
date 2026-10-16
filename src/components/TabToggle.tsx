@@ -1,88 +1,139 @@
 import type { Tabs } from 'expo-router';
-import { useEffect, useState, type ComponentProps } from 'react';
-import { Animated, Pressable, StyleSheet, View } from 'react-native';
+import { useEffect, useRef, useState, type ComponentProps } from 'react';
+import { Animated, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 
-import { useNativeDriver } from './Animations';
-import { colors, radius, shadow, spacing, useLargeScreen } from '../theme';
+import { colors, fonts, offsetShadow, radius, spacing, useLargeScreen } from '../theme';
 
-export type TabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar']>>[0];
-
-const TAB_GAP = spacing.xs;
-const SIZES = {
-  phone: { width: 88, height: 52 },
-  large: { width: 96, height: 64 },
+export type TabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar']>>[0] & {
+  // Fill the width available, each tab an equal share: the bottom bar on phones.
+  stretch?: boolean;
 };
 
-// The tabs as one toggle, icons only: a white thumb slides to the chosen one.
-// Large screens show it in the kids bar (TopTabBar), phones at the bottom
-// (BottomTabBar).
-export function TabToggle({ state, descriptors, navigation }: TabBarProps) {
-  const size = useLargeScreen() ? SIZES.large : SIZES.phone;
-  const [slide] = useState(() => new Animated.Value(state.index));
+const TAB_GAP = spacing.xs;
+
+type TabLayout = { x: number; width: number };
+
+// The tabs as one chunky toggle, an emoji and a label each: an orange thumb
+// slides under the chosen one. Large screens show it in the kids bar
+// (TopTabBar), phones at the bottom (BottomTabBar).
+export function TabToggle({ state, descriptors, navigation, stretch = false }: TabBarProps) {
+  const large = useLargeScreen();
+  // The tabs are as wide as their labels, so the thumb follows their measured
+  // positions rather than a fixed width.
+  const [layouts, setLayouts] = useState<Record<string, TabLayout>>({});
+  const [left] = useState(() => new Animated.Value(0));
+  const [width] = useState(() => new Animated.Value(0));
+  const [opacity] = useState(() => new Animated.Value(0));
+  const placed = useRef(false);
+
+  const focusedKey = state.routes[state.index]?.key;
+  const target = focusedKey ? layouts[focusedKey] : undefined;
+  const targetX = target?.x;
+  const targetWidth = target?.width;
 
   useEffect(() => {
-    Animated.spring(slide, { toValue: state.index, friction: 8, tension: 90, useNativeDriver }).start();
-  }, [state.index, slide]);
+    if (targetX === undefined || targetWidth === undefined) return;
+    if (!placed.current) {
+      // The first time, the thumb appears where it belongs instead of sliding in.
+      placed.current = true;
+      left.setValue(targetX);
+      width.setValue(targetWidth);
+      opacity.setValue(1);
+      return;
+    }
+    // Layout values can't use the native driver.
+    Animated.parallel([
+      Animated.spring(left, { toValue: targetX, friction: 8, tension: 90, useNativeDriver: false }),
+      Animated.spring(width, { toValue: targetWidth, friction: 8, tension: 90, useNativeDriver: false }),
+    ]).start();
+  }, [targetX, targetWidth, left, width, opacity]);
+
+  function measure(key: string) {
+    return ({ nativeEvent }: LayoutChangeEvent) => {
+      const { x, width: tabWidth } = nativeEvent.layout;
+      setLayouts((previous) => {
+        const known = previous[key];
+        if (known && known.x === x && known.width === tabWidth) return previous;
+        return { ...previous, [key]: { x, width: tabWidth } };
+      });
+    };
+  }
 
   return (
-    <View style={styles.tabs} accessibilityRole="tablist">
-      <Animated.View
-        style={[
-          styles.thumb,
-          size,
-          { transform: [{ translateX: Animated.multiply(slide, size.width + TAB_GAP) }] },
-        ]}
-      />
-      {state.routes.map((route, index) => {
-        const { options } = descriptors[route.key];
-        const focused = state.index === index;
-        const color = focused ? colors.primary : colors.textMuted;
+    <View style={[styles.tabs, stretch && styles.tabsStretch]} accessibilityRole="tablist">
+      {/* No border or padding here, so the measured x of a tab is where the thumb goes. */}
+      <View style={styles.track}>
+        <Animated.View style={[styles.thumb, { left, width, opacity }]} />
+        {state.routes.map((route, index) => {
+          const { options } = descriptors[route.key];
+          const focused = state.index === index;
+          const color = focused ? colors.surface : colors.textMuted;
 
-        function press() {
-          const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
-          if (!focused && !event.defaultPrevented) {
-            navigation.navigate(route.name, route.params);
+          function press() {
+            const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
+            if (!focused && !event.defaultPrevented) {
+              navigation.navigate(route.name, route.params);
+            }
           }
-        }
 
-        return (
-          <Pressable
-            key={route.key}
-            onPress={press}
-            style={({ pressed }) => [styles.tab, size, pressed && styles.pressed]}
-            hitSlop={spacing.xs}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: focused }}
-            accessibilityLabel={options.title}
-          >
-            {options.tabBarIcon?.({ focused, color, size: 34 })}
-          </Pressable>
-        );
-      })}
+          return (
+            <Pressable
+              key={route.key}
+              onPress={press}
+              onLayout={measure(route.key)}
+              style={({ pressed }) => [
+                styles.tab,
+                large && styles.tabLarge,
+                stretch && styles.tabStretch,
+                pressed && styles.pressed,
+              ]}
+              hitSlop={spacing.xs}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: focused }}
+              accessibilityLabel={options.title}
+            >
+              {options.tabBarIcon?.({ focused, color, size: 34 })}
+              <Text style={[styles.label, large && styles.labelLarge, { color }]} numberOfLines={1}>
+                {options.title}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   tabs: {
-    flexDirection: 'row',
-    gap: TAB_GAP,
     padding: TAB_GAP,
     borderRadius: radius.pill,
     borderWidth: 3,
     borderColor: colors.border,
-    backgroundColor: colors.border,
+    backgroundColor: colors.background,
   },
-  tab: { alignItems: 'center', justifyContent: 'center', borderRadius: radius.pill },
-  // Inside the border, so it lines up with the first tab at translateX 0.
+  tabsStretch: { alignSelf: 'stretch' },
+  track: { flexDirection: 'row', gap: TAB_GAP },
+  tab: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.sm,
+    minHeight: 48,
+    paddingHorizontal: spacing.md + 2,
+    borderRadius: radius.pill,
+  },
+  tabLarge: { minHeight: 56, paddingHorizontal: spacing.lg - 4 },
+  tabStretch: { flex: 1, paddingHorizontal: spacing.xs + 2, gap: spacing.xs + 2 },
+  label: { fontFamily: fonts.bold, fontSize: 14 },
+  labelLarge: { fontSize: 17 },
   thumb: {
     position: 'absolute',
-    top: TAB_GAP,
-    left: TAB_GAP,
+    top: 0,
+    bottom: 0,
     borderRadius: radius.pill,
-    // White, so the colourful emoji stand out on it.
-    backgroundColor: colors.surface,
-    ...shadow,
+    backgroundColor: colors.primary,
+    ...offsetShadow(colors.primaryDark, 3),
   },
   pressed: { transform: [{ scale: 0.94 }] },
 });

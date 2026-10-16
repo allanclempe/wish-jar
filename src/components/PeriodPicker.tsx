@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { PERIODS, type Period } from '../db';
-import { colors, radius, spacing, typography } from '../theme';
+import { colors, fonts, radius, spacing, typography } from '../theme';
 import { PERIOD_LABELS } from '../tasks/period';
 
 type PeriodPickerProps = {
@@ -44,6 +44,6 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm + 4,
   },
   selected: { backgroundColor: colors.primary, borderColor: colors.primary },
-  optionText: { ...typography.caption, color: colors.text, fontWeight: '600' },
+  optionText: { ...typography.caption, color: colors.text, fontFamily: fonts.semibold },
   selectedText: { color: colors.surface },
 });

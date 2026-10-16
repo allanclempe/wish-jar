@@ -15,7 +15,7 @@ import { IconBadge } from '../components/Icons';
 import { ProgressBar } from '../components/ProgressBar';
 import { getKidSavings, listWishes, useDatabase, type Kid } from '../db';
 import { useActiveKid } from '../kids/ActiveKidProvider';
-import { colors, radius, spacing, typography } from '../theme';
+import { colors, fonts, offsetShadow, radius, spacing, typography } from '../theme';
 import { orderWishes, type WishProgress } from '../wishes/order';
 import { frameoSlideUri, listFrameoPhotos, type FrameoPhoto } from './frameo';
 
@@ -249,15 +249,11 @@ const styles = StyleSheet.create({
     // The rim and shadow keep the card apart from a white photo behind it.
     borderWidth: 3,
     borderColor: colors.primary,
-    shadowColor: '#000000',
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
+    ...offsetShadow('rgba(0, 0, 0, 0.3)'),
   },
   kidText: { flex: 1, gap: spacing.xs },
   kidHeader: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  name: { ...typography.body, flexShrink: 1, fontWeight: '800', color: colors.text },
+  name: { ...typography.body, flexShrink: 1, fontFamily: fonts.display, color: colors.text },
   // Same white pill with a yellow rim as the coin counter at the top of the app.
   coins: {
     backgroundColor: colors.surface,
@@ -266,6 +262,6 @@ const styles = StyleSheet.create({
     borderColor: colors.sunshine,
     paddingHorizontal: spacing.sm,
   },
-  coinsText: { ...typography.body, fontWeight: '900', color: colors.text },
-  wish: { ...typography.caption, fontWeight: '700', color: colors.textMuted },
+  coinsText: { ...typography.body, fontFamily: fonts.display, color: colors.text },
+  wish: { ...typography.caption, fontFamily: fonts.bold, color: colors.textMuted },
 });

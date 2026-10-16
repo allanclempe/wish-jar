@@ -1,5 +1,14 @@
+// Each weight from its own entry point, so only these four files ship, not
+// every weight of both families.
+import { Baloo2_800ExtraBold } from '@expo-google-fonts/baloo-2/800ExtraBold';
+import { Fredoka_500Medium } from '@expo-google-fonts/fredoka/500Medium';
+import { Fredoka_600SemiBold } from '@expo-google-fonts/fredoka/600SemiBold';
+import { Fredoka_700Bold } from '@expo-google-fonts/fredoka/700Bold';
+import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { LargeHeader } from '../src/components/LargeHeader';
@@ -9,12 +18,19 @@ import { ParentLockProvider, useParentLock } from '../src/parent/ParentLockProvi
 import { frameoPhotos } from '../src/photos/frameo';
 import { PhotoPickerProvider } from '../src/photos/PhotoPicker';
 import { IdleSlideshow } from '../src/photos/Slideshow';
-import { colors, useLargeScreen } from '../src/theme';
+import { SoundProvider } from '../src/sound/SoundProvider';
+import { colors, fonts, useLargeScreen } from '../src/theme';
+
+// The splash stays up until the fonts are in, so the first screen never shows
+// the platform font.
+SplashScreen.preventAutoHideAsync();
 
 const headerStyle = {
   headerShown: true,
   headerTintColor: colors.text,
   headerStyle: { backgroundColor: colors.surface },
+  headerTitleStyle: { fontFamily: fonts.display, fontSize: 20 },
+  headerBackTitleStyle: { fontFamily: fonts.semibold },
 };
 
 function page(title: string) {
@@ -26,16 +42,37 @@ function modal(title: string) {
 }
 
 export default function RootLayout() {
+  // Loaded at runtime rather than through the config plugin, so the family
+  // names are the same on every platform, the web export included.
+  const [fontsLoaded, fontsError] = useFonts({
+    Baloo2_800ExtraBold,
+    Fredoka_500Medium,
+    Fredoka_600SemiBold,
+    Fredoka_700Bold,
+  });
+
+  useEffect(() => {
+    if (fontsLoaded || fontsError) {
+      SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded, fontsError]);
+
+  if (!fontsLoaded && !fontsError) {
+    return null;
+  }
+
   return (
     <SafeAreaProvider>
       <DatabaseProvider>
         <ActiveKidProvider>
           <ParentLockProvider>
-            <PhotoPickerProvider>
-              <StatusBar style="dark" />
-              <RootStack />
-              {frameoPhotos ? <IdleSlideshow /> : null}
-            </PhotoPickerProvider>
+            <SoundProvider>
+              <PhotoPickerProvider>
+                <StatusBar style="dark" />
+                <RootStack />
+                {frameoPhotos ? <IdleSlideshow /> : null}
+              </PhotoPickerProvider>
+            </SoundProvider>
           </ParentLockProvider>
         </ActiveKidProvider>
       </DatabaseProvider>

@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { EmptyState } from '../src/components/EmptyState';
-import { colors, contentMaxWidth, radius, spacing, typography } from '../src/theme';
+import { colors, contentMaxWidth, fonts, primaryShadow, radius, spacing, typography } from '../src/theme';
 
 export default function KidsScreen() {
   const { kids, activeKid } = useActiveKid();
@@ -93,17 +93,13 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.xs,
     paddingHorizontal: spacing.sm + 2,
   },
-  pillText: { fontSize: 12, fontWeight: '700', color: colors.text },
+  pillText: { fontSize: 12, fontFamily: fonts.bold, color: colors.text },
   button: {
     backgroundColor: colors.primary,
     borderRadius: radius.pill,
     paddingVertical: spacing.md,
     alignItems: 'center',
-    shadowColor: colors.primary,
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
+    ...primaryShadow,
   },
   buttonText: { ...typography.heading, color: colors.surface },
 });

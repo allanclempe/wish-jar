@@ -1,12 +1,13 @@
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { ScrollScreen } from '../src/components/ScrollScreen';
 import { listConsequenceTypes, listTasks, listWishes, useDatabase } from '../src/db';
 import { currentTimeZone, onFrame, timeZoneName } from '../src/device/frame';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
-import { colors, radius, spacing, typography } from '../src/theme';
+import { useSound } from '../src/sound/SoundProvider';
+import { colors, fonts, radius, shadow, spacing, typography } from '../src/theme';
 
 type MenuItemProps = {
   emoji: string;
@@ -34,6 +35,36 @@ function MenuItem({ emoji, title, subtitle, onPress }: MenuItemProps) {
   );
 }
 
+type ToggleItemProps = {
+  emoji: string;
+  title: string;
+  subtitle: string;
+  value: boolean;
+  onValueChange: (value: boolean) => void;
+};
+
+// A menu row with a switch at the end instead of a chevron.
+function ToggleItem({ emoji, title, subtitle, value, onValueChange }: ToggleItemProps) {
+  return (
+    <View style={styles.menuItem}>
+      <View style={styles.menuIcon}>
+        <Text style={styles.menuEmoji}>{emoji}</Text>
+      </View>
+      <View style={styles.menuText}>
+        <Text style={styles.menuTitle}>{title}</Text>
+        <Text style={styles.menuSubtitle}>{subtitle}</Text>
+      </View>
+      <Switch
+        value={value}
+        onValueChange={onValueChange}
+        trackColor={{ true: colors.primary, false: colors.border }}
+        thumbColor={colors.surface}
+        accessibilityLabel={title}
+      />
+    </View>
+  );
+}
+
 function plural(count: number, one: string, many: string) {
   return `${count} ${count === 1 ? one : many}`;
 }
@@ -41,6 +72,7 @@ function plural(count: number, one: string, many: string) {
 export default function SettingsScreen() {
   const db = useDatabase();
   const { kids } = useActiveKid();
+  const { soundOn, setSoundOn } = useSound();
   const [taskCount, setTaskCount] = useState(0);
   const [wishCount, setWishCount] = useState(0);
   const [consequenceCount, setConsequenceCount] = useState(0);
@@ -91,6 +123,15 @@ export default function SettingsScreen() {
           subtitle={plural(consequenceCount, 'consequence', 'consequences')}
           onPress={() => router.push('/consequence-types')}
         />
+        <ToggleItem
+          emoji={soundOn ? '🔊' : '🔇'}
+          title="Sounds"
+          subtitle={soundOn ? 'A ding for every tick, a fanfare for the last' : 'Ticks are silent'}
+          value={soundOn}
+          onValueChange={(on) => {
+            setSoundOn(on).catch(() => {});
+          }}
+        />
         <MenuItem
           emoji="🔢"
           title="Change PIN"
@@ -123,11 +164,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.border,
     padding: spacing.md,
-    shadowColor: colors.primary,
-    shadowOpacity: 0.12,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 3,
+    ...shadow,
   },
   menuItemPressed: { transform: [{ scale: 0.98 }], opacity: 0.9 },
   menuIcon: {
@@ -142,5 +179,5 @@ const styles = StyleSheet.create({
   menuText: { flex: 1, gap: 2 },
   menuTitle: { ...typography.heading, color: colors.text },
   menuSubtitle: { ...typography.caption, color: colors.textMuted },
-  chevron: { fontSize: 32, color: colors.primary, fontWeight: '600' },
+  chevron: { fontSize: 32, color: colors.primary, fontFamily: fonts.semibold },
 });

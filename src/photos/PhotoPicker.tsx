@@ -13,6 +13,7 @@ import {
   Image,
   Modal,
   PixelRatio,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -21,7 +22,7 @@ import {
 } from 'react-native';
 
 import { useParentLock } from '../parent/ParentLockProvider';
-import { colors, radius, spacing, typography } from '../theme';
+import { colors, fonts, radius, spacing, typography } from '../theme';
 import {
   connectPhone,
   frameoPhotos,
@@ -46,6 +47,15 @@ export function PhotoPickerProvider({ children }: PropsWithChildren) {
   return frameoPhotos ? <FrameoPhotoPicker>{children}</FrameoPhotoPicker> : children;
 }
 
+// Cropped square, like the tiles that show it (they cover-crop); the frame app
+// crops Frameo photos square too. Saving scales it down (src/photos/shrink.ts).
+const PICKER_OPTIONS: ImagePicker.ImagePickerOptions = {
+  mediaTypes: ['images'],
+  allowsEditing: true,
+  aspect: [1, 1],
+  quality: 0.8,
+};
+
 async function pickFromLibrary(): Promise<string | null> {
   const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
   if (!permission.granted) {
@@ -53,13 +63,75 @@ async function pickFromLibrary(): Promise<string | null> {
     return null;
   }
 
-  const result = await ImagePicker.launchImageLibraryAsync({
-    mediaTypes: ['images'],
-    allowsEditing: true,
-    aspect: [1, 1],
-    quality: 0.8,
-  });
+  const result = await ImagePicker.launchImageLibraryAsync(PICKER_OPTIONS);
   return result.canceled ? null : result.assets[0].uri;
+}
+
+// Takes a photo with the camera, on phones only (the frame has no camera, and
+// picks from Frameo's photos instead). Resolves with the photo's URI, or null
+// when the grown-up backs out or says no to the camera.
+export async function takePhoto(): Promise<string | null> {
+  // Browsers only open the camera from inside the tap itself, so on web the
+  // permission request (a no-op there) must not come first.
+  if (Platform.OS !== 'web') {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission needed', 'Allow access to your camera to take a photo.');
+      return null;
+    }
+  }
+
+  const result = await ImagePicker.launchCameraAsync(PICKER_OPTIONS);
+  return result.canceled ? null : result.assets[0].uri;
+}
+
+type PhotoSourceButtonsProps = {
+  // Called with the photo the grown-up took or picked.
+  onPhoto: (uri: string) => void;
+  // Shown as chosen when the thing being edited already has a photo.
+  selected?: boolean;
+};
+
+// The ways to get a photo: take one with the camera or pick one from the
+// gallery on phones, or pick one sent with Frameo on the frame.
+export function PhotoSourceButtons({ onPhoto, selected = false }: PhotoSourceButtonsProps) {
+  const pickPhoto = usePickPhoto();
+
+  async function choose(source: PickPhoto) {
+    const uri = await source();
+    if (uri) onPhoto(uri);
+  }
+
+  if (frameoPhotos) {
+    return (
+      <Pressable
+        style={[styles.source, selected && styles.sourceSelected]}
+        onPress={() => choose(pickPhoto)}
+        accessibilityRole="button"
+      >
+        <Text style={styles.sourceText}>📷 Pick a photo sent with Frameo</Text>
+      </Pressable>
+    );
+  }
+
+  return (
+    <View style={styles.sources}>
+      <Pressable
+        style={[styles.source, styles.sourceHalf, selected && styles.sourceSelected]}
+        onPress={() => choose(takePhoto)}
+        accessibilityRole="button"
+      >
+        <Text style={styles.sourceText}>📸 Take a photo</Text>
+      </Pressable>
+      <Pressable
+        style={[styles.source, styles.sourceHalf, selected && styles.sourceSelected]}
+        onPress={() => choose(pickPhoto)}
+        accessibilityRole="button"
+      >
+        <Text style={styles.sourceText}>🖼️ From your gallery</Text>
+      </Pressable>
+    </View>
+  );
 }
 
 // What's kept for a kid or an icon: sharp enough for the biggest badge, and
@@ -244,6 +316,24 @@ function Message({
 }
 
 const styles = StyleSheet.create({
+  sources: { flexDirection: 'row', gap: spacing.sm },
+  source: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.pill,
+    borderWidth: 2,
+    borderColor: colors.border,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.sm,
+    alignItems: 'center',
+  },
+  sourceHalf: { flex: 1 },
+  sourceSelected: { borderColor: colors.primary, backgroundColor: colors.border },
+  sourceText: {
+    ...typography.body,
+    color: colors.text,
+    fontFamily: fonts.semibold,
+    textAlign: 'center',
+  },
   backdrop: {
     flex: 1,
     backgroundColor: 'rgba(61, 44, 46, 0.55)',
@@ -264,7 +354,7 @@ const styles = StyleSheet.create({
   headerText: { flex: 1, gap: spacing.xs },
   title: { ...typography.heading, color: colors.text },
   subtitle: { ...typography.caption, color: colors.textMuted },
-  cancel: { ...typography.body, color: colors.textMuted, fontWeight: '600' },
+  cancel: { ...typography.body, color: colors.textMuted, fontFamily: fonts.semibold },
   loading: { padding: spacing.xl },
   scroll: { flexShrink: 1 },
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: spacing.md },
@@ -285,7 +375,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     marginTop: spacing.sm,
   },
-  buttonText: { ...typography.body, color: colors.surface, fontWeight: '700' },
+  buttonText: { ...typography.body, color: colors.surface, fontFamily: fonts.bold },
   connect: {
     flexDirection: 'row',
     alignItems: 'center',

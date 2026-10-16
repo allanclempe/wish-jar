@@ -5,7 +5,7 @@ import { Alert, Image, Pressable, StyleSheet, Text, TextInput } from 'react-nati
 import { ScrollScreen } from '../src/components/ScrollScreen';
 import { insertKid, useDatabase } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
-import { usePickPhoto } from '../src/photos/PhotoPicker';
+import { PhotoSourceButtons, usePickPhoto } from '../src/photos/PhotoPicker';
 import { removePhoto, storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
@@ -50,6 +50,7 @@ export default function AddKidScreen() {
         )}
       </Pressable>
       <Text style={styles.caption}>Tap to add a photo</Text>
+      <PhotoSourceButtons onPhoto={setPhotoUri} />
 
       <Text style={styles.label}>Name</Text>
       <TextInput

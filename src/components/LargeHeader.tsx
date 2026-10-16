@@ -1,7 +1,7 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { colors, radius, spacing, typography } from '../theme';
+import { colors, fonts, radius, spacing, typography } from '../theme';
 
 // The parts of the stack's header props this header reads.
 type LargeHeaderProps = {
@@ -58,7 +58,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
   },
   pressed: { transform: [{ scale: 0.96 }] },
-  backArrow: { fontSize: 40, lineHeight: 44, fontWeight: '800', color: colors.primary, marginTop: -4 },
-  backText: { fontSize: 22, fontWeight: '800', color: colors.text },
+  backArrow: { fontSize: 40, lineHeight: 44, fontFamily: fonts.display, color: colors.primary, marginTop: -4 },
+  backText: { fontSize: 22, fontFamily: fonts.display, color: colors.text },
   title: { ...typography.title, color: colors.text, flex: 1 },
 });

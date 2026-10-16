@@ -44,12 +44,14 @@ export function FadeInUp({ index = 0, style, children }: FadeInUpProps) {
 
 type WiggleProps = PropsWithChildren<{
   active: boolean;
+  // How far it rocks each way, in degrees. A big photo tile wants a few.
+  angle?: number;
   style?: StyleProp<ViewStyle>;
 }>;
 
 // Rocks its child side to side every couple of seconds while active, to draw
 // a small kid's eye to it.
-export function Wiggle({ active, style, children }: WiggleProps) {
+export function Wiggle({ active, angle = 10, style, children }: WiggleProps) {
   const [rotate] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
@@ -70,7 +72,11 @@ export function Wiggle({ active, style, children }: WiggleProps) {
     <Animated.View
       style={[
         style,
-        { transform: [{ rotate: rotate.interpolate({ inputRange: [-1, 1], outputRange: ['-10deg', '10deg'] }) }] },
+        {
+          transform: [
+            { rotate: rotate.interpolate({ inputRange: [-1, 1], outputRange: [`-${angle}deg`, `${angle}deg`] }) },
+          ],
+        },
       ]}
     >
       {children}
@@ -79,29 +85,36 @@ export function Wiggle({ active, style, children }: WiggleProps) {
 }
 
 const CONFETTI = ['🎉', '⭐', '🪙', '✨', '🌟', '🎈'];
+const PIECE_SIZE = 34;
 const PIECES = 18;
 
 type CelebrationProps = {
   // Each new value fires one burst; 0 shows nothing.
   burst: number;
+  // How big each piece is; the burst flies as far in proportion. The default
+  // fills a screen; 20 or so suits a card.
+  size?: number;
+  count?: number;
 };
 
 // A burst of emoji confetti from the middle of its parent, which must be
 // positioned. It never takes touches.
-export function Celebration({ burst }: CelebrationProps) {
+export function Celebration({ burst, size = PIECE_SIZE, count = PIECES }: CelebrationProps) {
   const [progress] = useState(() => new Animated.Value(0));
-  const [pieces] = useState(() =>
-    Array.from({ length: PIECES }, (_, i) => {
-      const angle = (i / PIECES) * Math.PI * 2;
-      const distance = 110 + (i % 3) * 45;
+  const [pieces] = useState(() => {
+    const reach = size / PIECE_SIZE;
+    return Array.from({ length: count }, (_, i) => {
+      const angle = (i / count) * Math.PI * 2;
+      const distance = (110 + (i % 3) * 45) * reach;
       return {
         emoji: CONFETTI[i % CONFETTI.length],
         x: Math.cos(angle) * distance,
-        y: Math.sin(angle) * distance - 40,
+        y: Math.sin(angle) * distance - 40 * reach,
+        fall: 80 * reach,
         spin: `${(i % 2 ? 1 : -1) * (180 + i * 20)}deg`,
       };
-    }),
-  );
+    });
+  });
 
   useEffect(() => {
     if (burst === 0) return;
@@ -123,6 +136,7 @@ export function Celebration({ burst }: CelebrationProps) {
           key={i}
           style={[
             styles.piece,
+            { fontSize: size },
             {
               opacity: progress.interpolate({ inputRange: [0, 0.1, 0.75, 1], outputRange: [0, 1, 1, 0] }),
               transform: [
@@ -130,7 +144,7 @@ export function Celebration({ burst }: CelebrationProps) {
                 {
                   translateY: progress.interpolate({
                     inputRange: [0, 0.6, 1],
-                    outputRange: [0, piece.y, piece.y + 80],
+                    outputRange: [0, piece.y, piece.y + piece.fall],
                   }),
                 },
                 { rotate: progress.interpolate({ inputRange: [0, 1], outputRange: ['0deg', piece.spin] }) },
@@ -148,5 +162,5 @@ export function Celebration({ burst }: CelebrationProps) {
 
 const styles = StyleSheet.create({
   celebration: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
-  piece: { position: 'absolute', fontSize: 34 },
+  piece: { position: 'absolute' },
 });

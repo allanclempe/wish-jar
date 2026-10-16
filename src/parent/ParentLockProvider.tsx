@@ -12,7 +12,7 @@ import {
 import { AppState, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { getParentPin, PIN_LENGTH, useDatabase } from '../db';
-import { colors, radius, spacing, typography } from '../theme';
+import { colors, fonts, radius, spacing, typography } from '../theme';
 import { PinPad } from './PinPad';
 
 // What the PIN prompt says. Without one it reads "Grown-ups only".
@@ -216,5 +216,5 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     textAlign: 'center',
   },
-  cancel: { ...typography.body, color: colors.textMuted, fontWeight: '600', marginTop: spacing.sm },
+  cancel: { ...typography.body, color: colors.textMuted, fontFamily: fonts.semibold, marginTop: spacing.sm },
 });

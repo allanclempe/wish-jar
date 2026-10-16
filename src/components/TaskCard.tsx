@@ -1,24 +1,34 @@
 import * as Haptics from 'expo-haptics';
 import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import type { Task } from '../db';
-import { colors, radius, shadow, spacing, typography } from '../theme';
-import { useNativeDriver } from './Animations';
-import { IconBadge } from './Icons';
+import { useSound } from '../sound/SoundProvider';
+import { colors, fonts, offsetShadow, pastelFor, spacing } from '../theme';
+import { Celebration, useNativeDriver } from './Animations';
+import { CoinPill, PhotoTile, Sticker, tiltForIndex } from './PhotoTile';
 
 type TaskCardProps = {
   task: Task;
   done: boolean;
   onPress: () => void;
+  // Its place in the grid, for the alternating tilt.
+  index?: number;
+  large?: boolean;
+  // Sizes the card; it fills its box.
+  style?: StyleProp<ViewStyle>;
 };
 
-// Ticking a task squishes the card, pops a big check in and floats the coins
-// up toward the counter in the header.
-export function TaskCard({ task, done, onPress }: TaskCardProps) {
+// A big photo tile for one task. Ticking it squishes the card, pops a check
+// in, slaps a DONE sticker over the photo, bursts a little confetti and
+// floats the coins up toward the counter in the header, with a ding.
+export function TaskCard({ task, done, onPress, index = 0, large = false, style }: TaskCardProps) {
+  const { playCoin } = useSound();
   const [squish] = useState(() => new Animated.Value(1));
+  // Drives the check and the sticker: both spring in off this one value.
   const [check] = useState(() => new Animated.Value(done ? 1 : 0));
   const [coinFloat] = useState(() => new Animated.Value(0));
+  const [burst, setBurst] = useState(0);
   // Only a tap animates; ticks loaded from the database just appear.
   const tapped = useRef(false);
 
@@ -51,8 +61,15 @@ export function TaskCard({ task, done, onPress }: TaskCardProps) {
 
   function press() {
     tapped.current = true;
+    // Before anything async: browsers only start a sound from inside the tap.
+    if (!done) {
+      playCoin();
+      setBurst((count) => count + 1);
+    }
     onPress();
   }
+
+  const checkSize = large ? CHECK_SIZE_LARGE : CHECK_SIZE;
 
   return (
     <Pressable
@@ -60,104 +77,105 @@ export function TaskCard({ task, done, onPress }: TaskCardProps) {
       accessibilityRole="checkbox"
       accessibilityLabel={task.name}
       accessibilityState={{ checked: done }}
+      style={style}
     >
       {({ pressed }) => (
-        <Animated.View
-          style={[
-            styles.card,
-            done && styles.cardDone,
-            { transform: [{ scale: pressed ? 0.97 : 1 }, { scale: squish }] },
-          ]}
-        >
-          <IconBadge icon={task.icon} fallbackEmoji="🧹" size={64} />
-          <View style={styles.details}>
-            <Text style={[styles.name, done && styles.nameDone]} numberOfLines={2}>
-              {task.name}
-            </Text>
-            <View style={styles.coinPill}>
-              <Text style={styles.coinText}>🪙 {task.coinAmount}</Text>
-            </View>
-          </View>
-          <View style={[styles.checkCircle, done && styles.checkCircleDone]}>
-            <Animated.Text
-              style={[
-                styles.checkMark,
-                {
-                  opacity: check,
-                  transform: [{ scale: check.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1] }) }],
-                },
-              ]}
-            >
-              ✓
-            </Animated.Text>
-          </View>
-          <Animated.Text
-            pointerEvents="none"
-            style={[
-              styles.coinFloat,
-              {
-                opacity: coinFloat.interpolate({ inputRange: [0, 0.15, 0.7, 1], outputRange: [0, 1, 1, 0] }),
-                transform: [
-                  { translateY: coinFloat.interpolate({ inputRange: [0, 1], outputRange: [0, -90] }) },
-                  { scale: coinFloat.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0.6, 1.3, 1] }) },
-                ],
-              },
-            ]}
-          >
-            +{task.coinAmount} 🪙
-          </Animated.Text>
+        <Animated.View style={[styles.fill, { transform: [{ scale: pressed ? 0.97 : 1 }, { scale: squish }] }]}>
+          <PhotoTile
+            icon={task.icon}
+            fallbackEmoji="🧹"
+            name={task.name}
+            tint={pastelFor(task.id)}
+            tilt={tiltForIndex(index)}
+            done={done}
+            large={large}
+            style={styles.fill}
+            topLeft={<CoinPill coins={task.coinAmount} large={large} />}
+            sticker={
+              <Animated.View
+                style={{
+                  opacity: check.interpolate({ inputRange: [0, 0.25, 1], outputRange: [0, 1, 1] }),
+                  // Lands from above the card and overshoots, like a real slap.
+                  transform: [{ scale: check.interpolate({ inputRange: [0, 1], outputRange: [2.6, 1] }) }],
+                }}
+              >
+                <Sticker label="DONE!" size={large ? 'large' : 'regular'} />
+              </Animated.View>
+            }
+            bottomRight={
+              <View
+                style={[
+                  styles.checkCircle,
+                  { width: checkSize, height: checkSize, borderRadius: checkSize / 2 },
+                  done && styles.checkCircleDone,
+                ]}
+              >
+                <Animated.Text
+                  style={[
+                    styles.checkMark,
+                    large && styles.checkMarkLarge,
+                    {
+                      opacity: check,
+                      transform: [{ scale: check.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1] }) }],
+                    },
+                  ]}
+                >
+                  ✓
+                </Animated.Text>
+              </View>
+            }
+            above={
+              <>
+                <Celebration burst={burst} size={large ? 26 : 20} count={10} />
+                <Animated.Text
+                  pointerEvents="none"
+                  style={[
+                    styles.coinFloat,
+                    {
+                      opacity: coinFloat.interpolate({ inputRange: [0, 0.15, 0.7, 1], outputRange: [0, 1, 1, 0] }),
+                      transform: [
+                        { translateY: coinFloat.interpolate({ inputRange: [0, 1], outputRange: [0, -90] }) },
+                        { scale: coinFloat.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0.6, 1.3, 1] }) },
+                      ],
+                    },
+                  ]}
+                >
+                  +{task.coinAmount} 🪙
+                </Animated.Text>
+              </>
+            }
+          />
         </Animated.View>
       )}
     </Pressable>
   );
 }
 
-const CHECK_SIZE = 52;
+const CHECK_SIZE = 50;
+const CHECK_SIZE_LARGE = 62;
 
 const styles = StyleSheet.create({
-  card: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.md,
-    backgroundColor: colors.surface,
-    borderRadius: radius.lg,
-    borderWidth: 3,
-    borderColor: colors.border,
-    padding: spacing.md,
-    ...shadow,
-  },
-  cardDone: { borderColor: colors.success },
-  details: { flex: 1, gap: spacing.xs, alignItems: 'flex-start' },
-  name: { ...typography.heading, fontSize: 20, color: colors.text },
-  nameDone: { color: colors.textMuted },
-  // White with a yellow rim, like the coin counter, so the gold coin stands out.
-  coinPill: {
-    backgroundColor: colors.surface,
-    borderWidth: 2,
-    borderColor: colors.sunshine,
-    borderRadius: radius.pill,
-    paddingVertical: 0,
-    paddingHorizontal: spacing.sm + 2,
-  },
-  coinText: { fontSize: 15, fontWeight: '800', color: colors.text },
+  fill: { flex: 1 },
   checkCircle: {
-    width: CHECK_SIZE,
-    height: CHECK_SIZE,
-    borderRadius: CHECK_SIZE / 2,
     borderWidth: 4,
     borderColor: colors.border,
-    backgroundColor: colors.background,
+    backgroundColor: colors.surface,
     alignItems: 'center',
     justifyContent: 'center',
+    ...offsetShadow('rgba(0, 0, 0, 0.15)', 3),
   },
   checkCircleDone: { borderColor: colors.successDark, backgroundColor: colors.success },
-  checkMark: { fontSize: 30, fontWeight: '900', color: colors.surface },
+  checkMark: { fontSize: 28, fontFamily: fonts.display, color: colors.surface },
+  checkMarkLarge: { fontSize: 34 },
   coinFloat: {
     position: 'absolute',
     right: spacing.md,
     top: 0,
-    fontSize: 22,
-    fontWeight: '900',
-    color: colors.primary,
+    fontSize: 26,
+    fontFamily: fonts.display,
+    color: colors.primaryDark,
+    textShadowColor: colors.surface,
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 0,
   },
 });
