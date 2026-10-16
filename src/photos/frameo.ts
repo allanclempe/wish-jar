@@ -1,13 +1,16 @@
 import { Platform } from 'react-native';
 
-// On the Frameo photo frame, Wish Jar runs inside the frame app (frame/), which
-// marks its user agent and serves the photos sent to the frame with the Frameo
-// phone app under /frameo/photos. Grown-ups pick a kid's or an icon's photo
-// from those, since the frame has no gallery of its own.
-export const onFrame =
+// The frame app (frame/) adds its own settings to every page, as
+// window.wishJarFrame (frame/build.sh writes them). With frameoPhotos, the frame
+// app serves the photos sent to the frame with the Frameo phone app under
+// /frameo/photos, and grown-ups pick a kid's or an icon's photo from those,
+// since the frame has no gallery of its own. Everywhere else (phones, the dev
+// server, a frame built with FRAMEO_PHOTOS=0) photos are picked the usual way.
+// It's a page setting rather than an EXPO_PUBLIC_ variable so that every build
+// shares one bundle: Metro caches inlined variables across builds.
+export const frameoPhotos =
   Platform.OS === 'web' &&
-  typeof navigator !== 'undefined' &&
-  / WishJarFrame$/.test(navigator.userAgent);
+  (globalThis as { wishJarFrame?: { frameoPhotos?: boolean } }).wishJarFrame?.frameoPhotos === true;
 
 export type FrameoPhoto = { name: string; time: number };
 

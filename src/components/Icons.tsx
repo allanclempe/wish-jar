@@ -1,7 +1,7 @@
 import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Icon } from '../db';
-import { onFrame } from '../photos/frameo';
+import { frameoPhotos } from '../photos/frameo';
 import { usePickPhoto } from '../photos/PhotoPicker';
 import { colors, radius, spacing, typography } from '../theme';
 
@@ -84,7 +84,7 @@ export function IconPicker({ value, fallbackEmoji, onChange, emojis = ICON_EMOJI
         accessibilityRole="button"
       >
         <Text style={styles.galleryText}>
-          {onFrame ? '📷 Pick a photo sent with Frameo' : '📷 Pick a photo from your gallery'}
+          {frameoPhotos ? '📷 Pick a photo sent with Frameo' : '📷 Pick a photo from your gallery'}
         </Text>
       </Pressable>
     </View>

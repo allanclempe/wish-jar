@@ -21,7 +21,7 @@ import {
 } from 'react-native';
 
 import { colors, radius, spacing, typography } from '../theme';
-import { frameoPhotoUri, listFrameoPhotos, onFrame, type FrameoPhotos } from './frameo';
+import { frameoPhotos, frameoPhotoUri, listFrameoPhotos, type FrameoPhotos } from './frameo';
 
 // Resolves with the picked photo's URI, or null when the grown-up backs out.
 type PickPhoto = () => Promise<string | null>;
@@ -29,13 +29,14 @@ type PickPhoto = () => Promise<string | null>;
 const PhotoPickerContext = createContext<PickPhoto>(pickFromLibrary);
 
 // How a kid's or an icon's photo is chosen: from the device's photo library,
-// or on the Frameo frame, from the photos sent to it with the Frameo phone app.
+// or in a Frameo frame build, from the photos sent to the frame with the Frameo
+// phone app.
 export function usePickPhoto(): PickPhoto {
   return useContext(PhotoPickerContext);
 }
 
 export function PhotoPickerProvider({ children }: PropsWithChildren) {
-  return onFrame ? <FrameoPhotoPicker>{children}</FrameoPhotoPicker> : children;
+  return frameoPhotos ? <FrameoPhotoPicker>{children}</FrameoPhotoPicker> : children;
 }
 
 async function pickFromLibrary(): Promise<string | null> {

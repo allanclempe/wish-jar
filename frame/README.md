@@ -88,8 +88,13 @@ app reads the folder directly, which needs Android's storage permission
 - `/frameo/photos/<name>?size=N` turns one upright (EXIF), crops it to the
   middle square and scales it to N px. The app keeps it at 512 px.
 
-The app adds `WishJarFrame` to the end of the WebView's user agent, and that's
-how the page knows to use these (`src/photos/frameo.ts`).
+It's a build option of the frame app. `frame/build.sh` writes
+`/frame/config.js`, which the app adds to every page, with
+`window.wishJarFrame = { frameoPhotos: true }`, or `false` when built with
+`FRAMEO_PHOTOS=0` (`src/photos/frameo.ts`). The web bundle is the same for
+every build, so Wish Jar on phones and on the dev server picks photos the
+usual way. (An `EXPO_PUBLIC_` variable would be baked into the bundle, and
+Metro's cache would carry it over to the next build, whatever it's for.)
 
 ## Step by step
 
@@ -149,6 +154,14 @@ JAVA_HOME=/path/to/jdk-17 ANDROID_HOME=/path/to/sdk frame/build.sh
 The script exports the web build into the APK and signs it with
 `~/.android/debug.keystore` (or `KEYSTORE`), creating that key if it's
 missing. The result is `frame/build/wish-jar-frame.apk`.
+
+The photo buttons pick from the photos sent to the frame with Frameo (see
+[Photos from Frameo](#photos-from-frameo)). On a device without Frameo, build
+with `FRAMEO_PHOTOS=0` to keep Android's usual file picker:
+
+```bash
+FRAMEO_PHOTOS=0 JAVA_HOME=/path/to/jdk-17 ANDROID_HOME=/path/to/sdk frame/build.sh
+```
 
 **Keep that keystore.** An update signed with a different key won't install
 over the old one. The app would have to be uninstalled first, and that

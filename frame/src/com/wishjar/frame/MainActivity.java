@@ -56,7 +56,8 @@ import java.util.Map;
  *   scrolls into view instead of hiding behind it.
  * - Hold two fingers still on the screen for 1.5 s to open the Frameo app, Android settings or reload.
  * - Photos sent to the frame with the Frameo phone app are served under /frameo/ for the page's
- *   photo picker (serveFrameo). The user agent ends in WishJarFrame so the page knows to use them.
+ *   photo picker (serveFrameo). The page uses them when /frame/config.js says so, which
+ *   build.sh writes: on, unless built with FRAMEO_PHOTOS=0.
  * - Remote debugging is off unless launched with the debug extra:
  *     adb shell am start -n com.wishjar.frame/.MainActivity --ez debug true
  */
@@ -113,7 +114,6 @@ public class MainActivity extends Activity {
     s.setUseWideViewPort(true);
     s.setAllowFileAccess(false);
     s.setAllowContentAccess(false);
-    s.setUserAgentString(s.getUserAgentString() + " WishJarFrame");
     web.setWebViewClient(new WebViewClient() {
       @Override
       public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
@@ -226,7 +226,7 @@ public class MainActivity extends Activity {
     String mime = mimeType(file);
     if ("text/html".equals(mime)) {
       try {
-        in = withFrameStyles(in);
+        in = withFrameAssets(in);
       } catch (IOException e) {
         Log.w(TAG, "Could not read " + file, e);
         return null;
@@ -354,14 +354,18 @@ public class MainActivity extends Activity {
         new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8)));
   }
 
-  /** Adds the frame's own stylesheet (Twemoji, no text selection; see web/frame.css) to a page. */
-  private static InputStream withFrameStyles(InputStream in) throws IOException {
+  /**
+   * Adds the frame's own stylesheet (Twemoji, no text selection; see web/frame.css) and settings
+   * (config.js, written by build.sh) to a page. The settings run before the app's deferred bundle.
+   */
+  private static InputStream withFrameAssets(InputStream in) throws IOException {
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     byte[] buf = new byte[8192];
     for (int n; (n = in.read(buf)) != -1; ) out.write(buf, 0, n);
     in.close();
     String html = out.toString("UTF-8").replaceFirst("</head>",
-        "<link rel=\"stylesheet\" href=\"/frame/frame.css\"></head>");
+        "<link rel=\"stylesheet\" href=\"/frame/frame.css\">"
+            + "<script src=\"/frame/config.js\"></script></head>");
     return new ByteArrayInputStream(html.getBytes("UTF-8"));
   }
 
