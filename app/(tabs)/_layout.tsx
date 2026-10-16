@@ -7,7 +7,7 @@ import { BottomTabBar } from '../../src/components/BottomTabBar';
 import { TopTabBar } from '../../src/components/TopTabBar';
 import { useActiveKid } from '../../src/kids/ActiveKidProvider';
 import { KidSwitcher } from '../../src/kids/KidSwitcher';
-import { useLargeScreen } from '../../src/theme';
+import { useLargeScreen, useTabsOnTop } from '../../src/theme';
 
 // Brightens when its tab is chosen. It stays one size: the toggle's sliding
 // thumb already shows the choice, and a bigger icon would sit off-centre in it.
@@ -41,7 +41,7 @@ function TabEmoji({ emoji, focused }: { emoji: string; focused: boolean }) {
 
 export default function TabsLayout() {
   const { ready } = useActiveKid();
-  const large = useLargeScreen();
+  const onTop = useTabsOnTop();
 
   if (!ready) {
     return null;
@@ -49,12 +49,13 @@ export default function TabsLayout() {
 
   return (
     <Tabs
-      // The tabs are one toggle: in the kids bar on large screens, at the bottom on phones.
-      tabBar={(props) => (large ? <TopTabBar {...props} /> : <BottomTabBar {...props} />)}
+      // The tabs are one toggle: in the kids bar on large screens and in
+      // landscape, at the bottom on upright phones and narrow windows.
+      tabBar={(props) => (onTop ? <TopTabBar {...props} /> : <BottomTabBar {...props} />)}
       screenOptions={{
-        headerShown: !large,
+        headerShown: !onTop,
         header: () => <KidSwitcher />,
-        tabBarPosition: large ? 'top' : 'bottom',
+        tabBarPosition: onTop ? 'top' : 'bottom',
       }}
     >
       <Tabs.Screen

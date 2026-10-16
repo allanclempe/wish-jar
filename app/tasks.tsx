@@ -71,8 +71,9 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   container: { flex: 1, padding: spacing.lg, gap: spacing.md },
   list: { gap: spacing.sm, flexGrow: 1 },
+  // Grows to fill the list, but never shrinks below its content on a short screen.
   card: {
-    flex: 1,
+    flexGrow: 1,
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     borderWidth: 2,

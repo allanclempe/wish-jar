@@ -91,8 +91,9 @@ export default function AddConsequenceScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
   list: { gap: spacing.sm, padding: spacing.lg, flexGrow: 1 },
+  // Grows to fill the list, but never shrinks below its content on a short screen.
   card: {
-    flex: 1,
+    flexGrow: 1,
     backgroundColor: colors.surface,
     borderRadius: radius.lg,
     borderWidth: 2,
