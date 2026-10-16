@@ -33,6 +33,14 @@ export async function listWishes(db: SQLiteDatabase): Promise<Wish[]> {
   return rows.map(toWish);
 }
 
+export async function getWish(db: SQLiteDatabase, wishId: number): Promise<Wish | null> {
+  const row = await db.getFirstAsync<WishRow>(
+    'SELECT id, kid_id, name, coin_amount, icon_emoji, icon_photo_uri, created_at, claimed_at FROM wishes WHERE id = ?',
+    wishId,
+  );
+  return row ? toWish(row) : null;
+}
+
 export async function insertWish(
   db: SQLiteDatabase,
   input: { kidId: number; name: string; coinAmount: number; icon: Icon },
@@ -46,6 +54,28 @@ export async function insertWish(
     input.icon.photoUri,
   );
   return result.lastInsertRowId;
+}
+
+// Returns the wish's previous photo, so the caller can remove it once replaced.
+export async function updateWish(
+  db: SQLiteDatabase,
+  wishId: number,
+  input: { kidId: number; name: string; coinAmount: number; icon: Icon },
+): Promise<string | null> {
+  const previous = await db.getFirstAsync<{ icon_photo_uri: string | null }>(
+    'SELECT icon_photo_uri FROM wishes WHERE id = ?',
+    wishId,
+  );
+  await db.runAsync(
+    'UPDATE wishes SET kid_id = ?, name = ?, coin_amount = ?, icon_emoji = ?, icon_photo_uri = ? WHERE id = ?',
+    input.kidId,
+    input.name.trim(),
+    input.coinAmount,
+    input.icon.emoji,
+    input.icon.photoUri,
+    wishId,
+  );
+  return previous?.icon_photo_uri ?? null;
 }
 
 // The coins a claim took from the kid's savings. `changed` is false when the

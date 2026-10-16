@@ -71,6 +71,7 @@ function RootStack() {
         <Stack.Screen name="edit-task" options={modal('Edit a task')} />
         <Stack.Screen name="wishes" options={page('Wishes')} />
         <Stack.Screen name="add-wish" options={modal('Add a wish')} />
+        <Stack.Screen name="edit-wish" options={modal('Edit a wish')} />
         <Stack.Screen name="consequence-types" options={page('Consequences')} />
         <Stack.Screen name="add-consequence-type" options={modal('Add a consequence')} />
         <Stack.Screen name="edit-consequence-type" options={modal('Edit a consequence')} />

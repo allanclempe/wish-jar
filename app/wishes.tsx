@@ -43,7 +43,13 @@ export default function WishesScreen() {
           renderItem={({ item }) => {
             const kid = kids.find((candidate) => candidate.id === item.kidId);
             return (
-              <View style={styles.row}>
+              <Pressable
+                style={styles.row}
+                onPress={() =>
+                  router.push({ pathname: '/edit-wish', params: { id: String(item.id) } })
+                }
+                accessibilityRole="button"
+              >
                 <IconBadge icon={item.icon} fallbackEmoji="🎁" />
                 <View style={styles.text}>
                   <Text style={styles.name}>{item.name}</Text>
@@ -55,7 +61,7 @@ export default function WishesScreen() {
                     🪙 {item.coinAmount} {item.coinAmount === 1 ? 'coin' : 'coins'}
                   </Text>
                 </View>
-              </View>
+              </Pressable>
             );
           }}
         />
