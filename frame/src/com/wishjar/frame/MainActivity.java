@@ -59,6 +59,8 @@ import java.util.Map;
  * - Photos sent to the frame with the Frameo phone app are served under /frameo/ for the page's
  *   photo picker (serveFrameo). The page uses them when /frame/config.js says so, which
  *   build.sh writes: on, unless built with FRAMEO_PHOTOS=0.
+ * - The frame's timezone is looked up from its IP address until one is set, and grown-ups can
+ *   change it in Settings through /device/timezone (FrameTimeZone, serveDevice).
  * - Remote debugging is off unless launched with the debug extra:
  *     adb shell am start -n com.wishjar.frame/.MainActivity --ez debug true
  */
@@ -122,6 +124,7 @@ public class MainActivity extends Activity {
         if (!"https".equals(url.getScheme()) || !HOST.equals(url.getHost())) return null;
         List<String> segments = url.getPathSegments();
         if (!segments.isEmpty() && "frameo".equals(segments.get(0))) return serveFrameo(url);
+        if (!segments.isEmpty() && "device".equals(segments.get(0))) return serveDevice(request);
         return serveAsset(url.getPath());
       }
 
@@ -287,6 +290,25 @@ public class MainActivity extends Activity {
         ? null : squarePhoto(new File(FRAMEO_PHOTOS, name), size);
     if (jpeg == null) return json(404, "Not Found", "{\"error\":\"not found\"}");
     return new WebResourceResponse("image/jpeg", null, 200, "OK", headers(), new ByteArrayInputStream(jpeg));
+  }
+
+  /**
+   * The frame's own settings, for the page's Settings (src/device/frame.ts):
+   *   POST /device/timezone?zone=<IANA id>  sets the frame's timezone (FrameTimeZone.set)
+   * The page reads the current timezone itself, from Intl.
+   */
+  private WebResourceResponse serveDevice(WebResourceRequest request) {
+    Uri url = request.getUrl();
+    List<String> segments = url.getPathSegments();
+    if (segments.size() != 2 || !"timezone".equals(segments.get(1))) {
+      return json(404, "Not Found", "{\"error\":\"not found\"}");
+    }
+    if (!"POST".equals(request.getMethod())) return json(405, "Method Not Allowed", "{\"error\":\"POST only\"}");
+    String zone = url.getQueryParameter("zone");
+    if (zone == null || !FrameTimeZone.set(this, zone, false)) {
+      return json(400, "Bad Request", "{\"error\":\"could not set the timezone\"}");
+    }
+    return json(200, "OK", "{\"zone\":" + JSONObject.quote(zone) + "}");
   }
 
   /** Up to max of Frameo's photos, newest first, skipping videos and anything else that isn't an image. */
@@ -488,6 +510,7 @@ public class MainActivity extends Activity {
   protected void onResume() {
     super.onResume();
     ReturnReceiver.cancel(this); // back, by the alarm or any other way
+    FrameTimeZone.detect(this); // until one is set: a new frame may only now be online
   }
 
   @Override

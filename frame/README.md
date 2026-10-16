@@ -96,6 +96,30 @@ every build, so Wish Jar on phones and on the dev server picks photos the
 usual way. (An `EXPO_PUBLIC_` variable would be baked into the bundle, and
 Metro's cache would carry it over to the next build, whatever it's for.)
 
+### The timezone
+
+Frameo frames come set to a factory timezone; this one was on
+`America/New_York`. Android only detects the timezone from a mobile network,
+which the frame doesn't have. The clock itself syncs over Wi-Fi, but each
+day's tasks start again at midnight in the frame's timezone
+(`src/tasks/day.ts`), so with the wrong one, the ticks reset in the middle of
+the kids' day.
+
+Until a timezone has been set, the frame app looks it up from the frame's IP
+address each time Wish Jar comes to the front, with
+[ipwho.is](https://ipwhois.io/) (free, no key), and sets it. That's the only
+reason it has Android's `INTERNET` permission. On the grown-ups' screens, the
+frame gets a **Timezone** row to pick another, for when the lookup guessed
+wrong (on a VPN, say). Once one is picked there, the lookup never runs again.
+
+Setting the timezone needs root: Android only lets system apps do it. The app
+runs `su 0 service call alarm 3 s16 <zone>`, which works because this frame's
+`su` lets any app use it and SELinux is permissive. To set it by hand:
+
+```bash
+adb shell su 0 service call alarm 3 s16 Australia/Brisbane
+```
+
 ## Step by step
 
 ### 1. Turn on ADB on the frame

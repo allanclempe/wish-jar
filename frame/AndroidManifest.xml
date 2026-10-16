@@ -4,6 +4,8 @@
 
   <!-- To read the photos Frameo receives, in /sdcard/frameo_files/media. -->
   <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
+  <!-- To look the frame's timezone up from its IP address (FrameTimeZone). -->
+  <uses-permission android:name="android.permission.INTERNET" />
 
   <application
       android:label="Wish Jar"
