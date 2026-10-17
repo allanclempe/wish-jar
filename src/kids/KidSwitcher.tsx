@@ -1,10 +1,10 @@
-import { router } from 'expo-router';
 import { useState, type ReactNode } from 'react';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SpringTo, Squish } from '../components/Animations';
 import { ParentLockButton } from '../parent/ParentLockButton';
+import { useSound } from '../sound/SoundProvider';
 import { useActiveKid, useSavings } from './ActiveKidProvider';
 import { colors, fonts, offsetShadow, radius, spacing, sunshineShadow, typography, useLargeScreen } from '../theme';
 
@@ -15,13 +15,15 @@ type KidSwitcherProps = {
 
 export function KidSwitcher({ tabs }: KidSwitcherProps) {
   const { kids, activeKid, selectKid } = useActiveKid();
+  const { playTap } = useSound();
   const large = useLargeScreen();
 
-  // A new kid starts on their tasks, not on the last kid's wishes or consequences.
+  // The new kid stays on the tab that's open, so kids taking turns on the
+  // wishes tab each see their own.
   function switchTo(kidId: number) {
+    playTap();
     if (kidId === activeKid?.id) return;
     selectKid(kidId);
-    router.navigate('/');
   }
 
   return (

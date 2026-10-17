@@ -2,6 +2,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import type { Kid, Period } from '../db';
+import { useSound } from '../sound/SoundProvider';
 import { PERIOD_LABELS } from '../tasks/period';
 import { colors, fonts, offsetShadow, radius, spacing, typography, useLargeScreen } from '../theme';
 import { Celebration, SpringIn, Wiggle } from './Animations';
@@ -24,6 +25,7 @@ type PeriodDoneOverlayProps = {
 // wish-unlocked screen, which opens after this one is closed.
 export function PeriodDoneOverlay({ kid, period, total, coinsToday, onSeeWishes, onKeepGoing }: PeriodDoneOverlayProps) {
   const large = useLargeScreen();
+  const { playTap } = useSound();
   const { width, height } = useWindowDimensions();
   // Held sideways (the frame, a phone in landscape) there is no room for the
   // whole column, so the kid and the title go left and the jar and buttons right.
@@ -92,14 +94,20 @@ export function PeriodDoneOverlay({ kid, period, total, coinsToday, onSeeWishes,
             )}
             <Pressable
               style={({ pressed }) => [styles.button, large && styles.buttonLarge, pressed && styles.pressed]}
-              onPress={onSeeWishes}
+              onPress={() => {
+                playTap();
+                onSeeWishes();
+              }}
               accessibilityRole="button"
             >
               <Text style={[styles.buttonText, large && styles.buttonTextLarge]}>🎁 See my wishes</Text>
             </Pressable>
             <Pressable
               style={({ pressed }) => [styles.later, large && styles.laterLarge, pressed && styles.pressed]}
-              onPress={onKeepGoing}
+              onPress={() => {
+                playTap();
+                onKeepGoing();
+              }}
               accessibilityRole="button"
             >
               <Text style={[styles.laterText, large && styles.buttonTextLarge]}>Keep going</Text>
