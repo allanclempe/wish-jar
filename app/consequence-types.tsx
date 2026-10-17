@@ -4,24 +4,30 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IconBadge } from '../src/components/Icons';
-import { listConsequenceTypes, useFamilyJar, type ConsequenceType } from '../src/db';
+import { listConsequenceTypes, useFamilyJar, useJarVersion, type ConsequenceType } from '../src/db';
 import { EmptyState } from '../src/components/EmptyState';
 import { colors, contentMaxWidth, fonts, primaryShadow, radius, spacing, typography } from '../src/theme';
 
 export default function ConsequencesSettingsScreen() {
   const jar = useFamilyJar();
+  const version = useJarVersion('consequence_types');
   const [types, setTypes] = useState<ConsequenceType[]>([]);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      listConsequenceTypes(jar).then((loaded) => {
-        if (!cancelled) setTypes(loaded);
-      });
+      listConsequenceTypes(jar).then(
+        (loaded) => {
+          if (!cancelled) setTypes(loaded);
+        },
+        () => {},
+      );
       return () => {
         cancelled = true;
       };
-    }, [jar]),
+      // `version` loads again what another device changed.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [jar, version]),
   );
 
   return (

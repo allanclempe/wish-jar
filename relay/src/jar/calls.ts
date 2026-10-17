@@ -1,4 +1,12 @@
-import type { ConsequenceTypeInput, JarApi, JarFn, KidInput, TaskInput, WishInput } from './api';
+import type {
+  ConsequenceTypeInput,
+  JarApi,
+  JarFn,
+  JarTable,
+  KidInput,
+  TaskInput,
+  WishInput,
+} from './api';
 import {
   addConsequence,
   listConsequences,
@@ -28,7 +36,7 @@ import {
   setParentPin,
   setSoundEnabled,
 } from './settings';
-import { replacePhoto } from './photos';
+import { PHOTO_TABLES, replacePhoto } from './photos';
 import type { Db } from './sql';
 import { deleteTask, getTask, insertTask, listTasks, updateTask } from './tasks';
 import {
@@ -59,7 +67,17 @@ type Call<F extends JarFn> = {
   // The photos the call may have left with nothing showing them (WJ-49): the
   // jar deletes those that nothing else shows.
   leftBehind?: (args: unknown[], result: JarApi[F]['result']) => (string | null)[];
+  // What a write or remove changes, for the family's other devices to reload
+  // (WJ-50), unless `changed` says this call changed nothing after all.
+  changes?: readonly JarTable[];
+  changed?: (result: JarApi[F]['result']) => boolean;
 };
+
+// For the calls that say whether they moved anything.
+const moved = (result: { changed: boolean }) => result.changed;
+
+// What goes with a kid (ON DELETE CASCADE).
+const KID_TABLES = ['kids', 'wishes', 'completions', 'kid_savings', 'consequences'] as const;
 
 // For the calls that return the photo they replaced or left behind.
 const returned = (_args: unknown[], result: string | null | string[]) => [result].flat();
@@ -102,21 +120,29 @@ const wishInput = (value: unknown): WishInput => {
 export const CALLS: { [F in JarFn]: Call<F> } = {
   listKids: { kind: 'read', arity: 0, run: (db) => listKids(db) },
   getKid: { kind: 'read', arity: 1, run: (db, [kidId]) => getKid(db, id(kidId, 'kidId')) },
-  insertKid: { kind: 'write', arity: 1, run: (db, [input]) => insertKid(db, kidInput(input)) },
+  insertKid: {
+    kind: 'write',
+    changes: ['kids'],
+    arity: 1,
+    run: (db, [input]) => insertKid(db, kidInput(input)),
+  },
   updateKid: {
     kind: 'write',
+    changes: ['kids'],
     leftBehind: returned,
     arity: 2,
     run: (db, [kidId, input]) => updateKid(db, id(kidId, 'kidId'), kidInput(input)),
   },
   setKidPhoto: {
     kind: 'write',
+    changes: ['kids'],
     leftBehind: returned,
     arity: 2,
     run: (db, [kidId, photo]) => setKidPhoto(db, id(kidId, 'kidId'), photoUri(photo)),
   },
   deleteKid: {
     kind: 'remove',
+    changes: KID_TABLES,
     leftBehind: returned,
     arity: 1,
     run: (db, [kidId]) => deleteKid(db, id(kidId, 'kidId')),
@@ -124,15 +150,22 @@ export const CALLS: { [F in JarFn]: Call<F> } = {
 
   listTasks: { kind: 'read', arity: 0, run: (db) => listTasks(db) },
   getTask: { kind: 'read', arity: 1, run: (db, [taskId]) => getTask(db, id(taskId, 'taskId')) },
-  insertTask: { kind: 'write', arity: 1, run: (db, [input]) => insertTask(db, taskInput(input)) },
+  insertTask: {
+    kind: 'write',
+    changes: ['tasks'],
+    arity: 1,
+    run: (db, [input]) => insertTask(db, taskInput(input)),
+  },
   updateTask: {
     kind: 'write',
+    changes: ['tasks'],
     leftBehind: returned,
     arity: 2,
     run: (db, [taskId, input]) => updateTask(db, id(taskId, 'taskId'), taskInput(input)),
   },
   deleteTask: {
     kind: 'remove',
+    changes: ['tasks', 'completions'],
     leftBehind: returned,
     arity: 1,
     run: (db, [taskId]) => deleteTask(db, id(taskId, 'taskId')),
@@ -151,6 +184,8 @@ export const CALLS: { [F in JarFn]: Call<F> } = {
   getKidSavings: { kind: 'read', arity: 1, run: (db, [kidId]) => getKidSavings(db, id(kidId, 'kidId')) },
   setTaskCompletion: {
     kind: 'write',
+    changes: ['completions', 'kid_savings'],
+    changed: moved,
     arity: 1,
     run: (db, [value]) => {
       const input = record(value, 'completion');
@@ -165,6 +200,7 @@ export const CALLS: { [F in JarFn]: Call<F> } = {
   },
   giveBonusCoins: {
     kind: 'write',
+    changes: ['kid_savings'],
     arity: 1,
     run: (db, [value]) => {
       const input = record(value, 'bonus');
@@ -183,11 +219,13 @@ export const CALLS: { [F in JarFn]: Call<F> } = {
   },
   insertConsequenceType: {
     kind: 'write',
+    changes: ['consequence_types'],
     arity: 1,
     run: (db, [input]) => insertConsequenceType(db, consequenceTypeInput(input)),
   },
   updateConsequenceType: {
     kind: 'write',
+    changes: ['consequence_types'],
     leftBehind: returned,
     arity: 2,
     run: (db, [typeId, input]) =>
@@ -195,6 +233,7 @@ export const CALLS: { [F in JarFn]: Call<F> } = {
   },
   deleteConsequenceType: {
     kind: 'remove',
+    changes: ['consequence_types', 'consequences'],
     leftBehind: returned,
     arity: 1,
     run: (db, [typeId]) => deleteConsequenceType(db, id(typeId, 'consequenceTypeId')),
@@ -207,6 +246,8 @@ export const CALLS: { [F in JarFn]: Call<F> } = {
   },
   addConsequence: {
     kind: 'write',
+    changes: ['consequences', 'kid_savings'],
+    changed: moved,
     arity: 1,
     run: (db, [value]) => {
       const input = record(value, 'consequence');
@@ -220,6 +261,8 @@ export const CALLS: { [F in JarFn]: Call<F> } = {
   },
   removeConsequence: {
     kind: 'remove',
+    changes: ['consequences', 'kid_savings'],
+    changed: moved,
     arity: 1,
     run: (db, [value]) => {
       const input = record(value, 'consequence');
@@ -233,21 +276,30 @@ export const CALLS: { [F in JarFn]: Call<F> } = {
 
   listWishes: { kind: 'read', arity: 0, run: (db) => listWishes(db) },
   getWish: { kind: 'read', arity: 1, run: (db, [wishId]) => getWish(db, id(wishId, 'wishId')) },
-  insertWish: { kind: 'write', arity: 1, run: (db, [input]) => insertWish(db, wishInput(input)) },
+  insertWish: {
+    kind: 'write',
+    changes: ['wishes'],
+    arity: 1,
+    run: (db, [input]) => insertWish(db, wishInput(input)),
+  },
   updateWish: {
     kind: 'write',
+    changes: ['wishes'],
     leftBehind: returned,
     arity: 2,
     run: (db, [wishId, input]) => updateWish(db, id(wishId, 'wishId'), wishInput(input)),
   },
   deleteWish: {
     kind: 'remove',
+    changes: ['wishes'],
     leftBehind: returned,
     arity: 1,
     run: (db, [wishId]) => deleteWish(db, id(wishId, 'wishId')),
   },
   claimWish: {
     kind: 'write',
+    changes: ['wishes', 'kid_savings'],
+    changed: moved,
     arity: 1,
     run: (db, [value]) => {
       const input = record(value, 'claim');
@@ -258,20 +310,29 @@ export const CALLS: { [F in JarFn]: Call<F> } = {
   getActiveKidId: { kind: 'read', arity: 0, run: (db) => getActiveKidId(db) },
   setActiveKidId: {
     kind: 'write',
+    changes: ['app_settings'],
     arity: 1,
     run: (db, [kidId]) => setActiveKidId(db, id(kidId, 'kidId')),
   },
   getParentPin: { kind: 'read', arity: 0, run: (db) => getParentPin(db) },
-  setParentPin: { kind: 'write', arity: 1, run: (db, [value]) => setParentPin(db, pin(value)) },
+  setParentPin: {
+    kind: 'write',
+    changes: ['app_settings'],
+    arity: 1,
+    run: (db, [value]) => setParentPin(db, pin(value)),
+  },
   getSoundEnabled: { kind: 'read', arity: 0, run: (db) => getSoundEnabled(db) },
   setSoundEnabled: {
     kind: 'write',
+    changes: ['app_settings'],
     arity: 1,
     run: (db, [enabled]) => setSoundEnabled(db, boolean(enabled, 'enabled')),
   },
 
   replacePhoto: {
     kind: 'write',
+    changes: PHOTO_TABLES,
+    changed: (count) => count > 0,
     arity: 2,
     run: (db, [from, to]) => replacePhoto(db, givenPhoto(from, 'from'), givenPhoto(to, 'to')),
     leftBehind: ([from]) => [typeof from === 'string' ? from : null],

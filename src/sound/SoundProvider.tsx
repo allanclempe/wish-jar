@@ -1,7 +1,7 @@
 import { createAudioPlayer, setAudioModeAsync, type AudioPlayer } from 'expo-audio';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type PropsWithChildren } from 'react';
 
-import { getSoundEnabled, setSoundEnabled, useFamilyJar } from '../db';
+import { getSoundEnabled, setSoundEnabled, useFamilyJar, useJarVersion } from '../db';
 
 // Short clips from Kenney's CC0 packs (assets/sounds/CREDITS.md): a ding for
 // every tick, a fanfare for the last one of the period, a pluck for the taps
@@ -39,18 +39,23 @@ const SoundContext = createContext<SoundContextValue | null>(null);
 // that goes wrong just means silence.
 export function SoundProvider({ children }: PropsWithChildren) {
   const jar = useFamilyJar();
+  // Turned on or off on another device too (WJ-50).
+  const settingsVersion = useJarVersion('app_settings');
   const [soundOn, setSoundOnState] = useState(true);
   const players = useRef<Record<Clip, AudioPlayer> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    getSoundEnabled(jar).then((enabled) => {
-      if (!cancelled) setSoundOnState(enabled);
-    });
+    getSoundEnabled(jar).then(
+      (enabled) => {
+        if (!cancelled) setSoundOnState(enabled);
+      },
+      () => {},
+    );
     return () => {
       cancelled = true;
     };
-  }, [jar]);
+  }, [jar, settingsVersion]);
 
   useEffect(() => {
     try {

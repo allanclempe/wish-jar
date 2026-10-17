@@ -1,10 +1,11 @@
 // The family jar's API as the app sees it (WJ-46). Types only and no Workers
 // imports, so the app can `import type` it from relay/src/jar/api.
 //
-// A call is POST /jar/call with { fn, args }: `args` are the arguments the app's
-// src/db function of the same name takes, without the database. The reply is
-// { result }, the same value that function returns (undefined comes back as
-// null).
+// A call is POST /jar/call with { fn, args, client? }: `args` are the arguments
+// the app's src/db function of the same name takes, without the database. The
+// reply is { result }, the same value that function returns (undefined comes
+// back as null). `client` names the running app making the call (see
+// JarChange).
 
 export type Icon = {
   emoji: string | null;
@@ -258,3 +259,28 @@ export type EchoShowRequest = { alexaDeviceId: string };
 //   DELETE /photos/:familyId/:id.jpg (device token) → 204, 401, 404,
 //                   409 (something still shows it)
 export type PhotoUpload = { url: string };
+
+// What the family's other devices hear about a change (WJ-50). A device of the
+// family keeps a WebSocket open to its jar:
+//   GET /jar/live?client=<id>  (Upgrade: websocket;
+//                               Sec-WebSocket-Protocol: wish-jar, bearer.<token>)
+// The token goes in the protocol list because a browser can't set headers on
+// a WebSocket, and a URL ends up in logs. The relay answers with the
+// `wish-jar` protocol. After every call that changed the jar, each socket
+// but the calling app's own (the `client` id it gave both) gets a JarChange
+// naming the tables that changed, for it to reload what shows them. "ping"
+// is answered "pong" without waking the jar. A token the jar doesn't know (a
+// device removed from the family, then or later) has its socket closed with
+// code 4401.
+export type JarTable =
+  | 'kids'
+  | 'tasks'
+  | 'completions'
+  | 'kid_savings'
+  | 'wishes'
+  | 'consequence_types'
+  | 'consequences'
+  | 'app_settings'
+  | 'devices';
+
+export type JarChange = { type: 'changed'; tables: JarTable[] };

@@ -6,6 +6,7 @@ import { deletePhoto, parsePhotoPath, showPhoto, uploadPhoto } from './familyPho
 import { FamilyJar } from './FamilyJar';
 import { corsReply, readCapped } from './http';
 import { JoinAttempts, JoinCode } from './JoinCode';
+import { liveApi } from './live';
 import { codePage, homePage, htmlResponse } from './pages';
 import { PhotoDrop } from './PhotoDrop';
 import { qrSvg } from './qr';
@@ -27,6 +28,9 @@ export default {
     if (pathname === '/families' || pathname === '/jar/call') {
       return familyApi(request, env, pathname);
     }
+    // Each device's WebSocket to its family's jar, to hear of changes from
+    // the others (WJ-50): src/live.ts.
+    if (pathname === '/jar/live') return liveApi(request, env);
     // A family's devices and their join codes (WJ-48), and the Echo Show's
     // way back into its family (WJ-45), for Wish Jar on any device:
     // src/devices.ts.

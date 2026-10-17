@@ -29,20 +29,24 @@ export default function EditWishScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    getWish(jar, wishId).then((wish) => {
-      if (cancelled) return;
-      if (!wish) {
-        Alert.alert('Wish not found', 'This wish may have been removed.');
-        router.back();
-        return;
-      }
-      setName(wish.name);
-      setCoinAmount(String(wish.coinAmount));
-      setKidId(wish.kidId);
-      setIcon(wish.icon);
-      setOriginalPhotoUri(wish.icon.photoUri);
-      setLoaded(true);
-    });
+    getWish(jar, wishId).then(
+      (wish) => {
+        if (cancelled) return;
+        if (!wish) {
+          Alert.alert('Wish not found', 'This wish may have been removed.');
+          router.back();
+          return;
+        }
+        setName(wish.name);
+        setCoinAmount(String(wish.coinAmount));
+        setKidId(wish.kidId);
+        setIcon(wish.icon);
+        setOriginalPhotoUri(wish.icon.photoUri);
+        setLoaded(true);
+      },
+      // A failed load shows on the jar's reconnecting screen.
+      () => {},
+    );
     return () => {
       cancelled = true;
     };

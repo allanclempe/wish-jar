@@ -10,6 +10,7 @@ import {
   listConsequences,
   removeConsequence,
   useFamilyJar,
+  useJarVersion,
   type Consequence,
   type ConsequenceChange,
 } from '../../src/db';
@@ -31,6 +32,8 @@ export default function ConsequencesTab() {
 // on the frame redrawing a whole screen for that was most of the switch.
 const ConsequencesScreen = memo(function ConsequencesScreen() {
   const jar = useFamilyJar();
+  // Consequences logged or taken back on another device (WJ-50).
+  const version = useJarVersion('consequences');
   const { activeKid, recordSavingsChange } = useActiveKid();
   const large = useLargeScreen();
   const columns = large ? 2 : 1;
@@ -50,13 +53,18 @@ const ConsequencesScreen = memo(function ConsequencesScreen() {
       let cancelled = false;
       const today = dayKey();
       setDay(today);
-      listConsequences(jar, kidId, today).then((loaded) => {
-        if (!cancelled) setConsequences(loaded);
-      });
+      listConsequences(jar, kidId, today).then(
+        (loaded) => {
+          if (!cancelled) setConsequences(loaded);
+        },
+        () => {},
+      );
       return () => {
         cancelled = true;
       };
-    }, [jar, kidId]),
+      // `version` loads again what another device changed.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [jar, kidId, version]),
   );
 
   // Kids can see their consequences, but only a grown-up with the PIN can take one back.
@@ -76,7 +84,7 @@ const ConsequencesScreen = memo(function ConsequencesScreen() {
     if (change.changed) {
       recordSavingsChange(kidId, change.coins);
     }
-    setConsequences(await listConsequences(jar, kidId, day));
+    listConsequences(jar, kidId, day).then(setConsequences, () => {});
   }
 
   return (

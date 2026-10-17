@@ -7,6 +7,8 @@ import {
   listKids,
   setActiveKidId,
   useFamilyJar,
+  useJarVersion,
+  type FamilyJar,
   type Kid,
 } from '../db';
 import { savingsAfterTask } from './savings';
@@ -26,8 +28,22 @@ const ActiveKidContext = createContext<ActiveKidContextValue | null>(null);
 // few screens that show coins re-render, not everything that knows the kid.
 const SavingsContext = createContext<Record<number, number> | null>(null);
 
+// The kids, and the one playing on this device. When that kid was deleted
+// (here or on another device), the first kid left takes over.
+async function loadKids(jar: FamilyJar): Promise<{ kids: Kid[]; activeKidId: number | null }> {
+  const [kids, savedId] = await Promise.all([listKids(jar), getActiveKidId()]);
+  if (savedId != null && !kids.some((kid) => kid.id === savedId) && kids.length > 0) {
+    await setActiveKidId(kids[0].id);
+    return { kids, activeKidId: kids[0].id };
+  }
+  return { kids, activeKidId: savedId };
+}
+
 export function ActiveKidProvider({ children }: PropsWithChildren) {
   const jar = useFamilyJar();
+  // Kids and coins another device changed load again (WJ-50).
+  const kidsVersion = useJarVersion('kids');
+  const savingsVersion = useJarVersion('kid_savings');
   const [ready, setReady] = useState(false);
   const [kids, setKids] = useState<Kid[]>([]);
   const [activeKidId, setActiveKidIdState] = useState<number | null>(null);
@@ -48,41 +64,47 @@ export function ActiveKidProvider({ children }: PropsWithChildren) {
   }, []);
 
   const refreshKids = useCallback(async () => {
-    const [loadedKids, savedId] = await Promise.all([listKids(jar), getActiveKidId()]);
-    let nextId = savedId;
-    // The playing kid was deleted, so the first kid left takes over.
-    if (savedId != null && !loadedKids.some((kid) => kid.id === savedId) && loadedKids.length > 0) {
-      nextId = loadedKids[0].id;
-      await setActiveKidId(nextId);
-    }
-    setKids(loadedKids);
-    setActiveKidIdState(nextId);
+    const loaded = await loadKids(jar);
+    setKids(loaded.kids);
+    setActiveKidIdState(loaded.activeKidId);
   }, [jar]);
 
+  // A load that fails brings up the jar's reconnecting screen, and runs again
+  // with the new handle once the jar is back.
   useEffect(() => {
     let cancelled = false;
-    Promise.all([listKids(jar), getActiveKidId()]).then(([loadedKids, savedId]) => {
-      if (cancelled) return;
-      setKids(loadedKids);
-      setActiveKidIdState(savedId);
-      setReady(true);
-    });
+    loadKids(jar).then(
+      (loaded) => {
+        if (cancelled) return;
+        // The same kids keep the same array, so a reload that found nothing
+        // new (another device changed something else) re-renders nothing.
+        setKids((current) => (JSON.stringify(current) === JSON.stringify(loaded.kids) ? current : loaded.kids));
+        setActiveKidIdState(loaded.activeKidId);
+        setReady(true);
+      },
+      () => {},
+    );
     return () => {
       cancelled = true;
     };
-  }, [jar]);
+  }, [jar, kidsVersion]);
 
   useEffect(() => {
     if (activeKidId == null) return;
     let cancelled = false;
-    getKidSavings(jar, activeKidId).then((amount) => {
-      if (cancelled) return;
-      setSavings((previous) => ({ ...previous, [activeKidId]: amount }));
-    });
+    getKidSavings(jar, activeKidId).then(
+      (amount) => {
+        if (cancelled) return;
+        setSavings((previous) =>
+          previous[activeKidId] === amount ? previous : { ...previous, [activeKidId]: amount },
+        );
+      },
+      () => {},
+    );
     return () => {
       cancelled = true;
     };
-  }, [jar, activeKidId]);
+  }, [jar, activeKidId, savingsVersion]);
 
   const selectKid = useCallback(
     async (kidId: number) => {

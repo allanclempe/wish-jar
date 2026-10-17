@@ -23,12 +23,16 @@ export default function WishUnlockedScreen() {
   useEffect(() => {
     const wanted = new Set(String(ids ?? '').split(',').map(Number));
     let cancelled = false;
-    listWishes(jar).then((loaded) => {
-      if (cancelled) return;
-      setWishes(loaded.filter((wish) => wanted.has(wish.id)));
-      setBurst((count) => count + 1);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    });
+    listWishes(jar).then(
+      (loaded) => {
+        if (cancelled) return;
+        setWishes(loaded.filter((wish) => wanted.has(wish.id)));
+        setBurst((count) => count + 1);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      },
+      // A failed load shows on the jar's reconnecting screen.
+      () => {},
+    );
     return () => {
       cancelled = true;
     };

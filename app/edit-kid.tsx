@@ -27,18 +27,22 @@ export default function EditKidScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    getKid(jar, kidId).then((kid) => {
-      if (cancelled) return;
-      if (!kid) {
-        Alert.alert('Kid not found', 'This kid may have been removed.');
-        router.back();
-        return;
-      }
-      setName(kid.name);
-      setPhotoUri(kid.photoUri);
-      setOriginalPhotoUri(kid.photoUri);
-      setLoaded(true);
-    });
+    getKid(jar, kidId).then(
+      (kid) => {
+        if (cancelled) return;
+        if (!kid) {
+          Alert.alert('Kid not found', 'This kid may have been removed.');
+          router.back();
+          return;
+        }
+        setName(kid.name);
+        setPhotoUri(kid.photoUri);
+        setOriginalPhotoUri(kid.photoUri);
+        setLoaded(true);
+      },
+      // A failed load shows on the jar's reconnecting screen.
+      () => {},
+    );
     return () => {
       cancelled = true;
     };

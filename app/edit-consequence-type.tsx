@@ -33,19 +33,23 @@ export default function EditConsequenceTypeScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    getConsequenceType(jar, consequenceTypeId).then((type) => {
-      if (cancelled) return;
-      if (!type) {
-        Alert.alert('Consequence not found', 'This consequence may have been removed.');
-        router.back();
-        return;
-      }
-      setName(type.name);
-      setCoinAmount(String(type.coinAmount));
-      setIcon(type.icon);
-      setOriginalPhotoUri(type.icon.photoUri);
-      setLoaded(true);
-    });
+    getConsequenceType(jar, consequenceTypeId).then(
+      (type) => {
+        if (cancelled) return;
+        if (!type) {
+          Alert.alert('Consequence not found', 'This consequence may have been removed.');
+          router.back();
+          return;
+        }
+        setName(type.name);
+        setCoinAmount(String(type.coinAmount));
+        setIcon(type.icon);
+        setOriginalPhotoUri(type.icon.photoUri);
+        setLoaded(true);
+      },
+      // A failed load shows on the jar's reconnecting screen.
+      () => {},
+    );
     return () => {
       cancelled = true;
     };

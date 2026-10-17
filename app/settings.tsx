@@ -3,7 +3,14 @@ import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { ScrollScreen } from '../src/components/ScrollScreen';
-import { listConsequenceTypes, listDevices, listTasks, listWishes, useFamilyJar } from '../src/db';
+import {
+  listConsequenceTypes,
+  listDevices,
+  listTasks,
+  listWishes,
+  useFamilyJar,
+  useJarVersion,
+} from '../src/db';
 import { currentTimeZone, onFrame, timeZoneName } from '../src/device/frame';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { useSound } from '../src/sound/SoundProvider';
@@ -71,6 +78,7 @@ function plural(count: number, one: string, many: string) {
 
 export default function SettingsScreen() {
   const jar = useFamilyJar();
+  const version = useJarVersion('tasks', 'wishes', 'consequence_types', 'devices');
   const { kids } = useActiveKid();
   const { soundOn, setSoundOn } = useSound();
   const [taskCount, setTaskCount] = useState(0);
@@ -90,6 +98,7 @@ export default function SettingsScreen() {
           setWishCount(wishes.length);
           setConsequenceCount(consequenceTypes.length);
         },
+        () => {},
       );
       listDevices(jar).then(
         (devices) => {
@@ -100,7 +109,9 @@ export default function SettingsScreen() {
       return () => {
         cancelled = true;
       };
-    }, [jar]),
+      // `version` loads again what another device changed.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [jar, version]),
   );
 
   return (
