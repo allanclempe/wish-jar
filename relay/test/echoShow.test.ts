@@ -206,7 +206,7 @@ describe('the Echo Show', () => {
       storage.sql.exec('ALTER TABLE devices DROP COLUMN echo_show_hash');
       storage.sql.exec("UPDATE jar_meta SET value = '1' WHERE key = 'version'");
       migrateJar(storage);
-      expect(jarVersion(storage)).toBe(2);
+      expect(jarVersion(storage)).toBe(JAR_VERSION);
     });
     const alexaId = newAlexaId();
     expect((await link(token, alexaId)).status).toBe(204);

@@ -6,9 +6,9 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { DeleteButton } from '../src/components/DeleteButton';
 import { ScrollScreen } from '../src/components/ScrollScreen';
 import { IconPicker } from '../src/components/Icons';
-import { deleteWish, getWish, updateWish, useFamilyJar, type Icon } from '../src/db';
+import { deleteWish, discardPhoto, getWish, updateWish, useFamilyJar, type Icon } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
-import { removePhoto, storePhoto } from '../src/photos/photos';
+import { storePhoto } from '../src/photos/photos';
 import { colors, fonts, radius, spacing, typography } from '../src/theme';
 
 type Errors = { name?: string; coinAmount?: string; kidId?: string };
@@ -74,21 +74,18 @@ export default function EditWishScreen() {
     let savedPhotoUri = icon.photoUri;
     try {
       if (icon.photoUri && icon.photoUri !== originalPhotoUri) {
-        savedPhotoUri = await storePhoto(icon.photoUri);
+        savedPhotoUri = await storePhoto(jar, icon.photoUri);
       }
-      const previousPhotoUri = await updateWish(jar, wishId, {
+      await updateWish(jar, wishId, {
         kidId,
         name,
         coinAmount: Number(coinAmount.trim()),
         icon: { emoji: icon.emoji, photoUri: savedPhotoUri },
       });
-      if (previousPhotoUri !== savedPhotoUri) {
-        removePhoto(previousPhotoUri);
-      }
       router.back();
     } catch {
       if (savedPhotoUri !== icon.photoUri) {
-        removePhoto(savedPhotoUri);
+        discardPhoto(jar, savedPhotoUri);
       }
       Alert.alert('Could not save', 'Something went wrong while saving. Please try again.');
       setSaving(false);
@@ -99,7 +96,7 @@ export default function EditWishScreen() {
     if (saving) return;
     setSaving(true);
     try {
-      removePhoto(await deleteWish(jar, wishId));
+      await deleteWish(jar, wishId);
       router.back();
     } catch {
       Alert.alert('Could not delete', 'Something went wrong while deleting. Please try again.');

@@ -4,8 +4,8 @@ import { Alert, Pressable, StyleSheet, Text, TextInput } from 'react-native';
 
 import { ScrollScreen } from '../src/components/ScrollScreen';
 import { IconPicker, CONSEQUENCE_EMOJIS } from '../src/components/Icons';
-import { insertConsequenceType, useFamilyJar, type Icon } from '../src/db';
-import { removePhoto, storePhoto } from '../src/photos/photos';
+import { discardPhoto, insertConsequenceType, useFamilyJar, type Icon } from '../src/db';
+import { storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
 type Errors = { name?: string; coinAmount?: string };
@@ -38,7 +38,7 @@ export default function AddConsequenceTypeScreen() {
     setSaving(true);
     let storedPhotoUri: string | null = null;
     try {
-      storedPhotoUri = icon.photoUri ? await storePhoto(icon.photoUri) : null;
+      storedPhotoUri = icon.photoUri ? await storePhoto(jar, icon.photoUri) : null;
       await insertConsequenceType(jar, {
         name,
         coinAmount: Number(coinAmount.trim()),
@@ -46,7 +46,7 @@ export default function AddConsequenceTypeScreen() {
       });
       router.back();
     } catch {
-      removePhoto(storedPhotoUri);
+      discardPhoto(jar, storedPhotoUri);
       Alert.alert('Could not save', 'Something went wrong while saving. Please try again.');
       setSaving(false);
     }

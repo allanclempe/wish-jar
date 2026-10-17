@@ -5,8 +5,8 @@ import { Alert, Pressable, StyleSheet, Text, TextInput } from 'react-native';
 import { ScrollScreen } from '../src/components/ScrollScreen';
 import { IconPicker } from '../src/components/Icons';
 import { PeriodPicker } from '../src/components/PeriodPicker';
-import { insertTask, useFamilyJar, type Icon, type Period } from '../src/db';
-import { removePhoto, storePhoto } from '../src/photos/photos';
+import { discardPhoto, insertTask, useFamilyJar, type Icon, type Period } from '../src/db';
+import { storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
 type Errors = { name?: string; coinAmount?: string };
@@ -40,7 +40,7 @@ export default function AddTaskScreen() {
     setSaving(true);
     let storedPhotoUri: string | null = null;
     try {
-      storedPhotoUri = icon.photoUri ? await storePhoto(icon.photoUri) : null;
+      storedPhotoUri = icon.photoUri ? await storePhoto(jar, icon.photoUri) : null;
       await insertTask(jar, {
         name,
         period,
@@ -49,7 +49,7 @@ export default function AddTaskScreen() {
       });
       router.back();
     } catch {
-      removePhoto(storedPhotoUri);
+      discardPhoto(jar, storedPhotoUri);
       Alert.alert('Could not save', 'Something went wrong while saving. Please try again.');
       setSaving(false);
     }

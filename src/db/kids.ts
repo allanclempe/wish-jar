@@ -16,7 +16,8 @@ export function insertKid(
   return jar.call('insertKid', input);
 }
 
-// Returns the previous photo, so the caller can remove it once replaced.
+// Returns the previous photo, which the jar deletes itself once nothing shows
+// it (photos.ts).
 export function updateKid(
   jar: FamilyJar,
   kidId: number,
@@ -34,7 +35,7 @@ export function setKidPhoto(
 }
 
 // Their wishes, ticks, consequences and savings go with them. Returns the
-// photos left behind, so the caller can remove them.
+// photos left behind, which the jar deletes itself (photos.ts).
 export function deleteKid(jar: FamilyJar, kidId: number): Promise<string[]> {
   return jar.call('deleteKid', kidId);
 }

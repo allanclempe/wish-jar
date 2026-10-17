@@ -11,9 +11,9 @@ import {
 
 import { ScrollScreen } from '../src/components/ScrollScreen';
 import { IconPicker } from '../src/components/Icons';
-import { insertWish, useFamilyJar, type Icon } from '../src/db';
+import { discardPhoto, insertWish, useFamilyJar, type Icon } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
-import { removePhoto, storePhoto } from '../src/photos/photos';
+import { storePhoto } from '../src/photos/photos';
 import { colors, fonts, radius, spacing, typography } from '../src/theme';
 
 type Errors = { name?: string; coinAmount?: string; kidId?: string };
@@ -53,7 +53,7 @@ export default function AddWishScreen() {
     setSaving(true);
     let storedPhotoUri: string | null = null;
     try {
-      storedPhotoUri = icon.photoUri ? await storePhoto(icon.photoUri) : null;
+      storedPhotoUri = icon.photoUri ? await storePhoto(jar, icon.photoUri) : null;
       await insertWish(jar, {
         kidId,
         name,
@@ -62,7 +62,7 @@ export default function AddWishScreen() {
       });
       router.back();
     } catch {
-      removePhoto(storedPhotoUri);
+      discardPhoto(jar, storedPhotoUri);
       Alert.alert('Could not save', 'Something went wrong while saving. Please try again.');
       setSaving(false);
     }

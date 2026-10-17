@@ -28,6 +28,7 @@ import {
   setParentPin,
   setSoundEnabled,
 } from './settings';
+import { replacePhoto } from './photos';
 import type { Db } from './sql';
 import { deleteTask, getTask, insertTask, listTasks, updateTask } from './tasks';
 import {
@@ -55,7 +56,17 @@ type Call<F extends JarFn> = {
   arity: number;
   // Checks the untrusted arguments, then runs the query.
   run: (db: Db, args: unknown[]) => JarApi[F]['result'];
+  // The photos the call may have left with nothing showing them (WJ-49): the
+  // jar deletes those that nothing else shows.
+  leftBehind?: (args: unknown[], result: JarApi[F]['result']) => (string | null)[];
 };
+
+// For the calls that return the photo they replaced or left behind.
+const returned = (_args: unknown[], result: string | null | string[]) => [result].flat();
+
+function givenPhoto(value: unknown, what: string): string {
+  return photoUri(value, what) ?? bad(`${what} should be a photo`);
+}
 
 const kidInput = (value: unknown): KidInput => {
   const input = record(value, 'kid');
@@ -94,25 +105,38 @@ export const CALLS: { [F in JarFn]: Call<F> } = {
   insertKid: { kind: 'write', arity: 1, run: (db, [input]) => insertKid(db, kidInput(input)) },
   updateKid: {
     kind: 'write',
+    leftBehind: returned,
     arity: 2,
     run: (db, [kidId, input]) => updateKid(db, id(kidId, 'kidId'), kidInput(input)),
   },
   setKidPhoto: {
     kind: 'write',
+    leftBehind: returned,
     arity: 2,
     run: (db, [kidId, photo]) => setKidPhoto(db, id(kidId, 'kidId'), photoUri(photo)),
   },
-  deleteKid: { kind: 'remove', arity: 1, run: (db, [kidId]) => deleteKid(db, id(kidId, 'kidId')) },
+  deleteKid: {
+    kind: 'remove',
+    leftBehind: returned,
+    arity: 1,
+    run: (db, [kidId]) => deleteKid(db, id(kidId, 'kidId')),
+  },
 
   listTasks: { kind: 'read', arity: 0, run: (db) => listTasks(db) },
   getTask: { kind: 'read', arity: 1, run: (db, [taskId]) => getTask(db, id(taskId, 'taskId')) },
   insertTask: { kind: 'write', arity: 1, run: (db, [input]) => insertTask(db, taskInput(input)) },
   updateTask: {
     kind: 'write',
+    leftBehind: returned,
     arity: 2,
     run: (db, [taskId, input]) => updateTask(db, id(taskId, 'taskId'), taskInput(input)),
   },
-  deleteTask: { kind: 'remove', arity: 1, run: (db, [taskId]) => deleteTask(db, id(taskId, 'taskId')) },
+  deleteTask: {
+    kind: 'remove',
+    leftBehind: returned,
+    arity: 1,
+    run: (db, [taskId]) => deleteTask(db, id(taskId, 'taskId')),
+  },
 
   listCompletedTaskIds: {
     kind: 'read',
@@ -164,12 +188,14 @@ export const CALLS: { [F in JarFn]: Call<F> } = {
   },
   updateConsequenceType: {
     kind: 'write',
+    leftBehind: returned,
     arity: 2,
     run: (db, [typeId, input]) =>
       updateConsequenceType(db, id(typeId, 'consequenceTypeId'), consequenceTypeInput(input)),
   },
   deleteConsequenceType: {
     kind: 'remove',
+    leftBehind: returned,
     arity: 1,
     run: (db, [typeId]) => deleteConsequenceType(db, id(typeId, 'consequenceTypeId')),
   },
@@ -210,10 +236,16 @@ export const CALLS: { [F in JarFn]: Call<F> } = {
   insertWish: { kind: 'write', arity: 1, run: (db, [input]) => insertWish(db, wishInput(input)) },
   updateWish: {
     kind: 'write',
+    leftBehind: returned,
     arity: 2,
     run: (db, [wishId, input]) => updateWish(db, id(wishId, 'wishId'), wishInput(input)),
   },
-  deleteWish: { kind: 'remove', arity: 1, run: (db, [wishId]) => deleteWish(db, id(wishId, 'wishId')) },
+  deleteWish: {
+    kind: 'remove',
+    leftBehind: returned,
+    arity: 1,
+    run: (db, [wishId]) => deleteWish(db, id(wishId, 'wishId')),
+  },
   claimWish: {
     kind: 'write',
     arity: 1,
@@ -236,6 +268,13 @@ export const CALLS: { [F in JarFn]: Call<F> } = {
     kind: 'write',
     arity: 1,
     run: (db, [enabled]) => setSoundEnabled(db, boolean(enabled, 'enabled')),
+  },
+
+  replacePhoto: {
+    kind: 'write',
+    arity: 2,
+    run: (db, [from, to]) => replacePhoto(db, givenPhoto(from, 'from'), givenPhoto(to, 'to')),
+    leftBehind: ([from]) => [typeof from === 'string' ? from : null],
   },
 };
 

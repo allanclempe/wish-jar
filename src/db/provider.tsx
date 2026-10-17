@@ -12,6 +12,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { JoinFamilyForm } from '../family/JoinFamilyForm';
 import { SetUpJar } from '../family/SetUpJar';
 import { colors, fonts, radius, spacing, typography } from '../theme';
+import { moveLocalPhotosOnline } from '../photos/photos';
 import { FirstLaunchBusy } from './firstLaunch';
 import { createJarClient, JarCallError, type FamilyJar, type JarProblem } from './jar';
 import { echoShowSetupNote, openFamilyJar, startFamilyJar } from './open';
@@ -133,6 +134,13 @@ function ConnectedJar({
     // createClient only reads `token`, which this component never changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checking, token]);
+
+  // Photos this phone kept as files before WJ-49 go up into the jar, in the
+  // background and with a handle of their own: a failure here needs no
+  // reconnecting screen, the next launch tries again.
+  useEffect(() => {
+    moveLocalPhotosOnline(createJarClient(token)).catch(() => {});
+  }, [token]);
 
   const lost = problem?.error.lost ?? false;
   // A device taken out of its family can only join one again (WJ-48).

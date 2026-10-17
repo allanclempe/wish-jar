@@ -2,6 +2,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import type { Kid, Period } from '../db';
+import { shownPhoto } from '../photos/photos';
 import { useSound } from '../sound/SoundProvider';
 import { PERIOD_LABELS } from '../tasks/period';
 import { colors, fonts, offsetShadow, radius, spacing, typography, useLargeScreen } from '../theme';
@@ -31,6 +32,7 @@ export function PeriodDoneOverlay({ kid, period, total, coinsToday, onSeeWishes,
   // whole column, so the kid and the title go left and the jar and buttons right.
   const landscape = width > height;
   const photoSize = large ? PHOTO_SIZE_LARGE : PHOTO_SIZE;
+  const photoUri = shownPhoto(kid.photoUri);
 
   return (
     // Fades in as the card springs up from smaller.
@@ -58,9 +60,9 @@ export function PeriodDoneOverlay({ kid, period, total, coinsToday, onSeeWishes,
           <View style={[styles.column, landscape && styles.columnLandscape]}>
             <View style={styles.photoBox}>
               <View style={[styles.ring, { width: photoSize + 16, height: photoSize + 16, borderRadius: (photoSize + 16) / 2 }]}>
-                {kid.photoUri ? (
+                {photoUri ? (
                   <Image
-                    source={{ uri: kid.photoUri }}
+                    source={{ uri: photoUri }}
                     style={{ width: photoSize, height: photoSize, borderRadius: photoSize / 2 }}
                   />
                 ) : (

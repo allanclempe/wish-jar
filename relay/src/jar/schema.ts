@@ -7,7 +7,7 @@
 // kept in jar_meta. Foreign keys are always on there, so ON DELETE CASCADE
 // works as it does in the app.
 
-export const JAR_VERSION = 2;
+export const JAR_VERSION = 3;
 
 const MIGRATIONS: Record<number, string> = {
   1: `
@@ -98,6 +98,18 @@ const MIGRATIONS: Record<number, string> = {
     ALTER TABLE devices ADD COLUMN echo_show_hash TEXT;
     CREATE UNIQUE INDEX IF NOT EXISTS devices_echo_show_hash
       ON devices (echo_show_hash) WHERE echo_show_hash IS NOT NULL;
+  `,
+  // The family's photos (WJ-49), one JPEG per row (a row holds up to 2 MB),
+  // so they count toward the jar's size cap. The photo columns hold their
+  // URLs; the data: URIs already in them move here at the next call
+  // (FamilyJar.movePhotosOnce), which knows the URL to give them.
+  3: `
+    CREATE TABLE IF NOT EXISTS photos (
+      id TEXT PRIMARY KEY NOT NULL,
+      type TEXT NOT NULL,
+      data BLOB NOT NULL,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
+    );
   `,
 };
 

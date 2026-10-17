@@ -6,6 +6,7 @@ import { SpringTo, Squish } from '../components/Animations';
 import { BonusCoinsButton, ParentLockButton } from '../parent/ParentLockButton';
 import { useSound } from '../sound/SoundProvider';
 import { useActiveKid, useSavings } from './ActiveKidProvider';
+import { shownPhoto } from '../photos/photos';
 import { colors, fonts, offsetShadow, radius, spacing, sunshineShadow, typography, useLargeScreen } from '../theme';
 
 type KidSwitcherProps = {
@@ -64,6 +65,7 @@ type KidAvatarProps = {
 };
 
 function KidAvatar({ name, photoUri, active, large, onPress }: KidAvatarProps) {
+  const shown = shownPhoto(photoUri);
   return (
     <Pressable
       style={styles.kid}
@@ -77,9 +79,9 @@ function KidAvatar({ name, photoUri, active, large, onPress }: KidAvatarProps) {
         to={{ opacity: active ? 1 : 0.55, scale: active ? 1.08 : 0.85 }}
         style={[styles.ring, large && styles.ringLarge, active && styles.ringActive]}
       >
-        {photoUri ? (
+        {shown ? (
           <Image
-            source={{ uri: photoUri }}
+            source={{ uri: shown }}
             style={[styles.avatar, large && styles.avatarLarge, active && styles.avatarActive]}
           />
         ) : (
