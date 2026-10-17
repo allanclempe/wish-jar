@@ -260,7 +260,7 @@ function KidPeriodTasks({ period, day, kid: activeKid }: CurrentPeriodTasksProps
   function closeCelebration(seeWishes: boolean) {
     setCelebration(null);
     holdUnlocks.current = false;
-    if (seeWishes) router.dismissTo('/wishlist');
+    if (seeWishes) router.navigate('/wishlist');
     if (pendingUnlocks.current.size > 0) openUnlockedWishes();
   }
 
