@@ -3,7 +3,7 @@
 // the code as a QR code, and collects the photo once the phone sends it.
 //
 // Deployed on Allan's Cloudflare account by .github/workflows/relay.yml.
-export const PHOTO_RELAY_URL = 'https://wish-jar-photo-relay.allan-clempe.workers.dev';
+export const PHOTO_RELAY_URL = 'https://wish-jar.blastin.dev';
 
 export type RelayCode = {
   // Short, for typing on the phone: 6 letters and digits.

@@ -1,8 +1,9 @@
 # The photo relay (relay/, WJ-41) runs on Cloudflare Workers, apart from the
 # site that EAS deploys. Pull requests that touch it run its checks; merges to
 # main also deploy it. The deploy job reads the secret CLOUDFLARE_API_TOKEN
-# (Workers Scripts: Edit, Account Settings: Read) and the variable
-# CLOUDFLARE_ACCOUNT_ID from the repository's "production" environment.
+# (Workers Scripts: Edit, Account Settings: Read, and for wish-jar.blastin.dev
+# on the blastin.dev zone: Workers Routes: Edit, DNS: Edit, Zone: Read) and
+# the variable CLOUDFLARE_ACCOUNT_ID from the "production" environment.
 name: Photo relay
 
 on:
