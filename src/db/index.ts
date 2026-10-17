@@ -9,3 +9,4 @@ export * from './consequenceTypes';
 export * from './consequences';
 export * from './wishes';
 export * from './settings';
+export * from './devices';

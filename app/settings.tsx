@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { ScrollScreen } from '../src/components/ScrollScreen';
-import { listConsequenceTypes, listTasks, listWishes, useFamilyJar } from '../src/db';
+import { listConsequenceTypes, listDevices, listTasks, listWishes, useFamilyJar } from '../src/db';
 import { currentTimeZone, onFrame, timeZoneName } from '../src/device/frame';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { useSound } from '../src/sound/SoundProvider';
@@ -76,6 +76,7 @@ export default function SettingsScreen() {
   const [taskCount, setTaskCount] = useState(0);
   const [wishCount, setWishCount] = useState(0);
   const [consequenceCount, setConsequenceCount] = useState(0);
+  const [deviceCount, setDeviceCount] = useState<number | null>(null);
   const [timeZone, setTimeZone] = useState(currentTimeZone);
 
   useFocusEffect(
@@ -89,6 +90,12 @@ export default function SettingsScreen() {
           setWishCount(wishes.length);
           setConsequenceCount(consequenceTypes.length);
         },
+      );
+      listDevices(jar).then(
+        (devices) => {
+          if (!cancelled) setDeviceCount(devices.length);
+        },
+        () => {},
       );
       return () => {
         cancelled = true;
@@ -131,6 +138,16 @@ export default function SettingsScreen() {
           onValueChange={(on) => {
             setSoundOn(on).catch(() => {});
           }}
+        />
+        <MenuItem
+          emoji="📱"
+          title="Devices"
+          subtitle={
+            deviceCount == null
+              ? 'Phones, frames and screens sharing this jar'
+              : `${plural(deviceCount, 'device', 'devices')} sharing this jar`
+          }
+          onPress={() => router.push('/devices')}
         />
         <MenuItem
           emoji="🔢"

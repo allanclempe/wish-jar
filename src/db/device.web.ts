@@ -5,8 +5,8 @@
 //
 // The Echo Show's browser has no localStorage (null) and starts every skill
 // session with empty storage anyway, so there the token lives only in memory
-// and each session starts a new family. Giving the Show a lasting place in a
-// family is WJ-45's.
+// and each session starts on the setup screen (start a jar or join one, WJ-48).
+// Giving the Show a lasting place in a family is WJ-45's.
 export type DeviceState = {
   // "<familyId>.<secret>" (relay/src/families.ts).
   token: string | null;

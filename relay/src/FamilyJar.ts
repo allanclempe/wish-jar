@@ -1,16 +1,19 @@
 import { DurableObject } from 'cloudflare:workers';
 
+import type { Device } from './jar/api';
 import { findCall } from './jar/calls';
 import { importJar } from './jar/importJar';
 import { MAX_JAR_BYTES } from './jar/limits';
 import { isJar, migrateJar, STARTER_CONSEQUENCE_TYPES } from './jar/schema';
-import { all, insert, run } from './jar/sql';
-import { JarError, label, record } from './jar/validate';
+import { all, first, insert, run } from './jar/sql';
+import { id, JarError, type JarErrorStatus, label, record } from './jar/validate';
 
 // What the Worker gets back: the result, or the status and why.
 export type JarOutcome =
   | { ok: true; result: unknown }
-  | { ok: false; status: 400 | 401 | 409 | 507; error: string };
+  | { ok: false; status: JarErrorStatus; error: string };
+
+const NOT_A_DEVICE: JarOutcome = { ok: false, status: 401, error: 'Not a device of this family' };
 
 // A device's last_seen_at is only written this often, so a device that reads
 // the jar all day doesn't spend the Free plan's daily writes on it.
@@ -49,9 +52,7 @@ export class FamilyJar extends DurableObject<Env> {
   async call(secret: string, fn: unknown, args: unknown): Promise<JarOutcome> {
     const hash = await hashSecret(secret);
     const storage = this.ctx.storage;
-    if (!isJar(storage) || !this.seen(hash)) {
-      return { ok: false, status: 401, error: 'Not a device of this family' };
-    }
+    if (!isJar(storage) || this.seen(hash) == null) return NOT_A_DEVICE;
     return outcome(() => {
       const found = findCall(fn, args);
       if (found.call.kind === 'write' && storage.sql.databaseSize >= MAX_JAR_BYTES) {
@@ -61,9 +62,67 @@ export class FamilyJar extends DurableObject<Env> {
     });
   }
 
-  // Whether the hash is one of the family's devices, checking every one in
-  // constant time so the reply's timing gives nothing away.
-  private seen(hash: string): boolean {
+  // Whether `secret` is one of the family's devices, before the Worker hands
+  // out a join code for it.
+  async check(secret: string): Promise<JarOutcome> {
+    const hash = await hashSecret(secret);
+    if (!isJar(this.ctx.storage) || this.seen(hash) == null) return NOT_A_DEVICE;
+    return { ok: true, result: null };
+  }
+
+  // A new device, joining with a code the Worker has already claimed for this
+  // family (WJ-48). 410 when the family is gone meanwhile.
+  async addDevice(secret: string, deviceLabel: unknown): Promise<JarOutcome> {
+    const hash = await hashSecret(secret);
+    const storage = this.ctx.storage;
+    if (!isJar(storage)) return { ok: false, status: 410, error: 'That family jar is gone' };
+    return outcome(() => {
+      insert(storage, 'INSERT INTO devices (secret_hash, label) VALUES (?, ?)', hash, label(deviceLabel));
+      return null;
+    });
+  }
+
+  // Every device of the family, oldest first, for a device of the family.
+  async listDevices(secret: string): Promise<JarOutcome> {
+    const hash = await hashSecret(secret);
+    const storage = this.ctx.storage;
+    const self = isJar(storage) ? this.seen(hash) : null;
+    if (self == null) return NOT_A_DEVICE;
+    const rows = all<{ id: number; label: string | null; created_at: number; last_seen_at: number }>(
+      storage,
+      'SELECT id, label, created_at, last_seen_at FROM devices ORDER BY created_at, id',
+    );
+    const devices: Device[] = rows.map((row) => ({
+      id: row.id,
+      label: row.label,
+      addedAt: row.created_at,
+      lastSeenAt: row.last_seen_at,
+      thisDevice: row.id === self,
+    }));
+    return { ok: true, result: devices };
+  }
+
+  // Takes a device out of the family (a lost phone): its token opens nothing
+  // from now on. Never the device asking, so a family always keeps one.
+  async removeDevice(secret: string, deviceId: unknown): Promise<JarOutcome> {
+    const hash = await hashSecret(secret);
+    const storage = this.ctx.storage;
+    const self = isJar(storage) ? this.seen(hash) : null;
+    if (self == null) return NOT_A_DEVICE;
+    return outcome(() => {
+      const target = id(deviceId, 'deviceId');
+      if (target === self) throw new JarError(409, "That's this device: remove it from another one");
+      if (!first(storage, 'SELECT 1 FROM devices WHERE id = ?', target)) {
+        throw new JarError(404, 'No such device');
+      }
+      run(storage, 'DELETE FROM devices WHERE id = ?', target);
+      return null;
+    });
+  }
+
+  // The id of the family's device with this hash, or null, checking every one
+  // in constant time so the reply's timing gives nothing away.
+  private seen(hash: string): number | null {
     const devices = all<{ id: number; secret_hash: string; last_seen_at: number }>(
       this.ctx.storage,
       'SELECT id, secret_hash, last_seen_at FROM devices',
@@ -72,12 +131,12 @@ export class FamilyJar extends DurableObject<Env> {
     for (const device of devices) {
       if (sameHash(device.secret_hash, hash)) match = device;
     }
-    if (!match) return false;
+    if (!match) return null;
     const now = Date.now();
     if (now - match.last_seen_at >= SEEN_EVERY_MS) {
       run(this.ctx.storage, 'UPDATE devices SET last_seen_at = ? WHERE id = ?', now, match.id);
     }
-    return true;
+    return match.id;
   }
 }
 
