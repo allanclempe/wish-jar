@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useState,
+  type ComponentType,
   type PropsWithChildren,
 } from 'react';
 import {
@@ -21,6 +22,7 @@ import {
   View,
 } from 'react-native';
 
+import { onEchoShow } from '../device/host';
 import { useParentLock } from '../parent/ParentLockProvider';
 import { colors, fonts, radius, spacing, typography } from '../theme';
 import {
@@ -30,21 +32,36 @@ import {
   listFrameoPhotos,
   type FrameoPhotos,
 } from './frameo';
+import { PhonePhotoSheet } from './PhonePhotoSheet';
 
 // Resolves with the picked photo's URI, or null when the grown-up backs out.
-type PickPhoto = () => Promise<string | null>;
+export type PickPhoto = () => Promise<string | null>;
 
 const PhotoPickerContext = createContext<PickPhoto>(pickFromLibrary);
 
-// How a kid's or an icon's photo is chosen: from the device's photo library,
-// or in a Frameo frame build, from the photos sent to the frame with the Frameo
-// phone app.
+// How a kid's or an icon's photo is chosen: from the device's photo library;
+// in a Frameo frame build, from the photos sent to the frame with the Frameo
+// phone app; or on the Echo Show, sent from a parent's phone.
 export function usePickPhoto(): PickPhoto {
   return useContext(PhotoPickerContext);
 }
 
 export function PhotoPickerProvider({ children }: PropsWithChildren) {
-  return frameoPhotos ? <FrameoPhotoPicker>{children}</FrameoPhotoPicker> : children;
+  if (frameoPhotos) {
+    return <SheetPhotoPicker sheet={FrameoPhotoSheet}>{children}</SheetPhotoPicker>;
+  }
+  if (onEchoShow) {
+    return <PhonePhotoPicker>{children}</PhonePhotoPicker>;
+  }
+  return children;
+}
+
+// Photos sent from a parent's phone through the photo relay (relay/), for
+// devices that can't pick one themselves: usePickPhoto() inside it shows a QR
+// code and waits for the photo, a data URI. Web only (the QR code is an SVG).
+// Used on the Echo Show, whose web view can't pick or take a photo.
+export function PhonePhotoPicker({ children }: PropsWithChildren) {
+  return <SheetPhotoPicker sheet={PhonePhotoSheet}>{children}</SheetPhotoPicker>;
 }
 
 // Cropped square, like the tiles that show it (they cover-crop); the frame app
@@ -93,7 +110,8 @@ type PhotoSourceButtonsProps = {
 };
 
 // The ways to get a photo: take one with the camera or pick one from the
-// gallery on phones, or pick one sent with Frameo on the frame.
+// gallery on phones, pick one sent with Frameo on the frame, or send one from a
+// phone on the Echo Show.
 export function PhotoSourceButtons({ onPhoto, selected = false }: PhotoSourceButtonsProps) {
   const pickPhoto = usePickPhoto();
 
@@ -102,14 +120,16 @@ export function PhotoSourceButtons({ onPhoto, selected = false }: PhotoSourceBut
     if (uri) onPhoto(uri);
   }
 
-  if (frameoPhotos) {
+  if (frameoPhotos || onEchoShow) {
     return (
       <Pressable
         style={[styles.source, selected && styles.sourceSelected]}
         onPress={() => choose(pickPhoto)}
         accessibilityRole="button"
       >
-        <Text style={styles.sourceText}>📷 Pick a photo sent with Frameo</Text>
+        <Text style={styles.sourceText}>
+          {frameoPhotos ? '📷 Pick a photo sent with Frameo' : '📱 Send a photo from your phone'}
+        </Text>
       </Pressable>
     );
   }
@@ -143,7 +163,10 @@ const REFRESH_MS = 4000;
 // lands back in the picker. The frame app's 5-minute fallback return locks.
 const CONNECT_UNLOCKED_MS = 4 * 60_000;
 
-function FrameoPhotoPicker({ children }: PropsWithChildren) {
+// A sheet that picks a photo, shown over the screen while usePickPhoto() waits.
+type PhotoSheet = ComponentType<{ onDone: (uri: string | null) => void }>;
+
+function SheetPhotoPicker({ sheet: Sheet, children }: PropsWithChildren<{ sheet: PhotoSheet }>) {
   const [request, setRequest] = useState<{ resolve: (uri: string | null) => void } | null>(null);
 
   const pick = useCallback(
@@ -166,7 +189,8 @@ function FrameoPhotoPicker({ children }: PropsWithChildren) {
   );
 
   // Photos are only picked on grown-up screens, so locking (say, coming back
-  // from Connect a phone after too long) closes the picker along with them.
+  // from Frameo's Connect a phone after too long) closes the picker along with
+  // them.
   const { unlocked } = useParentLock();
   const [wasUnlocked, setWasUnlocked] = useState(unlocked);
   if (unlocked !== wasUnlocked) {
@@ -183,7 +207,7 @@ function FrameoPhotoPicker({ children }: PropsWithChildren) {
         animationType="fade"
         onRequestClose={() => finish(null)}
       >
-        {request ? <FrameoPhotoSheet onDone={finish} /> : null}
+        {request ? <Sheet onDone={finish} /> : null}
       </Modal>
     </PhotoPickerContext.Provider>
   );

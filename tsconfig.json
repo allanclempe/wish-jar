@@ -2,5 +2,7 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true
-  }
+  },
+  // relay/ is a Cloudflare Worker, type-checked with its own config.
+  "exclude": ["node_modules", "relay"]
 }

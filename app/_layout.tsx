@@ -20,10 +20,14 @@ import { PhotoPickerProvider } from '../src/photos/PhotoPicker';
 import { IdleSlideshow } from '../src/photos/Slideshow';
 import { SoundProvider } from '../src/sound/SoundProvider';
 import { colors, fonts, useLargeScreen } from '../src/theme';
+import { installEmojiFallback } from '../src/theme/emojiFallback';
 
 // The splash stays up until the fonts are in, so the first screen never shows
 // the platform font.
 SplashScreen.preventAutoHideAsync();
+
+// Before the first render, so newer emoji never draw as blank boxes.
+installEmojiFallback();
 
 const headerStyle = {
   headerShown: true,
