@@ -3,6 +3,7 @@ export * from './types';
 export * from './kids';
 export * from './tasks';
 export * from './completions';
+export * from './bonusCoins';
 export * from './consequenceTypes';
 export * from './consequences';
 export * from './wishes';

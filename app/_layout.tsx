@@ -120,6 +120,7 @@ function RootStack() {
         <Stack.Screen name="add-consequence-type" options={modal('Add a consequence')} />
         <Stack.Screen name="edit-consequence-type" options={modal('Edit a consequence')} />
         <Stack.Screen name="add-consequence" options={modal('Pick a consequence')} />
+        <Stack.Screen name="bonus-coins" options={modal('Bonus coins')} />
       </Stack.Protected>
     </Stack>
   );
