@@ -11,7 +11,7 @@ import {
 
 import { ScrollScreen } from '../src/components/ScrollScreen';
 import { IconPicker } from '../src/components/Icons';
-import { discardPhoto, insertWish, useFamilyJar, type Icon } from '../src/db';
+import { discardPhoto, insertWish, saveProblem, useFamilyJar, type Icon } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { storePhoto } from '../src/photos/photos';
 import { colors, fonts, radius, spacing, typography } from '../src/theme';
@@ -61,9 +61,9 @@ export default function AddWishScreen() {
         icon: { emoji: icon.emoji, photoUri: storedPhotoUri },
       });
       router.back();
-    } catch {
+    } catch (error) {
       discardPhoto(jar, storedPhotoUri);
-      Alert.alert('Could not save', 'Something went wrong while saving. Please try again.');
+      Alert.alert('Could not save', saveProblem(error));
       setSaving(false);
     }
   }

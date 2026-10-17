@@ -2,6 +2,8 @@ import { runInDurableObject } from 'cloudflare:test';
 import { env, exports } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 
+import { fromSomewhere } from './caller';
+
 import { echoShowHash } from '../src/echoShow';
 import type { CreateFamilyReply, DeviceList, JoinCode } from '../src/jar/api';
 import { JAR_VERSION, jarVersion, migrateJar } from '../src/jar/schema';
@@ -9,7 +11,7 @@ import { JAR_VERSION, jarVersion, migrateJar } from '../src/jar/schema';
 const BASE = 'https://relay.example';
 
 function relay(path: string, init?: RequestInit) {
-  return exports.default.fetch(new Request(`${BASE}${path}`, init));
+  return exports.default.fetch(fromSomewhere(new Request(`${BASE}${path}`, init)));
 }
 
 function auth(token: string): Record<string, string> {

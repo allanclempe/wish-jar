@@ -206,13 +206,21 @@ export type JarImport = {
   app_settings?: { key: string; value: string }[];
 };
 
-// POST /families
+// Each caller (by IP address) may only do so much on the endpoints anyone can
+// reach (relay/src/CallerLimits.ts): past that, 429 with Retry-After, the
+// seconds to wait. A socket to /jar/live past its limit fails to open.
+//
+// A family no device has been seen in for 6 months deletes itself, and so does
+// one no device came back to in the week after it was made (FamilyJar.alarm);
+// its devices' tokens then open nothing (401, and 4401 on the socket).
+
+// POST /families → 201 CreateFamilyReply, 400, 413, 429
 export type CreateFamilyRequest = { label?: string | null; jar?: JarImport };
 export type CreateFamilyReply = { token: string; familyId: string };
 
 // A family's devices (WJ-48). Each holds its own token; a parent adds one with
 // a one-time code shown on a device already in the family, and can remove one.
-//   POST   /devices/codes        → 201 JoinCode, 401
+//   POST   /devices/codes        → 201 JoinCode, 401, 429
 //   DELETE /devices/codes/:code  → 204, 401, 403 (another family's), 410
 //   POST   /devices/join  JoinRequest → 201 CreateFamilyReply, 400, 410, 429
 //   GET    /devices              → 200 DeviceList, 401
@@ -246,7 +254,7 @@ export type DeviceList = { devices: Device[] };
 // token for the same device row. Removing the device ends it.
 //   POST /devices/echo-show/link  EchoShowRequest (device token) → 204, 400, 401
 //   POST /devices/echo-show       EchoShowRequest → 200 CreateFamilyReply, 400,
-//                                 404 (not linked, or removed from its family)
+//                                 404 (not linked, or removed from its family), 429
 export type EchoShowRequest = { alexaDeviceId: string };
 
 // The family's photos (WJ-49), kept in its jar. A photo column holds the
@@ -254,7 +262,7 @@ export type EchoShowRequest = { alexaDeviceId: string };
 // bytes, so the URL is all an <img> needs, and it never changes (a new photo
 // gets a new URL). A photo nothing shows any more is deleted by the jar.
 //   POST   /photos  (device token, image/jpeg, up to 1 MB) → 201 PhotoUpload,
-//                   401, 413, 415 (not a JPEG), 507 (jar full)
+//                   401, 413, 415 (not a JPEG), 429, 507 (jar full)
 //   GET    /photos/:familyId/:id.jpg → 200 the photo, 404
 //   DELETE /photos/:familyId/:id.jpg (device token) → 204, 401, 404,
 //                   409 (something still shows it)

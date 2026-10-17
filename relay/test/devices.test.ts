@@ -2,6 +2,8 @@ import { runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';
 import { env, exports } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 
+import { fromSomewhere } from './caller';
+
 import { CODE_LETTERS } from '../src/codes';
 import type { CreateFamilyReply, DeviceList, JoinCode } from '../src/jar/api';
 import { MAX_JOIN_MISSES } from '../src/JoinCode';
@@ -10,7 +12,7 @@ const BASE = 'https://relay.example';
 const APP = 'https://wish-jar.expo.app';
 
 function relay(path: string, init?: RequestInit) {
-  return exports.default.fetch(new Request(`${BASE}${path}`, init));
+  return exports.default.fetch(fromSomewhere(new Request(`${BASE}${path}`, init)));
 }
 
 function auth(token: string): Record<string, string> {

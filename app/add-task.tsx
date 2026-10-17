@@ -5,7 +5,14 @@ import { Alert, Pressable, StyleSheet, Text, TextInput } from 'react-native';
 import { ScrollScreen } from '../src/components/ScrollScreen';
 import { IconPicker } from '../src/components/Icons';
 import { PeriodPicker } from '../src/components/PeriodPicker';
-import { discardPhoto, insertTask, useFamilyJar, type Icon, type Period } from '../src/db';
+import {
+  discardPhoto,
+  insertTask,
+  saveProblem,
+  useFamilyJar,
+  type Icon,
+  type Period,
+} from '../src/db';
 import { storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
@@ -48,9 +55,9 @@ export default function AddTaskScreen() {
         icon: { emoji: icon.emoji, photoUri: storedPhotoUri },
       });
       router.back();
-    } catch {
+    } catch (error) {
       discardPhoto(jar, storedPhotoUri);
-      Alert.alert('Could not save', 'Something went wrong while saving. Please try again.');
+      Alert.alert('Could not save', saveProblem(error));
       setSaving(false);
     }
   }

@@ -1,6 +1,8 @@
 import { exports } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 
+import { fromSomewhere } from './caller';
+
 import type { CreateFamilyReply, Icon, JarApi, JarChange, JarFn, JoinCode } from '../src/jar/api';
 import { CALLS } from '../src/jar/calls';
 
@@ -10,7 +12,7 @@ const DAY = '2026-10-17';
 const NO_ICON: Icon = { emoji: null, photoUri: null };
 
 function relay(path: string, init?: RequestInit) {
-  return exports.default.fetch(new Request(`${BASE}${path}`, init));
+  return exports.default.fetch(fromSomewhere(new Request(`${BASE}${path}`, init)));
 }
 
 function auth(token: string): Record<string, string> {

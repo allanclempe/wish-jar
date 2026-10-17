@@ -1,7 +1,8 @@
 // The photo relay: lets a parent send a photo from their phone to Wish Jar on
 // a device that can't pick one itself (WJ-41). It also hosts each family's
 // online jar, shared by the family's devices (WJ-46). Runs on the Workers Free
-// plan.
+// plan; relay/README.md has the limits that keep one caller from using it up
+// for every family (WJ-51), and the edge rule set in Cloudflare's dashboard.
 // Merges to main that touch relay/ deploy it (.github/workflows/relay.yml);
 // its address is PHOTO_RELAY_URL in src/photos/phoneRelay.ts.
 {
@@ -22,7 +23,8 @@
       { "name": "FAMILY_JARS", "class_name": "FamilyJar" },
       { "name": "JOIN_CODES", "class_name": "JoinCode" },
       { "name": "JOIN_ATTEMPTS", "class_name": "JoinAttempts" },
-      { "name": "ECHO_SHOW_LINKS", "class_name": "EchoShowLink" }
+      { "name": "ECHO_SHOW_LINKS", "class_name": "EchoShowLink" },
+      { "name": "CALLER_LIMITS", "class_name": "CallerLimits" }
     ]
   },
   // SQLite-backed, the only Durable Objects the Free plan has.
@@ -30,7 +32,8 @@
     { "tag": "v1", "new_sqlite_classes": ["PhotoDrop"] },
     { "tag": "v2", "new_sqlite_classes": ["FamilyJar"] },
     { "tag": "v3", "new_sqlite_classes": ["JoinCode", "JoinAttempts"] },
-    { "tag": "v4", "new_sqlite_classes": ["EchoShowLink"] }
+    { "tag": "v4", "new_sqlite_classes": ["EchoShowLink"] },
+    { "tag": "v5", "new_sqlite_classes": ["CallerLimits"] }
   ],
   "vars": {
     // Pages allowed to use codes and the family jar (CORS), comma-separated:

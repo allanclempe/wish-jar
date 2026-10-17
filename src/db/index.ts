@@ -1,5 +1,5 @@
 export * from './provider';
-export { JarCallError } from './jar';
+export { JarCallError, saveProblem, waitWords } from './jar';
 export * from './types';
 export * from './kids';
 export * from './tasks';

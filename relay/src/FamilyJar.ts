@@ -33,6 +33,17 @@ const NOT_A_DEVICE: JarOutcome = { ok: false, status: 401, error: 'Not a device 
 // the jar all day doesn't spend the Free plan's daily writes on it.
 const SEEN_EVERY_MS = 10 * 60_000;
 
+// A family deletes itself (alarm) when no device has been seen in it for
+// ABANDONED_MS, or when none came back to it in the UNUSED_MS after it was
+// made: a family made by a script and left, or a setup tried and given up
+// on. "Came back" is a device seen at least SEEN_EVERY_MS after the family
+// was made, as last_seen_at isn't written more often. A family with a socket
+// open is alive whatever last_seen_at says, as a device listening without
+// calling doesn't write it; it's looked at again a day later.
+export const ABANDONED_MS = 183 * 24 * 60 * 60_000;
+export const UNUSED_MS = 7 * 24 * 60 * 60_000;
+const RECHECK_MS = 24 * 60 * 60_000;
+
 // Set in jar_meta once the photos kept as data: URIs are in the photos table.
 const PHOTOS_MOVED = 'photos_moved';
 
@@ -64,8 +75,28 @@ export class FamilyJar extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     // Before any call, so every call sees the current tables.
-    if (isJar(ctx.storage)) migrateJar(ctx.storage);
+    if (isJar(ctx.storage)) {
+      migrateJar(ctx.storage);
+      // Families from before WJ-51 have no cleanup alarm yet: it's set for
+      // when the family is next due, not run straight away, so it's there
+      // as soon as the jar answers.
+      void ctx.blockConcurrencyWhile(async () => {
+        if ((await ctx.storage.getAlarm()) != null) return;
+        const now = Date.now();
+        await ctx.storage.setAlarm(this.cleanupDue(now) ?? now);
+      });
+    }
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair(PING, PONG));
+  }
+
+  // The family's cleanup (see ABANDONED_MS): deletes it when it's due, or
+  // looks again when it next could be.
+  async alarm(): Promise<void> {
+    const storage = this.ctx.storage;
+    if (!isJar(storage)) return;
+    const next = this.cleanupDue(Date.now());
+    if (next == null) await this.deleteFamily();
+    else await storage.setAlarm(next);
   }
 
   // GET /jar/live, from the Worker (src/live.ts): a socket for a device of the
@@ -90,7 +121,7 @@ export class FamilyJar extends DurableObject<Env> {
     const hash = await hashSecret(secret);
     const storage = this.ctx.storage;
     if (isJar(storage)) return { ok: false, status: 409, error: 'Family already exists' };
-    return outcome(() =>
+    const created = outcome(() =>
       storage.transactionSync(() => {
         const body = record(request, 'body');
         const device = label(body.label);
@@ -103,6 +134,8 @@ export class FamilyJar extends DurableObject<Env> {
         return null;
       }),
     );
+    if (created.ok) await storage.setAlarm(Date.now() + UNUSED_MS);
+    return created;
   }
 
   // Runs one allowlisted function for a device holding `secret`. A photo the
@@ -314,6 +347,51 @@ export class FamilyJar extends DurableObject<Env> {
       } catch {
         // Closing already; the app reloads everything when it reconnects.
       }
+    }
+  }
+
+  // Null when the family is to be deleted now, or when to look again.
+  private cleanupDue(now: number): number | null {
+    const row = first<{ made: number | null; seen: number | null }>(
+      this.ctx.storage,
+      'SELECT MIN(created_at) AS made, MAX(last_seen_at) AS seen FROM devices',
+    );
+    // A family with no device left can't be opened by anyone.
+    if (row?.made == null || row.seen == null) return null;
+    const cameBack = row.seen >= row.made + SEEN_EVERY_MS;
+    const due = cameBack ? row.seen + ABANDONED_MS : row.made + UNUSED_MS;
+    if (now < due) return due;
+    if (this.ctx.getWebSockets().length > 0) return now + RECHECK_MS;
+    return null;
+  }
+
+  // Everything of the family's goes: its rows and photos, and its Echo Shows'
+  // links. Its devices hear they're out (4401) and their tokens open nothing.
+  // Join codes run out by themselves within 10 minutes; one used meanwhile
+  // finds the family gone (410), as an Echo Show whose link was missed does
+  // (404, and its link is dropped then).
+  private async deleteFamily(): Promise<void> {
+    const shows = all<{ echo_show_hash: string }>(
+      this.ctx.storage,
+      'SELECT echo_show_hash FROM devices WHERE echo_show_hash IS NOT NULL',
+    );
+    for (const socket of this.ctx.getWebSockets()) {
+      try {
+        socket.close(LIVE_REFUSED, 'This family jar is gone');
+      } catch {
+        // Closed already.
+      }
+    }
+    // The alarm too (compatibility date 2026-02-24 and later).
+    await this.ctx.storage.deleteAll();
+    this.photosMoved = false;
+    // The name it was opened by is the family id; only links to this family
+    // are dropped, as a Show may have moved on to another.
+    const familyId = this.ctx.id.name;
+    if (familyId) {
+      await Promise.all(
+        shows.map((show) => this.env.ECHO_SHOW_LINKS.getByName(show.echo_show_hash).unlink(familyId)),
+      );
     }
   }
 

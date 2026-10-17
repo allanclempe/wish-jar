@@ -1,3 +1,4 @@
+import { callerKey, takeLimit, waitHeaders } from './CallerLimits';
 import { CODE_TTL_MS, normaliseCode, randomCode, randomToken } from './codes';
 import { parseDeviceToken, readJson, refuse } from './families';
 import { echoShowApi } from './echoShow';
@@ -39,6 +40,8 @@ export async function devicesApi(request: Request, env: Env, url: URL, reply: Re
 
   if (pathname === '/devices/codes') {
     if (method !== 'POST') return useMethod('POST', reply);
+    const wait = await takeLimit(request, env, 'joinCodes');
+    if (wait != null) return reply('Too many codes: wait a little', 429, waitHeaders(wait));
     const checked = (await jar.check(device.secret)) as JarOutcome;
     if (!checked.ok) return refuse(checked, reply);
     const expiresAt = Date.now() + CODE_TTL_MS;
@@ -96,9 +99,11 @@ async function joinFamily(request: Request, env: Env, reply: Reply): Promise<Res
     throw error;
   }
 
-  const attempts = env.JOIN_ATTEMPTS.getByName(request.headers.get('CF-Connecting-IP') ?? 'unknown');
+  const wait = await takeLimit(request, env, 'joins');
+  if (wait != null) return reply('Too many tries: wait a little', 429, waitHeaders(wait));
+  const attempts = env.JOIN_ATTEMPTS.getByName(callerKey(request));
   if (await attempts.blocked()) {
-    return reply('Too many wrong codes: wait a few minutes', 429, { 'Retry-After': '900' });
+    return reply('Too many wrong codes: wait a few minutes', 429, waitHeaders(15 * 60));
   }
   const familyId = await env.JOIN_CODES.getByName(code).claim();
   if (!familyId) {

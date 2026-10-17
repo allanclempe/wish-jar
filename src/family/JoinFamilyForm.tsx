@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
-import { JarCallError } from '../db/jar';
+import { JarCallError, waitWords } from '../db/jar';
 import { joinFamilyJar } from '../db/open';
 import { colors, fonts, primaryShadow, radius, spacing, typography } from '../theme';
 
@@ -96,7 +96,9 @@ function joinProblem(error: unknown): string {
     return 'That code has run out or was already used. Ask for a new one on a device in the family.';
   }
   if (error.status === 400) return "That's not a code. It's 6 letters and numbers, like K7P 4XM.";
-  if (error.status === 429) return 'Too many wrong codes. Wait a few minutes, then try again.';
+  if (error.tooMany) {
+    return `Too many tries from this internet connection. Wait ${waitWords(error)}, then try again.`;
+  }
   if (error.lost) return "Wish Jar can't reach the family jar. Check the Wi-Fi, then try again.";
   return `Could not join: ${error.message}`;
 }

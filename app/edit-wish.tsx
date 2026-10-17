@@ -6,7 +6,15 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { DeleteButton } from '../src/components/DeleteButton';
 import { ScrollScreen } from '../src/components/ScrollScreen';
 import { IconPicker } from '../src/components/Icons';
-import { deleteWish, discardPhoto, getWish, updateWish, useFamilyJar, type Icon } from '../src/db';
+import {
+  deleteWish,
+  discardPhoto,
+  getWish,
+  saveProblem,
+  updateWish,
+  useFamilyJar,
+  type Icon,
+} from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { storePhoto } from '../src/photos/photos';
 import { colors, fonts, radius, spacing, typography } from '../src/theme';
@@ -87,11 +95,11 @@ export default function EditWishScreen() {
         icon: { emoji: icon.emoji, photoUri: savedPhotoUri },
       });
       router.back();
-    } catch {
+    } catch (error) {
       if (savedPhotoUri !== icon.photoUri) {
         discardPhoto(jar, savedPhotoUri);
       }
-      Alert.alert('Could not save', 'Something went wrong while saving. Please try again.');
+      Alert.alert('Could not save', saveProblem(error));
       setSaving(false);
     }
   }
