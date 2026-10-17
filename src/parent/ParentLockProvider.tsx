@@ -155,7 +155,9 @@ function PinPrompt({ text, onDone }: { text?: PinPromptText; onDone: (ok: boolea
     if (accepted) return;
     setValue(next);
     if (next.length < PIN_LENGTH) return;
-    if (next === (await getParentPin(jar))) {
+    // A PIN that can't be read (the jar's reconnecting screen says why) lets
+    // nobody in.
+    if (next === (await getParentPin(jar).catch(() => null))) {
       setAccepted(true);
     } else {
       setValue('');

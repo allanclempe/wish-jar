@@ -74,7 +74,13 @@ function isRead(fn: JarFn): boolean {
   return /^(list|get|sum)/.test(fn);
 }
 
-export function createJarClient(token: string, onProblem?: (problem: JarProblem) => void): FamilyJar {
+// `client` names the running app (live.ts), so the jar doesn't tell it of its
+// own changes.
+export function createJarClient(
+  token: string,
+  onProblem?: (problem: JarProblem) => void,
+  client?: string,
+): FamilyJar {
   // The jar runs one call at a time, but two requests in flight can still
   // reach it in either order: a tick and its quick un-tick must land in the
   // order they were tapped. So writes go one after another, and a read waits
@@ -94,7 +100,7 @@ export function createJarClient(token: string, onProblem?: (problem: JarProblem)
   return {
     call(fn, ...args) {
       return queued(isRead(fn), () =>
-        request<{ result: never }>('POST', '/jar/call', { fn, args }, CALL_TIMEOUT_MS, token),
+        request<{ result: never }>('POST', '/jar/call', { fn, args, client }, CALL_TIMEOUT_MS, token),
       ).then((body) => body.result);
     },
     send(method, path) {

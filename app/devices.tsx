@@ -12,7 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { listDevices, removeDevice, useFamilyJar, type Device } from '../src/db';
+import { listDevices, removeDevice, useFamilyJar, useJarVersion, type Device } from '../src/db';
 import { addedOn, deviceEmoji, deviceName, seenAgo } from '../src/family/devices';
 import {
   colors,
@@ -44,6 +44,8 @@ function confirmRemove(device: Device, onConfirm: () => void) {
 // one that's lost. This device can't remove itself.
 export default function DevicesScreen() {
   const jar = useFamilyJar();
+  // A device joining or removed elsewhere shows up here too (WJ-50).
+  const version = useJarVersion('devices');
   const [devices, setDevices] = useState<Device[] | null>(null);
   const [failed, setFailed] = useState(false);
 
@@ -59,7 +61,9 @@ export default function DevicesScreen() {
   useFocusEffect(
     useCallback(() => {
       load();
-    }, [load]),
+      // `version` loads again what another device changed.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [load, version]),
   );
 
   async function remove(device: Device) {

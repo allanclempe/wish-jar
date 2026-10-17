@@ -4,26 +4,32 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IconBadge } from '../src/components/Icons';
-import { listWishes, useFamilyJar, type Wish } from '../src/db';
+import { listWishes, useFamilyJar, useJarVersion, type Wish } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { EmptyState } from '../src/components/EmptyState';
 import { colors, contentMaxWidth, fonts, primaryShadow, radius, spacing, typography } from '../src/theme';
 
 export default function WishesScreen() {
   const jar = useFamilyJar();
+  const version = useJarVersion('wishes');
   const { kids } = useActiveKid();
   const [wishes, setWishes] = useState<Wish[]>([]);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      listWishes(jar).then((loaded) => {
-        if (!cancelled) setWishes(loaded);
-      });
+      listWishes(jar).then(
+        (loaded) => {
+          if (!cancelled) setWishes(loaded);
+        },
+        () => {},
+      );
       return () => {
         cancelled = true;
       };
-    }, [jar]),
+      // `version` loads again what another device changed.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [jar, version]),
   );
 
   return (

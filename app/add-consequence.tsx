@@ -8,6 +8,7 @@ import {
   addConsequence,
   listConsequenceTypes,
   useFamilyJar,
+  useJarVersion,
   type ConsequenceType,
 } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
@@ -17,6 +18,7 @@ import { colors, contentMaxWidth, fonts, radius, spacing, typography } from '../
 
 export default function AddConsequenceScreen() {
   const jar = useFamilyJar();
+  const version = useJarVersion('consequence_types');
   const { activeKid, recordSavingsChange } = useActiveKid();
   const [types, setTypes] = useState<ConsequenceType[]>([]);
   const [saving, setSaving] = useState(false);
@@ -24,13 +26,18 @@ export default function AddConsequenceScreen() {
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      listConsequenceTypes(jar).then((loaded) => {
-        if (!cancelled) setTypes(loaded);
-      });
+      listConsequenceTypes(jar).then(
+        (loaded) => {
+          if (!cancelled) setTypes(loaded);
+        },
+        () => {},
+      );
       return () => {
         cancelled = true;
       };
-    }, [jar]),
+      // `version` loads again what another device changed.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [jar, version]),
   );
 
   async function choose(type: ConsequenceType) {

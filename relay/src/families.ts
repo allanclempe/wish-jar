@@ -19,6 +19,15 @@ export function parseDeviceToken(header: string | null): { familyId: string; sec
   return match ? { familyId: match[1], secret: match[2] } : null;
 }
 
+// Which running app a call or a socket is from (WJ-50), so a change isn't sent
+// back to the app that made it. Not a secret: a random id the app picks at
+// launch. Anything else counts as none.
+const CLIENT_ID = /^[A-Za-z0-9_-]{1,64}$/;
+
+export function clientId(value: unknown): string | null {
+  return typeof value === 'string' && CLIENT_ID.test(value) ? value : null;
+}
+
 // POST /families: a new family and the token of its first device.
 export async function createFamily(request: Request, env: Env, reply: Reply): Promise<Response> {
   const body = await readJson(request, MAX_IMPORT_BYTES, reply, true);
@@ -37,7 +46,8 @@ export async function createFamily(request: Request, env: Env, reply: Reply): Pr
   return reply(JSON.stringify(created), 201, { 'Content-Type': 'application/json' });
 }
 
-// POST /jar/call: runs { fn, args } in the device's family jar.
+// POST /jar/call: runs { fn, args } in the device's family jar, for the app
+// `client` names.
 export async function callJar(request: Request, env: Env, reply: Reply): Promise<Response> {
   // Checked before the body is read, so a stranger can't make the relay read
   // megabytes.
@@ -49,10 +59,16 @@ export async function callJar(request: Request, env: Env, reply: Reply): Promise
   if (typeof body !== 'object' || body === null || Array.isArray(body)) {
     return reply('Send { fn, args }', 400);
   }
-  const { fn, args } = body as { fn?: unknown; args?: unknown };
+  const { fn, args, client } = body as { fn?: unknown; args?: unknown; client?: unknown };
 
   const jar = env.FAMILY_JARS.getByName(device.familyId);
-  const outcome = (await jar.call(device.secret, fn, args, photoBase(request, device.familyId))) as JarOutcome;
+  const outcome = (await jar.call(
+    device.secret,
+    fn,
+    args,
+    photoBase(request, device.familyId),
+    clientId(client),
+  )) as JarOutcome;
   if (!outcome.ok) return refuse(outcome, reply);
   await forgetPhotos(request, device.familyId, outcome.dropped);
   return reply(JSON.stringify({ result: outcome.result }), 200, { 'Content-Type': 'application/json' });

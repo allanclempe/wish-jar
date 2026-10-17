@@ -36,20 +36,24 @@ export default function EditTaskScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    getTask(jar, taskId).then((task) => {
-      if (cancelled) return;
-      if (!task) {
-        Alert.alert('Task not found', 'This task may have been removed.');
-        router.back();
-        return;
-      }
-      setName(task.name);
-      setPeriod(task.period);
-      setCoinAmount(String(task.coinAmount));
-      setIcon(task.icon);
-      setOriginalPhotoUri(task.icon.photoUri);
-      setLoaded(true);
-    });
+    getTask(jar, taskId).then(
+      (task) => {
+        if (cancelled) return;
+        if (!task) {
+          Alert.alert('Task not found', 'This task may have been removed.');
+          router.back();
+          return;
+        }
+        setName(task.name);
+        setPeriod(task.period);
+        setCoinAmount(String(task.coinAmount));
+        setIcon(task.icon);
+        setOriginalPhotoUri(task.icon.photoUri);
+        setLoaded(true);
+      },
+      // A failed load shows on the jar's reconnecting screen.
+      () => {},
+    );
     return () => {
       cancelled = true;
     };

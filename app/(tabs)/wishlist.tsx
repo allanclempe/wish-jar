@@ -10,7 +10,7 @@ import { HiddenWhenBlurred } from '../../src/components/HiddenWhenBlurred';
 import { IconBadge } from '../../src/components/Icons';
 import { DreamSky } from '../../src/components/Sky';
 import { WishCard } from '../../src/components/WishCard';
-import { claimWish, listWishes, useFamilyJar, type Wish } from '../../src/db';
+import { claimWish, listWishes, useFamilyJar, useJarVersion, type Wish } from '../../src/db';
 import { useActiveKid, useSavings } from '../../src/kids/ActiveKidProvider';
 import { useParentLock } from '../../src/parent/ParentLockProvider';
 import { useSound } from '../../src/sound/SoundProvider';
@@ -50,6 +50,9 @@ const WishlistScreen = memo(function WishlistScreen() {
 
 const WishBoard = memo(function WishBoard({ coins }: { coins: number }) {
   const jar = useFamilyJar();
+  // Wishes a grown-up changed on another device show once this tab is in
+  // front (WJ-50).
+  const version = useJarVersion('wishes');
   const { activeKid, recordSavingsChange } = useActiveKid();
   const large = useLargeScreen();
   const { requestPin } = useParentLock();
@@ -62,13 +65,18 @@ const WishBoard = memo(function WishBoard({ coins }: { coins: number }) {
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      listWishes(jar).then((loaded) => {
-        if (!cancelled) setWishes((current) => (sameWishes(current, loaded) ? current : loaded));
-      });
+      listWishes(jar).then(
+        (loaded) => {
+          if (!cancelled) setWishes((current) => (sameWishes(current, loaded) ? current : loaded));
+        },
+        () => {},
+      );
       return () => {
         cancelled = true;
       };
-    }, [jar]),
+      // `version` loads again what another device changed.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [jar, version]),
   );
 
   // An unlocked wish is handed over by a grown-up, who confirms with the PIN

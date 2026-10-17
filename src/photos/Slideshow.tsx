@@ -235,6 +235,8 @@ function KidsStrip() {
           }),
         );
       },
+      // The photos still show; the strip just stays empty.
+      () => {},
     );
     return () => {
       cancelled = true;

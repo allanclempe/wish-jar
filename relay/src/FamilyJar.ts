@@ -1,6 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 
-import type { Device } from './jar/api';
+import type { Device, JarChange, JarTable } from './jar/api';
 import { findCall } from './jar/calls';
 import { importJar } from './jar/importJar';
 import { MAX_JAR_BYTES } from './jar/limits';
@@ -9,6 +9,7 @@ import {
   deletePhoto,
   dropPhotos,
   moveDataPhotos,
+  PHOTO_TABLES,
   photoUrl,
   readPhoto,
   type StoredPhoto,
@@ -17,6 +18,8 @@ import {
 import { isJar, migrateJar, STARTER_CONSEQUENCE_TYPES } from './jar/schema';
 import { all, first, insert, run } from './jar/sql';
 import { id, JarError, type JarErrorStatus, label, record } from './jar/validate';
+import { clientId } from './families';
+import { LIVE_REFUSED, liveResponse, liveToken, PING, PONG, refusedSocket } from './live';
 
 // What the Worker gets back: the result, or the status and why. `dropped` are
 // the photos the call deleted, for the Worker to forget too (src/familyPhotos.ts).
@@ -33,6 +36,14 @@ const SEEN_EVERY_MS = 10 * 60_000;
 // Set in jar_meta once the photos kept as data: URIs are in the photos table.
 const PHOTOS_MOVED = 'photos_moved';
 
+// What each device's socket (WJ-50) keeps through hibernation: whose it is,
+// and the app it's from, which a change it made isn't sent back to.
+type LiveSocket = { device: number; client: string | null };
+
+function deviceTag(deviceId: number): string {
+  return `device:${deviceId}`;
+}
+
 // One per family, named by its id: the family's whole jar in its own SQLite.
 // A Durable Object runs one call at a time and its SQL runs synchronously, so
 // writes from all of a family's devices land one after another.
@@ -40,6 +51,12 @@ const PHOTOS_MOVED = 'photos_moved';
 // `photoBase` is where the Worker serves this family's photos from
 // (`${origin}/photos/${familyId}/`), the start of every photo URL the jar
 // hands out.
+//
+// The family's devices keep a WebSocket open to it (WJ-50), through the
+// Hibernation API: an idle socket costs no duration, the pings the app sends
+// are answered without waking the jar, and nothing about a socket is written
+// to storage. After a call that changed the jar, every other socket hears
+// which tables changed.
 export class FamilyJar extends DurableObject<Env> {
   // Whether the photos kept as data: URIs have moved (movePhotosOnce).
   private photosMoved = false;
@@ -48,7 +65,24 @@ export class FamilyJar extends DurableObject<Env> {
     super(ctx, env);
     // Before any call, so every call sees the current tables.
     if (isJar(ctx.storage)) migrateJar(ctx.storage);
+    ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair(PING, PONG));
   }
+
+  // GET /jar/live, from the Worker (src/live.ts): a socket for a device of the
+  // family, tagged with the device so removing it can close it.
+  async fetch(request: Request): Promise<Response> {
+    const token = liveToken(request);
+    const self = token && isJar(this.ctx.storage) ? this.seen(await hashSecret(token.secret)) : null;
+    if (self == null) return refusedSocket();
+    const [socket, server] = Object.values(new WebSocketPair());
+    this.ctx.acceptWebSocket(server, [deviceTag(self)]);
+    const client = clientId(new URL(request.url).searchParams.get('client'));
+    server.serializeAttachment({ device: self, client } satisfies LiveSocket);
+    return liveResponse(socket);
+  }
+
+  // Devices only listen; "ping" is answered without coming here.
+  async webSocketMessage(): Promise<void> {}
 
   // Sets up a new family with its first device, from an existing jar when
   // `request.jar` is given (see CreateFamilyRequest).
@@ -74,12 +108,20 @@ export class FamilyJar extends DurableObject<Env> {
   // Runs one allowlisted function for a device holding `secret`. A photo the
   // call leaves with nothing showing it is deleted with it, and a data: URI
   // it brings becomes a photo of the jar's own.
-  async call(secret: string, fn: unknown, args: unknown, photoBase: string): Promise<JarOutcome> {
+  // `client` is the app making the call, which isn't told of its own change.
+  async call(
+    secret: string,
+    fn: unknown,
+    args: unknown,
+    photoBase: string,
+    client: string | null = null,
+  ): Promise<JarOutcome> {
     const hash = await hashSecret(secret);
     const storage = this.ctx.storage;
     if (!isJar(storage) || this.seen(hash) == null) return NOT_A_DEVICE;
     this.movePhotosOnce(photoBase);
     let dropped: string[] = [];
+    let changes: readonly JarTable[] = [];
     const done = outcome(() => {
       const found = findCall(fn, args);
       if (found.call.kind === 'write' && storage.sql.databaseSize >= MAX_JAR_BYTES) {
@@ -91,9 +133,11 @@ export class FamilyJar extends DurableObject<Env> {
         if (found.call.kind !== 'read' && JSON.stringify(found.args).includes('"data:')) {
           moveDataPhotos(storage, photoBase);
         }
+        if (found.call.changes && (found.call.changed?.(result) ?? true)) changes = found.call.changes;
         return result;
       });
     });
+    if (done.ok) this.tell(changes, client);
     return done.ok && dropped.length > 0 ? { ...done, dropped } : done;
   }
 
@@ -143,10 +187,12 @@ export class FamilyJar extends DurableObject<Env> {
     const hash = await hashSecret(secret);
     const storage = this.ctx.storage;
     if (!isJar(storage)) return { ok: false, status: 410, error: 'That family jar is gone' };
-    return outcome(() => {
+    const done = outcome(() => {
       insert(storage, 'INSERT INTO devices (secret_hash, label) VALUES (?, ?)', hash, label(deviceLabel));
       return null;
     });
+    if (done.ok) this.tell(['devices']);
+    return done;
   }
 
   // Marks the device holding `secret` as the Echo Show whose Alexa device id
@@ -191,6 +237,8 @@ export class FamilyJar extends DurableObject<Env> {
       Date.now(),
       row.id,
     );
+    // Last session's token opens nothing now, its socket included.
+    this.closeSockets(row.id);
     return { ok: true, result: null };
   }
 
@@ -221,15 +269,18 @@ export class FamilyJar extends DurableObject<Env> {
     const storage = this.ctx.storage;
     const self = isJar(storage) ? this.seen(hash) : null;
     if (self == null) return NOT_A_DEVICE;
-    return outcome(() => {
+    const removed = outcome(() => {
       const target = id(deviceId, 'deviceId');
       if (target === self) throw new JarError(409, "That's this device: remove it from another one");
       if (!first(storage, 'SELECT 1 FROM devices WHERE id = ?', target)) {
         throw new JarError(404, 'No such device');
       }
       run(storage, 'DELETE FROM devices WHERE id = ?', target);
+      this.closeSockets(target);
       return null;
     });
+    if (removed.ok) this.tell(['devices']);
+    return removed;
   }
 
   // A jar from before WJ-49 keeps web photos as data: URIs in its rows; they
@@ -240,12 +291,41 @@ export class FamilyJar extends DurableObject<Env> {
     if (this.photosMoved) return;
     const storage = this.ctx.storage;
     if (!first(storage, 'SELECT 1 FROM jar_meta WHERE key = ?', PHOTOS_MOVED)) {
-      storage.transactionSync(() => {
-        moveDataPhotos(storage, photoBase);
+      const moved = storage.transactionSync(() => {
         run(storage, "INSERT INTO jar_meta (key, value) VALUES (?, '1')", PHOTOS_MOVED);
+        return moveDataPhotos(storage, photoBase);
       });
+      if (moved > 0) this.tell(PHOTO_TABLES);
     }
     this.photosMoved = true;
+  }
+
+  // Tells every socket but the calling app's own which tables changed. Sent
+  // from memory, so a busy day costs the Free plan no storage writes.
+  private tell(tables: readonly JarTable[], client: string | null = null): void {
+    if (tables.length === 0) return;
+    const change: JarChange = { type: 'changed', tables: [...tables] };
+    const message = JSON.stringify(change);
+    for (const socket of this.ctx.getWebSockets()) {
+      const live = socket.deserializeAttachment() as LiveSocket | null;
+      if (client && live?.client === client) continue;
+      try {
+        socket.send(message);
+      } catch {
+        // Closing already; the app reloads everything when it reconnects.
+      }
+    }
+  }
+
+  // Closes the sockets of a device whose token opens nothing any more.
+  private closeSockets(deviceId: number): void {
+    for (const socket of this.ctx.getWebSockets(deviceTag(deviceId))) {
+      try {
+        socket.close(LIVE_REFUSED, 'Not a device of this family');
+      } catch {
+        // Closed already.
+      }
+    }
   }
 
   // The id of the family's device with this hash, or null, checking every one

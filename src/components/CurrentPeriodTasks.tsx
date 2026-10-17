@@ -1,4 +1,4 @@
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useIsFocused } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 
@@ -9,6 +9,7 @@ import {
   setTaskCompletion,
   sumCoinsEarnedOn,
   useFamilyJar,
+  useJarVersion,
   type Kid,
   type Period,
   type Task,
@@ -109,6 +110,15 @@ function KidPeriodTasks({ period, day, kid: activeKid }: CurrentPeriodTasksProps
   const [doneKeys, setDoneKeys] = useState<Set<string>>(() => new Set());
   // Read and written synchronously so rapid taps see each other before re-render.
   const doneRef = useRef(new Set<string>());
+  // Counts taps, so ticks loading while one lands are loaded again after it.
+  const taps = useRef(0);
+  // Tasks and ticks another device changed load again (WJ-50); the ticks only
+  // once this tab is in front, like the tasks (useFocusEffect).
+  const tasksVersion = useJarVersion('tasks');
+  const focused = useIsFocused();
+  const liveTicksVersion = useJarVersion('completions');
+  const [ticksVersion, setTicksVersion] = useState(liveTicksVersion);
+  if (focused && ticksVersion !== liveTicksVersion) setTicksVersion(liveTicksVersion);
   // The kid and day whose saved ticks are loaded; taps wait until they match.
   const [hydratedKey, setHydratedKey] = useState<string | null>(null);
   const [burst, setBurst] = useState(0);
@@ -158,38 +168,56 @@ function KidPeriodTasks({ period, day, kid: activeKid }: CurrentPeriodTasksProps
       let cancelled = false;
       // "Loading" only shows before the first load; later ones keep the list
       // up while they run.
-      listTasks(jar).then((loaded) => {
-        if (cancelled) return;
-        setTasks((current) => (sameTasks(current, loaded) ? current : loaded));
-        setLoading(false);
-      });
+      // A failed load shows on the jar's reconnecting screen.
+      listTasks(jar).then(
+        (loaded) => {
+          if (cancelled) return;
+          setTasks((current) => (sameTasks(current, loaded) ? current : loaded));
+          setLoading(false);
+        },
+        () => {},
+      );
       return () => {
         cancelled = true;
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [jar, activeKidId]),
+    }, [jar, activeKidId, tasksVersion]),
   );
 
   // Saved ticks are for one kid on one day, so reload them when either changes;
   // once the day key changes no task looks done.
   useEffect(() => {
     let cancelled = false;
-    listCompletedTaskIds(jar, activeKidId, day).then((taskIds) => {
-      if (cancelled) return;
-      doneRef.current = new Set(taskIds.map((taskId) => `${day}:${activeKidId}:${taskId}`));
-      setDoneKeys(new Set(doneRef.current));
-      setHydratedKey(`${day}:${activeKidId}`);
-    });
+    const load = () => {
+      const tapsBefore = taps.current;
+      listCompletedTaskIds(jar, activeKidId, day).then(
+        (taskIds) => {
+          if (cancelled) return;
+          // A tap landed meanwhile, which these ticks may not have: the next
+          // load waits for its save (jar.ts), so it has it.
+          if (taps.current !== tapsBefore) return load();
+          const loaded = new Set(taskIds.map((taskId) => `${day}:${activeKidId}:${taskId}`));
+          const current = doneRef.current;
+          const same = loaded.size === current.size && [...loaded].every((key) => current.has(key));
+          doneRef.current = loaded;
+          if (!same) setDoneKeys(new Set(loaded));
+          setHydratedKey(`${day}:${activeKidId}`);
+        },
+        () => {},
+      );
+    };
+    load();
     return () => {
       cancelled = true;
     };
-  }, [jar, activeKidId, day]);
+  }, [jar, activeKidId, day, ticksVersion]);
 
   const kidId = activeKid.id;
   const currentTasks = tasksForPeriod(tasks, period);
 
   async function toggleDone(task: Task) {
     if (hydratedKey !== `${day}:${kidId}`) return;
+    taps.current += 1;
     const key = `${day}:${kidId}:${task.id}`;
     const completed = !doneRef.current.has(key);
     if (completed) {
@@ -305,7 +333,9 @@ function KidPeriodTasks({ period, day, kid: activeKid }: CurrentPeriodTasksProps
   }
 
   async function showUnlockedWishes(before: number, after: number) {
-    const kidWishes = (await listWishes(jar)).filter((wish) => wish.kidId === kidId);
+    // The tick is saved; if the wishes don't load, nothing opens.
+    const wishes = await listWishes(jar).catch(() => []);
+    const kidWishes = wishes.filter((wish) => wish.kidId === kidId);
     const unlocked = wishesUnlockedBy(kidWishes, before, after);
     if (unlocked.length === 0) return;
     for (const wish of unlocked) pendingUnlocks.current.set(wish.id, wish.coinAmount);

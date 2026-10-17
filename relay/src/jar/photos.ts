@@ -20,6 +20,9 @@ const PHOTO_COLUMNS = [
   ['consequence_types', 'icon_photo_uri'],
 ] as const;
 
+// The tables a photo shows in, whose rows change when one moves.
+export const PHOTO_TABLES = PHOTO_COLUMNS.map(([table]) => table);
+
 // An upload whose save never happened (the connection went mid-save) is kept
 // this long before it counts as forgotten: long enough for any save in
 // flight to land.
@@ -138,16 +141,18 @@ function fromDataUri(uri: string): { data: Uint8Array; type: string } | null {
 // Photos kept as data: URIs in the rows themselves (Wish Jar on the web,
 // before WJ-49) move into the photos table, and the rows get their URL. The
 // same picture used twice becomes one photo. One that isn't a picture the
-// browser could show is left as it is.
-export function moveDataPhotos(db: Db, base: string): void {
+// browser could show is left as it is. How many rows changed.
+export function moveDataPhotos(db: Db, base: string): number {
   const uris = new Set<string>();
   for (const [table, column] of PHOTO_COLUMNS) {
     for (const row of all<{ uri: string }>(db, `SELECT ${column} AS uri FROM ${table} WHERE ${column} LIKE 'data:%'`)) {
       uris.add(row.uri);
     }
   }
+  let changed = 0;
   for (const uri of uris) {
     const photo = fromDataUri(uri);
-    if (photo) replacePhoto(db, uri, photoUrl(base, addPhoto(db, photo.data, photo.type)));
+    if (photo) changed += replacePhoto(db, uri, photoUrl(base, addPhoto(db, photo.data, photo.type)));
   }
+  return changed;
 }

@@ -5,6 +5,7 @@ import {
   useEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type PropsWithChildren,
 } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
@@ -15,13 +16,19 @@ import { colors, fonts, radius, spacing, typography } from '../theme';
 import { moveLocalPhotosOnline } from '../photos/photos';
 import { FirstLaunchBusy } from './firstLaunch';
 import { createJarClient, JarCallError, type FamilyJar, type JarProblem } from './jar';
+import { connectLive, createJarChanges, newClientId, type JarChanges, type JarTable } from './live';
 import { echoShowSetupNote, openFamilyJar, startFamilyJar } from './open';
 
 // While the relay can't be reached, the app tries again this often by itself:
 // a frame on the wall has nobody to tap "Try again".
 const RECONNECT_EVERY_MS = 5_000;
+// A live socket the jar closed though the device is still in the family
+// (another session of the Echo Show took its place) tries again after this.
+const LIVE_REFUSED_RETRY_MS = 60_000;
 
 const FamilyJarContext = createContext<FamilyJar | null>(null);
+// What the family's other devices changed (WJ-50), for useJarVersion.
+const JarChangesContext = createContext<JarChanges | null>(null);
 // Switches the app to another family's jar once this device has joined it
 // (WJ-48).
 const SwitchFamilyContext = createContext<((token: string) => void) | null>(null);
@@ -102,15 +109,50 @@ function ConnectedJar({
   const [problem, setProblem] = useState<JarProblem | null>(null);
   // Something on screen failed to load while the connection was lost.
   const readFailed = useRef(false);
+  // This running app, which the jar doesn't tell of its own changes.
+  const [client] = useState(newClientId);
   const [jar, setJar] = useState(() => createClient());
 
   function createClient(): FamilyJar {
-    return createJarClient(token, (next) => {
-      if (!next.write) readFailed.current = true;
-      // A write that didn't save stays on the screen until the jar is back.
-      setProblem((current) => (current?.write ? current : next));
-    });
+    return createJarClient(
+      token,
+      (next) => {
+        if (!next.write) readFailed.current = true;
+        // A write that didn't save stays on the screen until the jar is back.
+        setProblem((current) => (current?.write ? current : next));
+      },
+      client,
+    );
   }
+
+  // One live socket for the app (WJ-50): what another device changes, the
+  // screens showing it load again. A socket the jar refuses is checked over
+  // HTTP, which brings up "doesn't know this device" if it really doesn't.
+  const [changes] = useState(createJarChanges);
+  const latestJar = useRef(jar);
+  useEffect(() => {
+    latestJar.current = jar;
+  }, [jar]);
+  const [liveAttempt, setLiveAttempt] = useState(0);
+  useEffect(() => {
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const tryAgain = () => {
+      retry = setTimeout(() => setLiveAttempt((attempt) => attempt + 1), LIVE_REFUSED_RETRY_MS);
+    };
+    const stop = connectLive(token, client, {
+      onChange: changes.heard,
+      onRefused: () => {
+        latestJar.current.call('getSoundEnabled').then(tryAgain, (error: unknown) => {
+          if (!(error instanceof JarCallError && error.unknownDevice)) tryAgain();
+        });
+      },
+    });
+    return () => {
+      stop();
+      clearTimeout(retry);
+    };
+  }, [token, client, changes, liveAttempt]);
+  useEffect(() => changes.stop, [changes]);
 
   const [checking, setChecking] = useState(false);
   const reconnect = useCallback(async () => {
@@ -131,7 +173,7 @@ function ConnectedJar({
       readFailed.current = false;
       setJar(createClient());
     }
-    // createClient only reads `token`, which this component never changes.
+    // createClient only reads `token` and `client`, which never change here.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [checking, token]);
 
@@ -139,8 +181,8 @@ function ConnectedJar({
   // background and with a handle of their own: a failure here needs no
   // reconnecting screen, the next launch tries again.
   useEffect(() => {
-    moveLocalPhotosOnline(createJarClient(token)).catch(() => {});
-  }, [token]);
+    moveLocalPhotosOnline(createJarClient(token, undefined, client)).catch(() => {});
+  }, [token, client]);
 
   const lost = problem?.error.lost ?? false;
   // A device taken out of its family can only join one again (WJ-48).
@@ -153,23 +195,25 @@ function ConnectedJar({
 
   return (
     <FamilyJarContext.Provider value={jar}>
-      <View style={styles.fill}>
-        {children}
-        {problem && joining ? (
-          <View style={StyleSheet.absoluteFill}>
-            <RejoinFamily onJoined={onJoined} onBack={() => setJoining(false)} />
-          </View>
-        ) : problem ? (
-          <View style={StyleSheet.absoluteFill}>
-            <JarUnavailable
-              title={lost ? 'Reconnecting…' : undefined}
-              message={problemMessage(problem)}
-              onRetry={reconnect}
-              onJoin={problem.error.unknownDevice ? () => setJoining(true) : undefined}
-            />
-          </View>
-        ) : null}
-      </View>
+      <JarChangesContext.Provider value={changes}>
+        <View style={styles.fill}>
+          {children}
+          {problem && joining ? (
+            <View style={StyleSheet.absoluteFill}>
+              <RejoinFamily onJoined={onJoined} onBack={() => setJoining(false)} />
+            </View>
+          ) : problem ? (
+            <View style={StyleSheet.absoluteFill}>
+              <JarUnavailable
+                title={lost ? 'Reconnecting…' : undefined}
+                message={problemMessage(problem)}
+                onRetry={reconnect}
+                onJoin={problem.error.unknownDevice ? () => setJoining(true) : undefined}
+              />
+            </View>
+          ) : null}
+        </View>
+      </JarChangesContext.Provider>
     </FamilyJarContext.Provider>
   );
 }
@@ -179,10 +223,12 @@ function openingMessage(error: unknown): string {
   if (!(error instanceof JarCallError)) {
     return 'Could not open the jar kept on this device. Try again.';
   }
+  // The jar is online only (WJ-47), and the Echo Show keeps nothing at all:
+  // what's safe is the jar itself, not this device's copy.
   if (error.lost) {
-    return "Wish Jar can't reach the family jar. Check the Wi-Fi — it keeps trying. Everything is still safe on this device.";
+    return "Wish Jar can't reach the family jar. Check the Wi-Fi — it keeps trying. The jar is kept safe online, so nothing is lost.";
   }
-  return `The family jar couldn't be set up: ${error.message}. Everything is still safe on this device.`;
+  return `The family jar couldn't be set up: ${error.message}. Nothing has changed, so you can try again.`;
 }
 
 function problemMessage({ error, write }: JarProblem): string {
@@ -256,6 +302,21 @@ export function useFamilyJar(): FamilyJar {
   return jar;
 }
 
+// Goes up whenever another of the family's devices changes any of `tables`
+// (WJ-50). A screen puts it in its loader's dependencies, next to the jar, to
+// show the change; useFocusEffect waits until the screen is in front.
+export function useJarVersion(...tables: JarTable[]): number {
+  const changes = useContext(JarChangesContext);
+  if (!changes) {
+    throw new Error('useJarVersion must be used inside FamilyJarProvider');
+  }
+  const key = tables.join();
+  // `key` stands for `tables`, a new array each render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const read = useCallback(() => changes.version(tables), [changes, key]);
+  return useSyncExternalStore(changes.subscribe, read);
+}
+
 // Swaps the app over to the family this device has just joined (WJ-48): every
 // screen starts again from the new jar.
 export function useSwitchFamily(): (token: string) => void {
@@ -266,7 +327,7 @@ export function useSwitchFamily(): (token: string) => void {
   return switchFamily;
 }
 
-export type { FamilyJar };
+export type { FamilyJar, JarTable };
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
