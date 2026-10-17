@@ -1,6 +1,6 @@
 import { takeLimit, waitHeaders } from './CallerLimits';
 import { randomToken } from './codes';
-import { parseDeviceToken, readJson, refuse } from './families';
+import { deviceToken, parseDeviceToken, readJson, refuse } from './families';
 import type { JarOutcome } from './FamilyJar';
 import type { Reply } from './http';
 import type { CreateFamilyReply } from './jar/api';
@@ -38,7 +38,7 @@ export async function echoShowApi(request: Request, env: Env, pathname: string, 
 // POST /devices/echo-show/link (device token): this device is the Echo Show
 // with this Alexa device id.
 async function link(request: Request, env: Env, reply: Reply): Promise<Response> {
-  const device = parseDeviceToken(request.headers.get('Authorization'));
+  const device = parseDeviceToken(request.headers.get('Authorization'), env);
   if (!device) return reply('Not a device of this family', 401, { 'WWW-Authenticate': 'Bearer' });
   const alexaDeviceId = await readAlexaDeviceId(request, reply);
   if (alexaDeviceId instanceof Response) return alexaDeviceId;
@@ -71,7 +71,7 @@ async function rejoin(request: Request, env: Env, reply: Reply): Promise<Respons
     if (outcome.status === 404) await showLink.unlink(familyId);
     return refuse(outcome, reply);
   }
-  const rejoined: CreateFamilyReply = { token: `${familyId}.${secret}`, familyId };
+  const rejoined: CreateFamilyReply = { token: deviceToken(env, familyId, secret, outcome.result as number), familyId };
   return reply(JSON.stringify(rejoined), 200, { 'Content-Type': 'application/json' });
 }
 

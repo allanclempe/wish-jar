@@ -1,6 +1,6 @@
 import { callerKey, takeLimit, waitHeaders } from './CallerLimits';
 import { CODE_TTL_MS, normaliseCode, randomCode, randomToken } from './codes';
-import { parseDeviceToken, readJson, refuse } from './families';
+import { deviceToken, parseDeviceToken, readJson, refuse } from './families';
 import { echoShowApi } from './echoShow';
 import type { JarOutcome } from './FamilyJar';
 import type { Reply } from './http';
@@ -26,9 +26,22 @@ export async function devicesApi(request: Request, env: Env, url: URL, reply: Re
     return echoShowApi(request, env, pathname, reply);
   }
 
-  const device = parseDeviceToken(request.headers.get('Authorization'));
+  const device = parseDeviceToken(request.headers.get('Authorization'), env);
   if (!device) return reply('Not a device of this family', 401, { 'WWW-Authenticate': 'Bearer' });
   const jar = env.FAMILY_JARS.getByName(device.familyId);
+
+  // A signed token for this device (WJ-55), for one from before the
+  // signatures: the same secret, so nothing else changes.
+  if (pathname === '/devices/token') {
+    if (method !== 'POST') return useMethod('POST', reply);
+    const checked = (await jar.check(device.secret)) as JarOutcome;
+    if (!checked.ok) return refuse(checked, reply);
+    const signed: CreateFamilyReply = {
+      token: deviceToken(env, device.familyId, device.secret, checked.result as number),
+      familyId: device.familyId,
+    };
+    return reply(JSON.stringify(signed), 200, { 'Content-Type': 'application/json' });
+  }
 
   if (pathname === '/devices') {
     if (method !== 'GET') return useMethod('GET', reply);
@@ -114,7 +127,7 @@ async function joinFamily(request: Request, env: Env, reply: Reply): Promise<Res
   const secret = randomToken();
   const outcome = (await env.FAMILY_JARS.getByName(familyId).addDevice(secret, deviceLabel)) as JarOutcome;
   if (!outcome.ok) return refuse(outcome, reply);
-  const joined: CreateFamilyReply = { token: `${familyId}.${secret}`, familyId };
+  const joined: CreateFamilyReply = { token: deviceToken(env, familyId, secret, outcome.result as number), familyId };
   return reply(JSON.stringify(joined), 201, { 'Content-Type': 'application/json' });
 }
 

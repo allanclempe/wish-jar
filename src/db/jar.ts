@@ -163,6 +163,13 @@ export async function rejoinEchoShow(alexaDeviceId: string): Promise<CreateFamil
   }
 }
 
+// The signed token of the device whose token is from before WJ-55 (no
+// signature, "<familyId>.<secret>"): the relay takes those only until a
+// cut-off date (relay/src/signing.ts).
+export function signToken(token: string): Promise<CreateFamilyReply> {
+  return request('POST', '/devices/token', undefined, CALL_TIMEOUT_MS, token);
+}
+
 // Lets this Echo Show, now a device of the family `token` opens, rejoin it at
 // its next launches.
 export async function linkEchoShow(token: string, alexaDeviceId: string): Promise<void> {

@@ -8,7 +8,8 @@
 // for reloads within the skill session. At its next launch the Show gets a new
 // token from the relay with its Alexa device id (WJ-45, src/db/open.ts).
 export type DeviceState = {
-  // "<familyId>.<secret>" (relay/src/families.ts).
+  // "<familyId>.<secret>.<deviceId>.<signature>" (relay/src/families.ts), or
+  // "<familyId>.<secret>" from before WJ-55 until openFamilyJar swaps it.
   token: string | null;
   activeKidId: number | null;
 };

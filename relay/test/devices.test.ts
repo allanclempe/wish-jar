@@ -145,7 +145,7 @@ describe('joining', () => {
     const device = await joined(`${code.slice(0, 3).toLowerCase()} ${code.slice(3)}`, 'Frameo frame');
     expect(device.familyId).toBe(parent.familyId);
     expect(device.token).not.toBe(parent.token);
-    expect(device.token).toMatch(new RegExp(`^${parent.familyId}\\.[A-Za-z0-9_-]{43}$`));
+    expect(device.token).toMatch(new RegExp(`^${parent.familyId}\\.[A-Za-z0-9_-]{43}\\.2\\.[A-Za-z0-9_-]{43}$`));
 
     const kids = await call(device.token, 'listKids');
     expect(kids.status).toBe(200);

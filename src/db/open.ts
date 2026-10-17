@@ -2,7 +2,7 @@ import { getAlexaDeviceId } from '../device/alexa';
 import { onEchoShow } from '../device/host';
 import { deviceLabel } from '../device/label';
 import { addStarterTasks } from '../tasks/starter';
-import { loadDevice, saveDevice } from './device';
+import { loadDevice, saveDevice, type DeviceState } from './device';
 import { firstLaunchDone, guardFirstLaunch } from './firstLaunch';
 import {
   createFamily,
@@ -11,6 +11,7 @@ import {
   joinFamily,
   linkEchoShow,
   rejoinEchoShow,
+  signToken,
 } from './jar';
 import { readLocalJar } from './localJar';
 
@@ -26,9 +27,10 @@ import { readLocalJar } from './localJar';
 export async function openFamilyJar(): Promise<string | null> {
   const device = await loadDevice();
   if (device.token) {
+    const token = await withSignature(device, device.token);
     // A link that didn't go through earlier in this session.
-    void linkThisEchoShow(device.token);
-    return device.token;
+    void linkThisEchoShow(token);
+    return token;
   }
   const alexaDeviceId = await echoShowDeviceId();
   if (!alexaDeviceId) return null;
@@ -37,6 +39,21 @@ export async function openFamilyJar(): Promise<string | null> {
   await saveDevice({ token: rejoined.token, activeKidId: null });
   markLinked(rejoined.token);
   return rejoined.token;
+}
+
+// A token from before WJ-55 has no signature, and the relay takes it only
+// until a cut-off date (relay/src/signing.ts): it's swapped here for this
+// device's signed token, kept from then on. Tried at every launch until it
+// works; meanwhile the old token still opens the jar.
+async function withSignature(device: DeviceState, token: string): Promise<string> {
+  if (token.split('.').length !== 2) return token;
+  try {
+    const signed = await signToken(token);
+    await saveDevice({ ...device, token: signed.token });
+    return signed.token;
+  } catch {
+    return token;
+  }
 }
 
 // What the setup screen tells the person setting up an Echo Show, once

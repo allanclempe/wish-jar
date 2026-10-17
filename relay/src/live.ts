@@ -1,5 +1,5 @@
 import { takeLimit, waitHeaders } from './CallerLimits';
-import { parseDeviceToken } from './families';
+import { type DeviceToken, parseDeviceToken } from './families';
 import { corsReply } from './http';
 
 // Kept out of src/index.ts, like src/codes.ts: a Worker's main module may only
@@ -24,12 +24,13 @@ export const LIVE_REFUSED = 4401;
 export const PING = 'ping';
 export const PONG = 'pong';
 
-// The device token in the socket's protocol list, or null.
-export function liveToken(request: Request): { familyId: string; secret: string } | null {
+// The device token in the socket's protocol list, or null, as
+// parseDeviceToken checks it.
+export function liveToken(request: Request, env: Env): DeviceToken | null {
   const offered = (request.headers.get('Sec-WebSocket-Protocol') ?? '').split(',').map((entry) => entry.trim());
   if (!offered.includes(LIVE_PROTOCOL)) return null;
   const bearer = offered.find((entry) => entry.startsWith(BEARER));
-  return bearer ? parseDeviceToken(`Bearer ${bearer.slice(BEARER.length)}`) : null;
+  return bearer ? parseDeviceToken(`Bearer ${bearer.slice(BEARER.length)}`, env) : null;
 }
 
 // The reply that hands the app its end of the socket.
@@ -60,7 +61,7 @@ export async function liveApi(request: Request, env: Env): Promise<Response> {
   if (request.headers.get('Upgrade')?.toLowerCase() !== 'websocket') {
     return text('Open a WebSocket', 426);
   }
-  const device = liveToken(request);
+  const device = liveToken(request, env);
   if (!device) return refusedSocket();
   // A failed upgrade looks like a lost connection to the app, which tries
   // again later, backing off: what's wanted here.

@@ -51,5 +51,11 @@
   // brings (WJ-54): `wrangler secret put TURNSTILE_SECRET_KEY` (README.md). A
   // deploy fails while it isn't set. `pnpm dev` and the tests use Cloudflare's
   // test key, which passes the test widget's dummy token.
-  "secrets": { "required": ["TURNSTILE_SECRET_KEY"] }
+  //
+  // SIGNING_KEY signs device tokens and photo URLs (WJ-55, src/signing.ts),
+  // so the Worker turns away made-up ones without waking a family's jar:
+  // `wrangler secret put SIGNING_KEY` (README.md). Changing it turns away
+  // every token and photo URL already handed out. `pnpm dev` and the tests
+  // use a key of their own.
+  "secrets": { "required": ["TURNSTILE_SECRET_KEY", "SIGNING_KEY"] }
 }

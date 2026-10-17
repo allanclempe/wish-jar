@@ -99,7 +99,7 @@ describe('uploading a photo', () => {
     const { token, familyId } = await newJar();
     const bytes = jpeg(2048);
     const url = await uploaded(token, bytes);
-    expect(url).toMatch(new RegExp(`^${BASE}/photos/${familyId}/${ID}\\.jpg$`));
+    expect(url).toMatch(new RegExp(`^${BASE}/photos/${familyId}/${ID}\\.jpg\\?sig=${ID}$`));
 
     const shown = await relay(url);
     expect(shown.status).toBe(200);
@@ -117,7 +117,7 @@ describe('uploading a photo', () => {
     const urls = [await uploaded(token, bytes), await uploaded(token, bytes), await uploaded(token, bytes)];
     expect(new Set(urls).size).toBe(3);
     // 32 random bytes each.
-    for (const url of urls) expect(url.match(new RegExp(`/(${ID})\\.jpg$`))).not.toBeNull();
+    for (const url of urls) expect(url.match(new RegExp(`/(${ID})\\.jpg\\?sig=${ID}$`))).not.toBeNull();
   });
 
   it('only takes photos from a device of the family', async () => {
@@ -178,7 +178,7 @@ describe('showing a photo', () => {
     const { token, familyId } = await newJar();
     const url = await uploaded(token);
     const other = await newJar();
-    const photoId = url.match(new RegExp(`/(${ID})\\.jpg$`))![1];
+    const photoId = url.match(new RegExp(`/(${ID})\\.jpg\\?sig=${ID}$`))![1];
 
     expect(await status(`/photos/${familyId}/${'C'.repeat(43)}.jpg`)).toBe(404);
     // The right photo id under another family's id.
@@ -319,10 +319,10 @@ describe('photos from before the jar kept them', () => {
 
     const [kid] = await call('listKids');
     const tasks = await call('listTasks');
-    expect(kid.photoUri).toMatch(new RegExp(`^${BASE}/photos/${familyId}/${ID}\\.jpg$`));
+    expect(kid.photoUri).toMatch(new RegExp(`^${BASE}/photos/${familyId}/${ID}\\.jpg\\?sig=${ID}$`));
     // The same picture twice is one photo.
     expect(tasks[0].icon.photoUri).toBe(kid.photoUri);
-    expect(tasks[1].icon.photoUri).toMatch(/\.jpg$/);
+    expect(tasks[1].icon.photoUri).toMatch(/\.jpg\?sig=/);
     expect(tasks[2].icon.photoUri).toBe('file:///phone/a.jpg');
     // Not a JPEG after all: left as it was.
     expect(tasks[3].icon.photoUri).toBe('data:image/jpeg;base64,AAAA');
@@ -355,7 +355,7 @@ describe('photos from before the jar kept them', () => {
       (instance as unknown as { photosMoved: boolean }).photosMoved = false;
     });
     const [kid] = await call('listKids');
-    expect(kid.photoUri).toMatch(new RegExp(`^${BASE}/photos/${familyId}/${ID}\\.jpg$`));
+    expect(kid.photoUri).toMatch(new RegExp(`^${BASE}/photos/${familyId}/${ID}\\.jpg\\?sig=${ID}$`));
     expect(await status(kid.photoUri!)).toBe(200);
   });
 
@@ -363,7 +363,7 @@ describe('photos from before the jar kept them', () => {
     const { familyId, call } = await newJar();
     const kidId = await call('insertKid', { name: 'Ava', photoUri: dataUri(jpeg()) });
     const kid = await call('getKid', kidId);
-    expect(kid?.photoUri).toMatch(new RegExp(`^${BASE}/photos/${familyId}/${ID}\\.jpg$`));
+    expect(kid?.photoUri).toMatch(new RegExp(`^${BASE}/photos/${familyId}/${ID}\\.jpg\\?sig=${ID}$`));
   });
 
   it("swaps a phone's own file for the photo it uploaded", async () => {

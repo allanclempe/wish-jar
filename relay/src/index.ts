@@ -154,7 +154,7 @@ async function api(request: Request, env: Env, url: URL): Promise<Response> {
 // The family jar (WJ-46), for Wish Jar on any device:
 //   POST /families   { label?, jar? }  → 201 { token, familyId }, 400, 403, 413, 429, 503
 //   POST /jar/call   { fn, args }      → 200 { result }, 400, 401, 413, 507
-// A device's token (Authorization: Bearer <familyId>.<secret>) opens its
+// A device's token (Authorization: Bearer, signed: src/families.ts) opens its
 // family's jar; src/jar/api.ts lists the functions and their arguments. A new
 // family needs a Turnstile token (WJ-54) in the Turnstile-Token header.
 async function familyApi(request: Request, env: Env, pathname: string): Promise<Response> {

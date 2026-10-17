@@ -219,3 +219,59 @@ down. A dev build on the real relay uses the real site key, which works on
 
 The tests use the test secret too (`vitest.config.ts`). `test/setup.ts`
 answers for siteverify, so they need no network.
+
+## Made-up tokens and photo URLs wake no jar (WJ-55)
+
+Any request that names a family wakes its jar (a Durable Object), and every
+wake counts against the Free plan's daily requests, shared by every family.
+So the Worker signs what it hands out and checks the signature first
+(`src/signing.ts`), with an HMAC keyed by the Worker secret `SIGNING_KEY`:
+
+- **Device tokens** are `<familyId>.<secret>.<deviceId>.<signature>`, signed
+  over the family id and the device's id in its jar. A made-up or changed one
+  gets **401** on `/jar/call`, `/devices…` and `/photos`, and a socket closed
+  with 4401 on `/jar/live`, without any jar being woken. The jar still checks
+  the secret, so a removed device's token opens nothing.
+- **Photo URLs** are `/photos/<familyId>/<photoId>.jpg?sig=<signature>`, signed
+  over the family id and the photo id. A made-up one gets **404** without
+  waking the jar. The edge cache keeps a photo by its path only, so a made-up
+  query (`?x=1`) is served from the cache like the photo itself. A photo the
+  jar doesn't have is cached as a 404 for a minute. The signature doesn't
+  cover the address: a URL kept from when the relay was
+  `wish-jar.blastin.dev` still works there, where the site passes it on to
+  the relay unchanged (`site/worker.js`), and keeps its address when the jar
+  signs it.
+
+### Tokens and photo URLs from before the signatures
+
+Until `UNSIGNED_UNTIL` in `src/signing.ts` (60 days after the change was
+merged), they work as before: an unsigned token goes to the jar to be
+checked, and so does an unsigned photo URL.
+
+- The app swaps its unsigned token for a signed one at launch:
+  `POST /devices/token` checks the old token in the jar and answers with the
+  device's signed token, the same secret signed. It tries again at every
+  launch until it works. The Echo Show gets a new, signed token at every
+  launch anyway.
+- A jar signs the photo URLs it keeps at its first call after the deploy, and
+  the family's devices load them again.
+
+After the cut-off, an unsigned token gets 401 and an unsigned photo URL 404,
+without waking any jar. A device that hasn't been opened with the new app
+since then has to join its family again with a code.
+
+### Setting the signing key
+
+Give the Worker a long random key, before the change is merged:
+
+```bash
+cd relay
+openssl rand -base64 48 | pnpm exec wrangler secret put SIGNING_KEY
+```
+
+`wrangler.jsonc` lists it as required, so a deploy fails while it isn't set.
+Keep it: a new key turns away every token and photo URL handed out under the
+old one, and every device would have to join its family again.
+
+`pnpm dev` signs with `wish-jar-dev-signing-key` unless `SIGNING_KEY` is set in
+the environment, and the tests with the fixed key in `test/signingKey.ts`.

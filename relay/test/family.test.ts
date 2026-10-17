@@ -78,7 +78,8 @@ describe('creating a family', () => {
   it('hands out a family id and a device token made of it', async () => {
     const { token, familyId } = await newFamily();
     expect(familyId).toMatch(/^[A-Za-z0-9_-]{43}$/);
-    expect(token).toMatch(new RegExp(`^${familyId}\\.[A-Za-z0-9_-]{43}$`));
+    // <familyId>.<secret>.<deviceId>.<signature> (WJ-55).
+    expect(token).toMatch(new RegExp(`^${familyId}\\.[A-Za-z0-9_-]{43}\\.1\\.[A-Za-z0-9_-]{43}$`));
   });
 
   it('keeps only a hash of the secret, with the device label', async () => {
