@@ -3,7 +3,7 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SpringTo, Squish } from '../components/Animations';
-import { ParentLockButton } from '../parent/ParentLockButton';
+import { BonusCoinsButton, ParentLockButton } from '../parent/ParentLockButton';
 import { useSound } from '../sound/SoundProvider';
 import { useActiveKid, useSavings } from './ActiveKidProvider';
 import { colors, fonts, offsetShadow, radius, spacing, sunshineShadow, typography, useLargeScreen } from '../theme';
@@ -48,6 +48,7 @@ export function KidSwitcher({ tabs }: KidSwitcherProps) {
         </ScrollView>
         {tabs}
         {activeKid ? <CoinCounter kidId={activeKid.id} large={large} /> : null}
+        {activeKid ? <BonusCoinsButton /> : null}
         <ParentLockButton />
       </View>
     </SafeAreaView>
