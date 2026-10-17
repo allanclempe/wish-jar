@@ -18,7 +18,7 @@ pnpm test               # workerd locally, no Cloudflare account needed
 Every family shares one Free account: 100,000 requests a day, 100,000 rows
 written a day and 5 GB of storage. Some endpoints need no token, and anyone can
 get a token by starting a family. Without limits, one script could take the
-relay down for everyone until 00:00 UTC, or fill its storage. There are three
+relay down for everyone until 00:00 UTC, or fill its storage. There are four
 guards.
 
 ### 1. The edge rule (set by hand in the dashboard)
@@ -111,7 +111,45 @@ minutes).
   10- and 60-second periods, counts separately in each Cloudflare location,
   and its docs don't say it's on the Free plan.
 
-### 3. Families that clean themselves up
+### 3. A daily write budget for each family (WJ-56)
+
+A token opens only its own family's jar, but every family's writes come out of
+the same 100,000 rows a day. `FamilyJar` counts what each family writes in the
+UTC day, which is when the Free plan's allowance starts again too
+(`src/jar/dailyWrites.ts`). Past its budget, the family's writes, removes and
+uploads get **429** until 00:00 UTC, with `Retry-After` exposed through CORS
+like the per-caller limits, and the app says how long to wait. Reads are always
+answered.
+
+| What | Counts | Per family | Kept in |
+| --- | --- | --- | --- |
+| Rows written | Writes and removes on `POST /jar/call`, `POST /photos` | 5,000 a day | memory, and storage every 20 rows |
+| Photo bytes | `POST /photos`, and `POST /jar/call` bringing `data:` URIs | 50 MB a day | memory, and storage every 1 MB |
+
+- **The numbers.** Rows are counted as the Free plan counts them: each
+  statement's `rowsWritten`, indexes included. A tick is 3 rows. Several kids
+  ticking all of their tasks, and a parent setting the jar up on its first
+  day, are a few hundred to a thousand rows. 5,000 is 5% of the account's
+  day, so it takes twenty families flat out to use it up, and starting a
+  family needs Turnstile and is limited per caller. 50 MB is a whole jar
+  (`MAX_JAR_BYTES`) a day; a photo is 100 to 300 KB.
+- **The call that reaches the budget** goes through, whatever it brings: one
+  call is a few rows, and its photos are capped by `MAX_CALL_BYTES`.
+- **Memory, and storage in steps.** The jar is awake for the call anyway, so
+  counting costs no extra Durable Object request. A row written for every
+  call counted would add a third to what a tick costs, but the jar forgets
+  its memory when it sleeps (as soon as 10 seconds after the last call, with
+  only sockets open). What's kept is the count rounded up by a step, written
+  only when the count gets past it, and a jar that wakes up counts from
+  there. So sleeping never gives a family budget back. Each wake costs it a
+  step at most: 100 wakes with writes in a day is 2,000 rows, and only wakes
+  that put up photos cost bytes. Keeping the count is one row per 20
+  counted, 5% more.
+- **Not counted:** starting a family or importing a jar (limited per caller
+  and by Turnstile), joining, Echo Show rejoins, and a device's `last_seen_at`
+  (once per 10 minutes).
+
+### 4. Families that clean themselves up
 
 `FamilyJar.alarm` deletes a family when it's abandoned:
 

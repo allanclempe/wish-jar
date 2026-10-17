@@ -22,3 +22,33 @@ export function run(db: Db, query: string, ...bindings: unknown[]): void {
 export function insert(db: Db, query: string, ...bindings: unknown[]): number {
   return all<{ id: number }>(db, `${query} RETURNING id`, ...bindings)[0].id;
 }
+
+// The same jar, adding up the rows its statements write (each cursor's
+// rowsWritten, which is what the Free plan counts), for the family's daily
+// budget (src/jar/dailyWrites.ts). A cursor's count is final once it's read
+// to the end, as all, first, run and insert do.
+export function countingWrites(db: Db): { db: Db; written: () => number } {
+  const cursors: SqlStorageCursor<Row>[] = [];
+  const exec = <T extends Row>(query: string, ...bindings: unknown[]): SqlStorageCursor<T> => {
+    const cursor = db.sql.exec<T>(query, ...bindings);
+    cursors.push(cursor);
+    return cursor;
+  };
+  const sql = withOwn(db.sql, { exec });
+  return {
+    db: withOwn(db, { sql }),
+    written: () => cursors.reduce((rows, cursor) => rows + cursor.rowsWritten, 0),
+  };
+}
+
+// `target` with `own` in place of some of its members. The rest are the
+// target's own, its methods bound to it, as workerd's objects need.
+function withOwn<T extends object>(target: T, own: Partial<T>): T {
+  return new Proxy(target, {
+    get(_, key) {
+      if (key in own) return own[key as keyof T];
+      const value: unknown = Reflect.get(target, key);
+      return typeof value === 'function' ? value.bind(target) : value;
+    },
+  });
+}

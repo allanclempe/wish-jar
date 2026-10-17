@@ -8,13 +8,15 @@ import {
 } from './limits';
 
 // Any device holding a token can send anything, so every argument is checked
-// before it gets near the jar. The message goes back with the 400.
-export type JarErrorStatus = 400 | 401 | 404 | 409 | 410 | 507;
+// before it gets near the jar. The message goes back with the 400. `wait`
+// is the seconds a 429 asks the device to wait (Retry-After).
+export type JarErrorStatus = 400 | 401 | 404 | 409 | 410 | 429 | 507;
 
 export class JarError extends Error {
   constructor(
     readonly status: JarErrorStatus,
     message: string,
+    readonly wait?: number,
   ) {
     super(message);
   }

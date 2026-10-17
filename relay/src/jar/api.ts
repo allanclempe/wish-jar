@@ -208,7 +208,10 @@ export type JarImport = {
 
 // Each caller (by IP address) may only do so much on the endpoints anyone can
 // reach (relay/src/CallerLimits.ts): past that, 429 with Retry-After, the
-// seconds to wait. A socket to /jar/live past its limit fails to open.
+// seconds to wait. A socket to /jar/live past its limit fails to open. Each
+// family may only write so much a day (WJ-56, relay/src/jar/dailyWrites.ts):
+// past that, its writes on /jar/call and POST /photos get the same 429 until
+// 00:00 UTC; reads are always answered.
 //
 // A family no device has been seen in for 6 months deletes itself, and so does
 // one no device came back to in the week after it was made (FamilyJar.alarm);

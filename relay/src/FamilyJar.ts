@@ -2,6 +2,7 @@ import { DurableObject } from 'cloudflare:workers';
 
 import type { Device, JarChange, JarTable } from './jar/api';
 import { findCall } from './jar/calls';
+import { DailyWrites } from './jar/dailyWrites';
 import { importJar } from './jar/importJar';
 import { MAX_JAR_BYTES } from './jar/limits';
 import {
@@ -18,7 +19,7 @@ import {
   sweepPhotos,
 } from './jar/photos';
 import { isJar, migrateJar, STARTER_CONSEQUENCE_TYPES } from './jar/schema';
-import { all, first, insert, run } from './jar/sql';
+import { all, countingWrites, first, insert, run } from './jar/sql';
 import { id, JarError, type JarErrorStatus, label, record } from './jar/validate';
 import { clientId } from './families';
 import { LIVE_REFUSED, liveResponse, liveToken, PING, PONG, refusedSocket } from './live';
@@ -26,11 +27,15 @@ import { photoSignature } from './signing';
 
 // What the Worker gets back: the result, or the status and why. `dropped` are
 // the photos the call deleted, for the Worker to forget too (src/familyPhotos.ts).
+// `wait` is how many seconds a 429 asks to wait.
 export type JarOutcome =
   | { ok: true; result: unknown; dropped?: string[] }
-  | { ok: false; status: JarErrorStatus; error: string };
+  | { ok: false; status: JarErrorStatus; error: string; wait?: number };
 
 const NOT_A_DEVICE: JarOutcome = { ok: false, status: 401, error: 'Not a device of this family' };
+
+// Past the family's daily budget (src/jar/dailyWrites.ts).
+const TOO_MANY_WRITES = 'Too many changes today: the jar takes more at 00:00 UTC';
 
 // A device's last_seen_at is only written this often, so a device that reads
 // the jar all day doesn't spend the Free plan's daily writes on it.
@@ -71,6 +76,9 @@ function deviceTag(deviceId: number): string {
 // create, addDevice and rejoinEchoShow, which give a device its secret, and
 // check answer with the device's id, which the Worker signs its token with.
 //
+// Its writes, removes and photo uploads count toward a daily budget (WJ-56,
+// src/jar/dailyWrites.ts), counted here as the jar is awake for them anyway.
+//
 // The family's devices keep a WebSocket open to it (WJ-50), through the
 // Hibernation API: an idle socket costs no duration, the pings the app sends
 // are answered without waking the jar, and nothing about a socket is written
@@ -81,6 +89,7 @@ export class FamilyJar extends DurableObject<Env> {
   // the URLs from before WJ-55 are signed (signPhotosOnce).
   private photosMoved = false;
   private photosSigned = false;
+  private writes = new DailyWrites(this.ctx.storage);
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -165,21 +174,34 @@ export class FamilyJar extends DurableObject<Env> {
     this.signPhotosOnce();
     let dropped: string[] = [];
     let changes: readonly JarTable[] = [];
+    const now = Date.now();
+    const counted = countingWrites(storage);
+    // Whether it's a write or a remove, and the bytes of the photos it
+    // brings as data: URIs, for the family's budget.
+    let writing = false;
+    let photoBytes = 0;
     const done = outcome(() => {
       const found = findCall(fn, args);
+      if (found.call.kind !== 'read') {
+        const wait = this.writes.wait(now);
+        if (wait != null) throw new JarError(429, TOO_MANY_WRITES, wait);
+        writing = true;
+        const sent = JSON.stringify(found.args);
+        if (sent.includes('"data:')) photoBytes = sent.length;
+      }
       if (found.call.kind === 'write' && storage.sql.databaseSize >= MAX_JAR_BYTES) {
         throw new JarError(507, 'The jar is full: delete something first');
       }
       return storage.transactionSync(() => {
-        const result = found.call.run(storage, found.args);
-        if (found.call.leftBehind) dropped = dropPhotos(storage, found.call.leftBehind(found.args, result));
-        if (found.call.kind !== 'read' && JSON.stringify(found.args).includes('"data:')) {
-          moveDataPhotos(storage, this.photoUrls(photoBase));
-        }
+        const result = found.call.run(counted.db, found.args);
+        if (found.call.leftBehind) dropped = dropPhotos(counted.db, found.call.leftBehind(found.args, result));
+        if (photoBytes > 0) moveDataPhotos(counted.db, this.photoUrls(photoBase));
         if (found.call.changes && (found.call.changed?.(result) ?? true)) changes = found.call.changes;
         return result;
       });
     });
+    // A write that failed halfway still counts what it wrote.
+    if (writing) this.writes.add(now, counted.written(), photoBytes);
     if (done.ok) this.tell(changes, client);
     return done.ok && dropped.length > 0 ? { ...done, dropped } : done;
   }
@@ -190,11 +212,17 @@ export class FamilyJar extends DurableObject<Env> {
     const hash = await hashSecret(secret);
     const storage = this.ctx.storage;
     if (!isJar(storage) || this.seen(hash) == null) return NOT_A_DEVICE;
-    const dropped = sweepPhotos(storage, Date.now());
+    const now = Date.now();
+    const wait = this.writes.wait(now);
+    if (wait != null) return { ok: false, status: 429, error: TOO_MANY_WRITES, wait };
+    const counted = countingWrites(storage);
+    const dropped = sweepPhotos(counted.db, now);
     if (storage.sql.databaseSize + data.byteLength >= MAX_JAR_BYTES) {
+      this.writes.add(now, counted.written(), 0);
       return { ok: false, status: 507, error: 'The jar is full: delete something first' };
     }
-    const url = this.photoUrls(photoBase)(addPhoto(storage, new Uint8Array(data)));
+    const url = this.photoUrls(photoBase)(addPhoto(counted.db, new Uint8Array(data)));
+    this.writes.add(now, counted.written(), data.byteLength);
     return { ok: true, result: url, dropped };
   }
 
@@ -426,6 +454,7 @@ export class FamilyJar extends DurableObject<Env> {
     await this.ctx.storage.deleteAll();
     this.photosMoved = false;
     this.photosSigned = false;
+    this.writes = new DailyWrites(this.ctx.storage);
     // The name it was opened by is the family id; only links to this family
     // are dropped, as a Show may have moved on to another.
     const familyId = this.ctx.id.name;
@@ -473,7 +502,9 @@ function outcome(work: () => unknown): JarOutcome {
   try {
     return { ok: true, result: work() ?? null };
   } catch (error) {
-    if (error instanceof JarError) return { ok: false, status: error.status, error: error.message };
+    if (error instanceof JarError) {
+      return { ok: false, status: error.status, error: error.message, ...(error.wait ? { wait: error.wait } : {}) };
+    }
     if (error instanceof Error && error.message.includes('SQLITE_CONSTRAINT')) {
       return { ok: false, status: 400, error: "That doesn't fit the jar" };
     }

@@ -50,8 +50,9 @@ export class JarCallError extends Error {
   }
 
   // This internet connection did too much of something just now, such as
-  // starting families or sending photos (WJ-51): the same call will do once
-  // the wait is over (waitWords), not straight away.
+  // starting families or sending photos (WJ-51), or the family has saved all
+  // the changes it may today (WJ-56): the same call will do once the wait is
+  // over (waitWords), not straight away.
   get tooMany(): boolean {
     return this.status === 429;
   }
@@ -219,10 +220,11 @@ export function wordsFor(seconds: number | null): string {
   return hours === 1 ? 'an hour' : `${hours} hours`;
 }
 
-// What a save screen says when a save didn't go through.
+// What a save screen says when a save didn't go through. Too many is photos
+// from this internet connection, or the family's changes for the day.
 export function saveProblem(error: unknown): string {
   if (error instanceof JarCallError && error.tooMany) {
-    return `Lots of photos went up from this internet connection just now. Wait ${waitWords(error)}, then try again.`;
+    return `Lots of changes and photos have gone into the jar lately. Wait ${waitWords(error)}, then try again.`;
   }
   return 'Something went wrong while saving. Please try again.';
 }

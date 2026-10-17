@@ -1,3 +1,4 @@
+import { waitHeaders } from './CallerLimits';
 import { randomToken } from './codes';
 import { forgetPhotos, photoBase } from './familyPhotos';
 import type { JarOutcome } from './FamilyJar';
@@ -98,7 +99,8 @@ export async function callJar(request: Request, env: Env, reply: Reply): Promise
 }
 
 export function refuse(outcome: Extract<JarOutcome, { ok: false }>, reply: Reply): Response {
-  const headers: HeadersInit = outcome.status === 401 ? { 'WWW-Authenticate': 'Bearer' } : {};
+  const headers: HeadersInit =
+    outcome.status === 401 ? { 'WWW-Authenticate': 'Bearer' } : outcome.wait ? waitHeaders(outcome.wait) : {};
   return reply(outcome.error, outcome.status, headers);
 }
 
