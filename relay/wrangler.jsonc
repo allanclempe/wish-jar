@@ -1,0 +1,20 @@
+// The photo relay: lets a parent send a photo from their phone to Wish Jar on
+// a device that can't pick one itself (WJ-41). Runs on the Workers Free plan.
+// Deploy with `pnpm install && pnpm run deploy` here, with CLOUDFLARE_API_TOKEN
+// set, then put its address in src/photos/phoneRelay.ts.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "wish-jar-photo-relay",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "observability": { "enabled": true },
+  "durable_objects": {
+    "bindings": [{ "name": "PHOTO_DROPS", "class_name": "PhotoDrop" }]
+  },
+  // SQLite-backed, the only Durable Objects the Free plan has.
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PhotoDrop"] }],
+  "vars": {
+    // Pages allowed to ask for codes and collect photos (CORS), comma-separated.
+    "ALLOWED_ORIGINS": "https://wish-jar.expo.app,http://localhost:8081"
+  }
+}

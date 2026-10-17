@@ -5,6 +5,7 @@ import {
   useContext,
   useEffect,
   useState,
+  type ComponentType,
   type PropsWithChildren,
 } from 'react';
 import {
@@ -30,9 +31,10 @@ import {
   listFrameoPhotos,
   type FrameoPhotos,
 } from './frameo';
+import { PhonePhotoSheet } from './PhonePhotoSheet';
 
 // Resolves with the picked photo's URI, or null when the grown-up backs out.
-type PickPhoto = () => Promise<string | null>;
+export type PickPhoto = () => Promise<string | null>;
 
 const PhotoPickerContext = createContext<PickPhoto>(pickFromLibrary);
 
@@ -44,7 +46,19 @@ export function usePickPhoto(): PickPhoto {
 }
 
 export function PhotoPickerProvider({ children }: PropsWithChildren) {
-  return frameoPhotos ? <FrameoPhotoPicker>{children}</FrameoPhotoPicker> : children;
+  return frameoPhotos ? (
+    <SheetPhotoPicker sheet={FrameoPhotoSheet}>{children}</SheetPhotoPicker>
+  ) : (
+    children
+  );
+}
+
+// Photos sent from a parent's phone through the photo relay (relay/), for
+// devices that can't pick one themselves: usePickPhoto() inside it shows a QR
+// code and waits for the photo, a data URI. Web only (the QR code is an SVG).
+// Not used anywhere yet: WJ-40 decides where (the Echo Show).
+export function PhonePhotoPicker({ children }: PropsWithChildren) {
+  return <SheetPhotoPicker sheet={PhonePhotoSheet}>{children}</SheetPhotoPicker>;
 }
 
 // Cropped square, like the tiles that show it (they cover-crop); the frame app
@@ -143,7 +157,10 @@ const REFRESH_MS = 4000;
 // lands back in the picker. The frame app's 5-minute fallback return locks.
 const CONNECT_UNLOCKED_MS = 4 * 60_000;
 
-function FrameoPhotoPicker({ children }: PropsWithChildren) {
+// A sheet that picks a photo, shown over the screen while usePickPhoto() waits.
+type PhotoSheet = ComponentType<{ onDone: (uri: string | null) => void }>;
+
+function SheetPhotoPicker({ sheet: Sheet, children }: PropsWithChildren<{ sheet: PhotoSheet }>) {
   const [request, setRequest] = useState<{ resolve: (uri: string | null) => void } | null>(null);
 
   const pick = useCallback(
@@ -166,7 +183,8 @@ function FrameoPhotoPicker({ children }: PropsWithChildren) {
   );
 
   // Photos are only picked on grown-up screens, so locking (say, coming back
-  // from Connect a phone after too long) closes the picker along with them.
+  // from Frameo's Connect a phone after too long) closes the picker along with
+  // them.
   const { unlocked } = useParentLock();
   const [wasUnlocked, setWasUnlocked] = useState(unlocked);
   if (unlocked !== wasUnlocked) {
@@ -183,7 +201,7 @@ function FrameoPhotoPicker({ children }: PropsWithChildren) {
         animationType="fade"
         onRequestClose={() => finish(null)}
       >
-        {request ? <FrameoPhotoSheet onDone={finish} /> : null}
+        {request ? <Sheet onDone={finish} /> : null}
       </Modal>
     </PhotoPickerContext.Provider>
   );

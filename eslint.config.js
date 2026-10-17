@@ -5,6 +5,7 @@ const expoConfig = require("eslint-config-expo/flat");
 module.exports = defineConfig([
   expoConfig,
   {
-    ignores: ["dist/*"],
+    // relay/ is a Cloudflare Worker with its own checks (relay/package.json).
+    ignores: ["dist/*", "relay/*"],
   }
 ]);
