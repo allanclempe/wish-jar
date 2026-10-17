@@ -178,7 +178,12 @@ describe('cleaning up families', () => {
     expect(await alarmAt(familyId)).toBeNull();
     // A new instance of the object, as after a deploy.
     await evictDurableObject(jarOf(familyId));
+    const opened = Date.now();
     expect((await call(token, 'listKids')).status).toBe(200);
-    expect(await alarmAt(familyId)).not.toBeNull();
+    // Set for when it's next due (the end of its first week), rather than
+    // run straight away.
+    const alarm = (await alarmAt(familyId))!;
+    expect(alarm).not.toBeNull();
+    expect(Math.abs(alarm - (opened + UNUSED_MS))).toBeLessThan(60_000);
   });
 });

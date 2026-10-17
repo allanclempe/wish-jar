@@ -77,9 +77,13 @@ export class FamilyJar extends DurableObject<Env> {
     // Before any call, so every call sees the current tables.
     if (isJar(ctx.storage)) {
       migrateJar(ctx.storage);
-      // Families from before WJ-51 have no cleanup alarm yet.
+      // Families from before WJ-51 have no cleanup alarm yet: it's set for
+      // when the family is next due, not run straight away, so it's there
+      // as soon as the jar answers.
       void ctx.blockConcurrencyWhile(async () => {
-        if ((await ctx.storage.getAlarm()) == null) await ctx.storage.setAlarm(Date.now());
+        if ((await ctx.storage.getAlarm()) != null) return;
+        const now = Date.now();
+        await ctx.storage.setAlarm(this.cleanupDue(now) ?? now);
       });
     }
     ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair(PING, PONG));
