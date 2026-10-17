@@ -13,6 +13,7 @@ import { WishCard } from '../../src/components/WishCard';
 import { claimWish, listWishes, useDatabase, type Wish } from '../../src/db';
 import { useActiveKid, useSavings } from '../../src/kids/ActiveKidProvider';
 import { useParentLock } from '../../src/parent/ParentLockProvider';
+import { useSound } from '../../src/sound/SoundProvider';
 import { colors, dreamSky, fonts, radius, spacing, typography, useLargeScreen } from '../../src/theme';
 import { orderWishes, sameWishes, type WishProgress } from '../../src/wishes/order';
 
@@ -52,6 +53,7 @@ const WishBoard = memo(function WishBoard({ coins }: { coins: number }) {
   const { activeKid, recordSavingsChange } = useActiveKid();
   const large = useLargeScreen();
   const { requestPin } = useParentLock();
+  const { playTap, playLocked } = useSound();
   const [wishes, setWishes] = useState<Wish[]>([]);
   const [burst, setBurst] = useState(0);
   const [claiming, setClaiming] = useState(false);
@@ -72,6 +74,7 @@ const WishBoard = memo(function WishBoard({ coins }: { coins: number }) {
   // An unlocked wish is handed over by a grown-up, who confirms with the PIN
   // before its coins come out of the kid's savings.
   async function claim(wish: Wish) {
+    playTap();
     if (!activeKid || claiming) return;
     const kidId = activeKid.id;
     setClaiming(true);
@@ -97,6 +100,7 @@ const WishBoard = memo(function WishBoard({ coins }: { coins: number }) {
   }
 
   function nudgeLocked() {
+    playLocked();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
   }
 

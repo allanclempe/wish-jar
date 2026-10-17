@@ -2,6 +2,7 @@ import type { Tabs } from 'expo-router';
 import { useState, type ComponentProps } from 'react';
 import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 
+import { useSound } from '../sound/SoundProvider';
 import { colors, fonts, offsetShadow, radius, spacing, useLargeScreen } from '../theme';
 import { SpringTo } from './Animations';
 
@@ -19,6 +20,7 @@ type TabLayout = { x: number; width: number };
 // (TopTabBar), phones at the bottom (BottomTabBar).
 export function TabToggle({ state, descriptors, navigation, stretch = false }: TabBarProps) {
   const large = useLargeScreen();
+  const { playTap } = useSound();
   // The tabs are as wide as their labels, so the thumb follows their measured
   // positions rather than a fixed width.
   const [layouts, setLayouts] = useState<Record<string, TabLayout>>({});
@@ -49,6 +51,7 @@ export function TabToggle({ state, descriptors, navigation, stretch = false }: T
           const color = focused ? colors.surface : colors.textMuted;
 
           function press() {
+            playTap();
             const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true });
             if (!focused && !event.defaultPrevented) {
               navigation.navigate(route.name, route.params);
