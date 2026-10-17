@@ -4,6 +4,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { addStarterTasks } from '../tasks/starter';
 import { colors, fonts, radius, spacing, typography } from '../theme';
+import { BackupUnavailableError, EchoShowBackup, restoreEchoShowBackup } from './echoShowBackup';
 import { migrateDatabase } from './migrations';
 
 export const DATABASE_NAME = 'wish-jar.db';
@@ -61,6 +62,7 @@ function writeReloadAttempts(attempts: number): boolean {
 // Module-level so its identity stays stable: SQLiteProvider reopens the
 // database whenever onInit changes.
 async function initDatabase(db: SQLiteDatabase): Promise<void> {
+  await restoreEchoShowBackup(db);
   await migrateDatabase(db);
   writeReloadAttempts(0);
   await addStarterTasks(db);
@@ -76,6 +78,7 @@ export function DatabaseProvider({ children }: PropsWithChildren) {
   // handle the first call only.
   const errorHandledRef = useRef(false);
   const [unavailable, setUnavailable] = useState(false);
+  const [backupUnavailable, setBackupUnavailable] = useState(false);
 
   useEffect(() => {
     if (typeof navigator === 'undefined' || !navigator.locks) return;
@@ -108,6 +111,15 @@ export function DatabaseProvider({ children }: PropsWithChildren) {
     );
   }
 
+  if (backupUnavailable) {
+    return (
+      <DatabaseUnavailable
+        message="Could not fetch Wish Jar's saved progress. Check the internet connection, then try again."
+        onRetry={() => window.location.reload()}
+      />
+    );
+  }
+
   if (unavailable) {
     return (
       <DatabaseUnavailable
@@ -129,6 +141,13 @@ export function DatabaseProvider({ children }: PropsWithChildren) {
       databaseName={DATABASE_NAME}
       onInit={initDatabase}
       onError={(error) => {
+        if (error instanceof BackupUnavailableError) {
+          if (errorHandledRef.current) return;
+          errorHandledRef.current = true;
+          console.warn(error);
+          queueMicrotask(() => setBackupUnavailable(true));
+          return;
+        }
         if (!isAccessHandleConflict(error)) {
           // Match the provider's default handler.
           throw error;
@@ -150,6 +169,7 @@ export function DatabaseProvider({ children }: PropsWithChildren) {
         });
       }}
     >
+      <EchoShowBackup />
       {children}
     </SQLiteProvider>
   );

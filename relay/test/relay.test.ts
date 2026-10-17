@@ -217,3 +217,66 @@ describe('Worker', () => {
     }
   });
 });
+
+describe('backups', () => {
+  const KEY = 'amzn1.ask.device.' + 'A'.repeat(64);
+
+  function backup(key: string, init: RequestInit = {}) {
+    return relay('/backup', {
+      ...init,
+      headers: { Origin: APP, Authorization: `Bearer ${key}`, ...init.headers },
+    });
+  }
+
+  function snapshot(size: number, seed: number): Uint8Array {
+    const bytes = new Uint8Array(size);
+    for (let i = 0; i < size; i++) bytes[i] = (i * 7 + seed) % 251;
+    return bytes;
+  }
+
+  // Byte by byte: toEqual on megabytes of array is far too slow.
+  function same(a: Uint8Array, b: Uint8Array): boolean {
+    if (a.byteLength !== b.byteLength) return false;
+    for (let i = 0; i < a.byteLength; i++) if (a[i] !== b[i]) return false;
+    return true;
+  }
+
+  it('has nothing for a device that never saved', async () => {
+    expect((await backup(`${KEY}-new`)).status).toBe(404);
+  });
+
+  it('gives back the newest snapshot, also past one stored chunk', async () => {
+    const first = snapshot(2_500_000, 1);
+    expect((await backup(KEY, { method: 'PUT', body: first })).status).toBe(204);
+    const loaded = await backup(KEY);
+    expect(loaded.status).toBe(200);
+    expect(loaded.headers.get('Access-Control-Allow-Origin')).toBe(APP);
+    expect(same(new Uint8Array(await loaded.arrayBuffer()), first)).toBe(true);
+
+    // A smaller one replaces it whole, without the old trailing chunks.
+    const second = snapshot(1000, 2);
+    expect((await backup(KEY, { method: 'PUT', body: second })).status).toBe(204);
+    expect(same(new Uint8Array(await (await backup(KEY)).arrayBuffer()), second)).toBe(true);
+  });
+
+  it('keeps each device apart', async () => {
+    await backup(`${KEY}-one`, { method: 'PUT', body: snapshot(10, 1) });
+    await backup(`${KEY}-two`, { method: 'PUT', body: snapshot(10, 2) });
+    expect(same(new Uint8Array(await (await backup(`${KEY}-one`)).arrayBuffer()), snapshot(10, 1))).toBe(true);
+  });
+
+  it('turns away a missing or short key, an empty body and other origins', async () => {
+    expect((await relay('/backup', { headers: { Origin: APP } })).status).toBe(401);
+    expect((await backup('short')).status).toBe(401);
+    expect((await backup(KEY, { method: 'PUT', body: new Uint8Array(0) })).status).toBe(400);
+    const elsewhere = await relay('/backup', {
+      headers: { Origin: 'https://evil.example', Authorization: `Bearer ${KEY}` },
+    });
+    expect(elsewhere.status).toBe(403);
+  });
+
+  it('allows PUT in the preflight', async () => {
+    const response = await relay('/backup', { method: 'OPTIONS', headers: { Origin: APP } });
+    expect(response.headers.get('Access-Control-Allow-Methods')).toContain('PUT');
+  });
+});

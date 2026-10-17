@@ -1,9 +1,11 @@
+import { backupName, MAX_BACKUP_BYTES, MIN_BACKUP_KEY_LENGTH } from './backups';
 import { CODE_TTL_MS, MAX_PHOTO_BYTES, normaliseCode, randomCode, randomToken } from './codes';
+import { JarBackup } from './JarBackup';
 import { codePage, homePage, htmlResponse } from './pages';
 import { PhotoDrop } from './PhotoDrop';
 import { qrSvg } from './qr';
 
-export { PhotoDrop };
+export { JarBackup, PhotoDrop };
 
 // Wish Jar (the device) asks for a code and collects the photo through /codes,
 // with CORS; the phone gets its page, sends the photo and the QR code is drawn
@@ -14,7 +16,7 @@ export default {
     const { pathname } = url;
     const method = request.method;
 
-    if (pathname === '/codes' || pathname.startsWith('/codes/')) {
+    if (pathname === '/codes' || pathname.startsWith('/codes/') || pathname === '/backup') {
       return api(request, env, url);
     }
     if (method === 'GET' && pathname === '/') return htmlResponse(homePage());
@@ -59,6 +61,11 @@ export default {
 //   GET    /codes/:code/photo  → 200 the JPEG (once), 204 not yet, 403, 410
 //   DELETE /codes/:code        → 204, 403, 410
 // The token (Authorization: Bearer) is what proves it's the device that asked.
+//
+// And the Echo Show's database backup (WJ-45), with its Alexa device id as the
+// bearer key:
+//   GET    /backup             → 200 the snapshot, 404 none yet, 401
+//   PUT    /backup             → 204, 401, 413
 async function api(request: Request, env: Env, url: URL): Promise<Response> {
   const origin = request.headers.get('Origin');
   const allowed = env.ALLOWED_ORIGINS.split(',').map((entry) => entry.trim());
@@ -74,7 +81,7 @@ async function api(request: Request, env: Env, url: URL): Promise<Response> {
 
   if (request.method === 'OPTIONS') {
     return reply(null, 204, {
-      'Access-Control-Allow-Methods': 'GET, POST, DELETE',
+      'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE',
       'Access-Control-Allow-Headers': 'Authorization',
       // Polling would otherwise ask again before every collect.
       'Access-Control-Max-Age': '600',
@@ -95,9 +102,28 @@ async function api(request: Request, env: Env, url: URL): Promise<Response> {
     return reply('No free code, try again', 503);
   }
 
+  const token = request.headers.get('Authorization')?.match(/^Bearer (.+)$/)?.[1] ?? '';
+
+  if (url.pathname === '/backup') {
+    if (token.length < MIN_BACKUP_KEY_LENGTH) return reply('Missing backup key', 401);
+    const backup = env.JAR_BACKUPS.getByName(await backupName(token));
+    if (request.method === 'GET') {
+      const snapshot = await backup.load();
+      if (!snapshot) return reply('No backup yet', 404);
+      return reply(snapshot, 200, { 'Content-Type': 'application/octet-stream' });
+    }
+    if (request.method === 'PUT') {
+      const snapshot = await readCapped(request, MAX_BACKUP_BYTES);
+      if (!snapshot) return reply('Backup too big', 413);
+      if (snapshot.byteLength === 0) return reply('Empty backup', 400);
+      await backup.save(snapshot);
+      return reply(null, 204);
+    }
+    return reply('Not found', 404);
+  }
+
   const match = url.pathname.match(/^\/codes\/([^/]+)(\/photo)?$/);
   const code = match && normaliseCode(match[1]);
-  const token = request.headers.get('Authorization')?.match(/^Bearer (.+)$/)?.[1] ?? '';
   if (match && !code) return reply('Code has run out', 410);
 
   if (code && match?.[2] && request.method === 'GET') {
