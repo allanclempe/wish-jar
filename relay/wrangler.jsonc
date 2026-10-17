@@ -1,7 +1,7 @@
 // The photo relay: lets a parent send a photo from their phone to Wish Jar on
 // a device that can't pick one itself (WJ-41). Runs on the Workers Free plan.
-// Deploy with `pnpm install && pnpm run deploy` here, with CLOUDFLARE_API_TOKEN
-// set, then put its address in src/photos/phoneRelay.ts.
+// Merges to main that touch relay/ deploy it (.github/workflows/relay.yml);
+// its address is PHOTO_RELAY_URL in src/photos/phoneRelay.ts.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "wish-jar-photo-relay",
