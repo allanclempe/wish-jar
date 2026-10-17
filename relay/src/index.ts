@@ -2,6 +2,7 @@ import { CODE_TTL_MS, MAX_PHOTO_BYTES, normaliseCode, randomCode, randomToken } 
 import { devicesApi } from './devices';
 import { EchoShowLink } from './EchoShowLink';
 import { callJar, createFamily } from './families';
+import { deletePhoto, parsePhotoPath, showPhoto, uploadPhoto } from './familyPhotos';
 import { FamilyJar } from './FamilyJar';
 import { corsReply, readCapped } from './http';
 import { JoinAttempts, JoinCode } from './JoinCode';
@@ -15,7 +16,7 @@ export { EchoShowLink, FamilyJar, JoinAttempts, JoinCode, PhotoDrop };
 // with CORS; the phone gets its page, sends the photo and the QR code is drawn
 // from this Worker itself, so the phone never opens Wish Jar.
 export default {
-  async fetch(request, env): Promise<Response> {
+  async fetch(request, env, ctx): Promise<Response> {
     const url = new URL(request.url);
     const { pathname } = url;
     const method = request.method;
@@ -40,6 +41,10 @@ export default {
         });
       }
       return devicesApi(request, env, url, reply);
+    }
+    // The family's photos (WJ-49): src/familyPhotos.ts.
+    if (pathname === '/photos' || pathname.startsWith('/photos/')) {
+      return photosApi(request, env, ctx, pathname);
     }
     if (method === 'GET' && pathname === '/') return htmlResponse(homePage());
     // The form on / sends the typed code here.
@@ -153,6 +158,38 @@ async function familyApi(request: Request, env: Env, pathname: string): Promise<
   }
   if (request.method !== 'POST') return reply('Use POST', 405, { Allow: 'POST, OPTIONS' });
   return pathname === '/families' ? createFamily(request, env, reply) : callJar(request, env, reply);
+}
+
+// The family's photos (WJ-49). Showing one needs only its URL, from any page
+// (an <img> sends no token); uploading and deleting are for Wish Jar's own
+// pages, with CORS like the other device endpoints.
+async function photosApi(
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext,
+  pathname: string,
+): Promise<Response> {
+  const method = request.method;
+  const photo = parsePhotoPath(pathname);
+  if ((method === 'GET' || method === 'HEAD') && photo) {
+    return showPhoto(request, env, ctx, photo.familyId, photo.photoId);
+  }
+
+  const reply = corsReply(request, env);
+  if (!reply) return text('Origin not allowed', 403);
+  if (method === 'OPTIONS') {
+    return reply(null, 204, {
+      'Access-Control-Allow-Methods': 'POST, DELETE',
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+      'Access-Control-Max-Age': '600',
+    });
+  }
+  if (pathname === '/photos') {
+    return method === 'POST' ? uploadPhoto(request, env, reply) : reply('Use POST', 405, { Allow: 'POST, OPTIONS' });
+  }
+  if (!photo) return reply('No such photo', 404);
+  if (method !== 'DELETE') return reply('Use GET or DELETE', 405, { Allow: 'GET, DELETE, OPTIONS' });
+  return deletePhoto(request, env, reply, photo.familyId, photo.photoId);
 }
 
 // The phone's photo, already cropped and shrunk by its page (src/pages.ts).

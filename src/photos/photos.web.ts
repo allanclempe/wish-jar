@@ -1,28 +1,28 @@
-// expo-file-system is not available on web, so kid photos are stored as
-// data URIs directly in the database instead of as files on disk.
-
+import type { FamilyJar } from '../db/jar';
+import { uploadPhoto } from '../db/photos';
 import { shrinkPhoto } from './shrink';
 
-export async function storePhoto(sourceUri: string): Promise<string> {
-  // Scaled down first when it is bigger than a photo card needs
-  // (src/photos/shrink.ts); the frame's own 512 px Frameo photos stay as they are.
-  const shrunk = await shrinkPhoto(sourceUri, true);
-  if (shrunk?.base64) {
-    return `data:image/jpeg;base64,${shrunk.base64}`;
+// Puts the photo in the family jar (WJ-49), scaled down first when it is
+// bigger than a photo card needs (src/photos/shrink.ts); its URL, the same on
+// every device of the family. Works for every way a photo arrives here: a
+// picked file, a Frameo photo the frame app serves (/frameo/photos), or one
+// sent from a phone through the photo relay (a data: URI).
+export async function storePhoto(jar: FamilyJar, sourceUri: string): Promise<string> {
+  const shrunk = await shrinkPhoto(sourceUri);
+  try {
+    const response = await fetch(shrunk.uri);
+    return await uploadPhoto(jar, new Uint8Array(await response.arrayBuffer()));
+  } finally {
+    if (shrunk.uri.startsWith('blob:')) URL.revokeObjectURL(shrunk.uri);
   }
-  if (sourceUri.startsWith('data:')) {
-    return sourceUri;
-  }
-  const response = await fetch(sourceUri);
-  const blob = await response.blob();
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result as string);
-    reader.onerror = () => reject(reader.error);
-    reader.readAsDataURL(blob);
-  });
 }
 
-export function removePhoto(_photoUri: string | null): void {
-  // Nothing to clean up — the photo lives in the database row.
+// The photo to show, or null for the fallback emoji. A file kept on a phone
+// before WJ-49 can't be shown here; that phone puts it in the jar.
+export function shownPhoto(photoUri: string | null): string | null {
+  return photoUri?.startsWith('file:') ? null : photoUri;
 }
+
+// Web photos were data: URIs in the jar's own rows, which the jar moves into
+// its photos table by itself (relay/src/jar/photos.ts): nothing to do here.
+export async function moveLocalPhotosOnline(_jar: FamilyJar): Promise<void> {}

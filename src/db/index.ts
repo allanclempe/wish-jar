@@ -10,3 +10,4 @@ export * from './consequences';
 export * from './wishes';
 export * from './settings';
 export * from './devices';
+export * from './photos';

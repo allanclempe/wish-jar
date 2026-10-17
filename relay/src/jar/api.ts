@@ -89,7 +89,8 @@ export type JarApi = {
   listKids: Fn<[], Kid[]>;
   getKid: Fn<[kidId: number], Kid | null>;
   insertKid: Fn<[input: KidInput], number>;
-  // The previous photo, so the caller can remove it once replaced.
+  // The previous photo. The jar deletes a photo of its own that nothing shows
+  // any more itself (WJ-49), here and wherever a call returns photos.
   updateKid: Fn<[kidId: number, input: KidInput], string | null>;
   setKidPhoto: Fn<[kidId: number, photoUri: string | null], string | null>;
   // The photos left behind: the kid's and their wishes'.
@@ -137,6 +138,11 @@ export type JarApi = {
   setParentPin: Fn<[pin: string], null>;
   getSoundEnabled: Fn<[], boolean>;
   setSoundEnabled: Fn<[enabled: boolean], null>;
+
+  // Points every kid, task, wish and consequence type showing `from` at
+  // `to`: a photo kept on one phone, once that phone has put it in the jar
+  // (WJ-49). How many changed; 0 when nothing shows `from` any more.
+  replacePhoto: Fn<[from: string, to: string], number>;
 };
 
 export type JarFn = keyof JarApi;
@@ -241,3 +247,14 @@ export type DeviceList = { devices: Device[] };
 //   POST /devices/echo-show       EchoShowRequest → 200 CreateFamilyReply, 400,
 //                                 404 (not linked, or removed from its family)
 export type EchoShowRequest = { alexaDeviceId: string };
+
+// The family's photos (WJ-49), kept in its jar. A photo column holds the
+// photo's URL, GET /photos/<familyId>/<photo id>.jpg: the id is 32 random
+// bytes, so the URL is all an <img> needs, and it never changes (a new photo
+// gets a new URL). A photo nothing shows any more is deleted by the jar.
+//   POST   /photos  (device token, image/jpeg, up to 1 MB) → 201 PhotoUpload,
+//                   401, 413, 415 (not a JPEG), 507 (jar full)
+//   GET    /photos/:familyId/:id.jpg → 200 the photo, 404
+//   DELETE /photos/:familyId/:id.jpg (device token) → 204, 401, 404,
+//                   409 (something still shows it)
+export type PhotoUpload = { url: string };

@@ -8,12 +8,13 @@ import { ScrollScreen } from '../src/components/ScrollScreen';
 import { IconPicker, CONSEQUENCE_EMOJIS } from '../src/components/Icons';
 import {
   deleteConsequenceType,
+  discardPhoto,
   getConsequenceType,
   updateConsequenceType,
   useFamilyJar,
   type Icon,
 } from '../src/db';
-import { removePhoto, storePhoto } from '../src/photos/photos';
+import { storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
 type Errors = { name?: string; coinAmount?: string };
@@ -71,20 +72,17 @@ export default function EditConsequenceTypeScreen() {
     let savedPhotoUri = icon.photoUri;
     try {
       if (icon.photoUri && icon.photoUri !== originalPhotoUri) {
-        savedPhotoUri = await storePhoto(icon.photoUri);
+        savedPhotoUri = await storePhoto(jar, icon.photoUri);
       }
-      const previousPhotoUri = await updateConsequenceType(jar, consequenceTypeId, {
+      await updateConsequenceType(jar, consequenceTypeId, {
         name,
         coinAmount: Number(coinAmount.trim()),
         icon: { emoji: icon.emoji, photoUri: savedPhotoUri },
       });
-      if (previousPhotoUri !== savedPhotoUri) {
-        removePhoto(previousPhotoUri);
-      }
       router.back();
     } catch {
       if (savedPhotoUri !== icon.photoUri) {
-        removePhoto(savedPhotoUri);
+        discardPhoto(jar, savedPhotoUri);
       }
       Alert.alert('Could not save', 'Something went wrong while saving. Please try again.');
       setSaving(false);
@@ -95,7 +93,7 @@ export default function EditConsequenceTypeScreen() {
     if (saving) return;
     setSaving(true);
     try {
-      removePhoto(await deleteConsequenceType(jar, consequenceTypeId));
+      await deleteConsequenceType(jar, consequenceTypeId);
       router.back();
     } catch {
       Alert.alert('Could not delete', 'Something went wrong while deleting. Please try again.');

@@ -19,7 +19,8 @@ export function insertConsequenceType(
   return jar.call('insertConsequenceType', input);
 }
 
-// Returns the type's previous photo, so the caller can remove it once replaced.
+// Returns the type's previous photo, which the jar deletes itself once nothing
+// shows it (photos.ts).
 export function updateConsequenceType(
   jar: FamilyJar,
   consequenceTypeId: number,
@@ -28,8 +29,9 @@ export function updateConsequenceType(
   return jar.call('updateConsequenceType', consequenceTypeId, input);
 }
 
-// Entries already logged keep their name and coins, and show the fallback
-// icon from then on. Returns the type's photo, so the caller can remove it.
+// Entries already logged keep their name and coins, and show the fallback icon
+// from then on. Returns the type's photo, which the jar deletes itself
+// (photos.ts).
 export function deleteConsequenceType(
   jar: FamilyJar,
   consequenceTypeId: number,

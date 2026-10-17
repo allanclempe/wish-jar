@@ -7,8 +7,16 @@ import { DeleteButton } from '../src/components/DeleteButton';
 import { ScrollScreen } from '../src/components/ScrollScreen';
 import { IconPicker } from '../src/components/Icons';
 import { PeriodPicker } from '../src/components/PeriodPicker';
-import { deleteTask, getTask, updateTask, useFamilyJar, type Icon, type Period } from '../src/db';
-import { removePhoto, storePhoto } from '../src/photos/photos';
+import {
+  deleteTask,
+  discardPhoto,
+  getTask,
+  updateTask,
+  useFamilyJar,
+  type Icon,
+  type Period,
+} from '../src/db';
+import { storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
 type Errors = { name?: string; coinAmount?: string };
@@ -68,21 +76,18 @@ export default function EditTaskScreen() {
     let savedPhotoUri = icon.photoUri;
     try {
       if (icon.photoUri && icon.photoUri !== originalPhotoUri) {
-        savedPhotoUri = await storePhoto(icon.photoUri);
+        savedPhotoUri = await storePhoto(jar, icon.photoUri);
       }
-      const previousPhotoUri = await updateTask(jar, taskId, {
+      await updateTask(jar, taskId, {
         name,
         period,
         coinAmount: Number(coinAmount.trim()),
         icon: { emoji: icon.emoji, photoUri: savedPhotoUri },
       });
-      if (previousPhotoUri !== savedPhotoUri) {
-        removePhoto(previousPhotoUri);
-      }
       router.back();
     } catch {
       if (savedPhotoUri !== icon.photoUri) {
-        removePhoto(savedPhotoUri);
+        discardPhoto(jar, savedPhotoUri);
       }
       Alert.alert('Could not save', 'Something went wrong while saving. Please try again.');
       setSaving(false);
@@ -93,7 +98,7 @@ export default function EditTaskScreen() {
     if (saving) return;
     setSaving(true);
     try {
-      removePhoto(await deleteTask(jar, taskId));
+      await deleteTask(jar, taskId);
       router.back();
     } catch {
       Alert.alert('Could not delete', 'Something went wrong while deleting. Please try again.');

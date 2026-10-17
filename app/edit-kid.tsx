@@ -5,10 +5,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DeleteButton } from '../src/components/DeleteButton';
 import { ScrollScreen } from '../src/components/ScrollScreen';
-import { deleteKid, getKid, updateKid, useFamilyJar } from '../src/db';
+import { deleteKid, discardPhoto, getKid, updateKid, useFamilyJar } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { PhotoSourceButtons, usePickPhoto } from '../src/photos/PhotoPicker';
-import { removePhoto, storePhoto } from '../src/photos/photos';
+import { shownPhoto, storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
 export default function EditKidScreen() {
@@ -55,17 +55,14 @@ export default function EditKidScreen() {
     let savedPhotoUri = photoUri;
     try {
       if (photoUri && photoUri !== originalPhotoUri) {
-        savedPhotoUri = await storePhoto(photoUri);
+        savedPhotoUri = await storePhoto(jar, photoUri);
       }
-      const previousPhotoUri = await updateKid(jar, kidId, { name, photoUri: savedPhotoUri });
-      if (previousPhotoUri !== savedPhotoUri) {
-        removePhoto(previousPhotoUri);
-      }
+      await updateKid(jar, kidId, { name, photoUri: savedPhotoUri });
       await refreshKids();
       router.back();
     } catch {
       if (savedPhotoUri !== photoUri) {
-        removePhoto(savedPhotoUri);
+        discardPhoto(jar, savedPhotoUri);
       }
       Alert.alert('Could not save', 'Something went wrong while saving. Please try again.');
       setSaving(false);
@@ -76,7 +73,7 @@ export default function EditKidScreen() {
     if (saving) return;
     setSaving(true);
     try {
-      (await deleteKid(jar, kidId)).forEach(removePhoto);
+      await deleteKid(jar, kidId);
       await refreshKids();
       router.back();
     } catch {
@@ -85,6 +82,8 @@ export default function EditKidScreen() {
     }
   }
 
+  const shownPhotoUri = shownPhoto(photoUri);
+
   if (!loaded) {
     return <SafeAreaView style={styles.safe} />;
   }
@@ -92,8 +91,8 @@ export default function EditKidScreen() {
   return (
     <ScrollScreen>
       <Pressable style={styles.photo} onPress={choosePhoto} accessibilityRole="button">
-        {photoUri ? (
-          <Image source={{ uri: photoUri }} style={styles.photoImage} />
+        {shownPhotoUri ? (
+          <Image source={{ uri: shownPhotoUri }} style={styles.photoImage} />
         ) : (
           <Text style={styles.photoPlaceholder}>📷</Text>
         )}

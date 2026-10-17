@@ -16,7 +16,8 @@ export function insertTask(
   return jar.call('insertTask', input);
 }
 
-// Returns the task's previous photo, so the caller can remove it once replaced.
+// Returns the task's previous photo, which the jar deletes itself once nothing
+// shows it (photos.ts).
 export function updateTask(
   jar: FamilyJar,
   taskId: number,
@@ -26,7 +27,7 @@ export function updateTask(
 }
 
 // Its ticks go with it, but the coins they earned stay in the kids' savings.
-// Returns the task's photo, so the caller can remove it.
+// Returns the task's photo, which the jar deletes itself (photos.ts).
 export function deleteTask(jar: FamilyJar, taskId: number): Promise<string | null> {
   return jar.call('deleteTask', taskId);
 }

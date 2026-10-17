@@ -4,13 +4,24 @@ import type { Device } from './jar/api';
 import { findCall } from './jar/calls';
 import { importJar } from './jar/importJar';
 import { MAX_JAR_BYTES } from './jar/limits';
+import {
+  addPhoto,
+  deletePhoto,
+  dropPhotos,
+  moveDataPhotos,
+  photoUrl,
+  readPhoto,
+  type StoredPhoto,
+  sweepPhotos,
+} from './jar/photos';
 import { isJar, migrateJar, STARTER_CONSEQUENCE_TYPES } from './jar/schema';
 import { all, first, insert, run } from './jar/sql';
 import { id, JarError, type JarErrorStatus, label, record } from './jar/validate';
 
-// What the Worker gets back: the result, or the status and why.
+// What the Worker gets back: the result, or the status and why. `dropped` are
+// the photos the call deleted, for the Worker to forget too (src/familyPhotos.ts).
 export type JarOutcome =
-  | { ok: true; result: unknown }
+  | { ok: true; result: unknown; dropped?: string[] }
   | { ok: false; status: JarErrorStatus; error: string };
 
 const NOT_A_DEVICE: JarOutcome = { ok: false, status: 401, error: 'Not a device of this family' };
@@ -19,10 +30,20 @@ const NOT_A_DEVICE: JarOutcome = { ok: false, status: 401, error: 'Not a device 
 // the jar all day doesn't spend the Free plan's daily writes on it.
 const SEEN_EVERY_MS = 10 * 60_000;
 
+// Set in jar_meta once the photos kept as data: URIs are in the photos table.
+const PHOTOS_MOVED = 'photos_moved';
+
 // One per family, named by its id: the family's whole jar in its own SQLite.
 // A Durable Object runs one call at a time and its SQL runs synchronously, so
 // writes from all of a family's devices land one after another.
+//
+// `photoBase` is where the Worker serves this family's photos from
+// (`${origin}/photos/${familyId}/`), the start of every photo URL the jar
+// hands out.
 export class FamilyJar extends DurableObject<Env> {
+  // Whether the photos kept as data: URIs have moved (movePhotosOnce).
+  private photosMoved = false;
+
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
     // Before any call, so every call sees the current tables.
@@ -31,7 +52,7 @@ export class FamilyJar extends DurableObject<Env> {
 
   // Sets up a new family with its first device, from an existing jar when
   // `request.jar` is given (see CreateFamilyRequest).
-  async create(secret: string, request: unknown): Promise<JarOutcome> {
+  async create(secret: string, request: unknown, photoBase: string): Promise<JarOutcome> {
     const hash = await hashSecret(secret);
     const storage = this.ctx.storage;
     if (isJar(storage)) return { ok: false, status: 409, error: 'Family already exists' };
@@ -42,24 +63,70 @@ export class FamilyJar extends DurableObject<Env> {
         migrateJar(storage);
         if (body.jar === undefined) storage.sql.exec(STARTER_CONSEQUENCE_TYPES);
         else importJar(storage, body.jar);
+        moveDataPhotos(storage, photoBase);
+        run(storage, "INSERT INTO jar_meta (key, value) VALUES (?, '1')", PHOTOS_MOVED);
         insert(storage, 'INSERT INTO devices (secret_hash, label) VALUES (?, ?)', hash, device);
         return null;
       }),
     );
   }
 
-  // Runs one allowlisted function for a device holding `secret`.
-  async call(secret: string, fn: unknown, args: unknown): Promise<JarOutcome> {
+  // Runs one allowlisted function for a device holding `secret`. A photo the
+  // call leaves with nothing showing it is deleted with it, and a data: URI
+  // it brings becomes a photo of the jar's own.
+  async call(secret: string, fn: unknown, args: unknown, photoBase: string): Promise<JarOutcome> {
     const hash = await hashSecret(secret);
     const storage = this.ctx.storage;
     if (!isJar(storage) || this.seen(hash) == null) return NOT_A_DEVICE;
-    return outcome(() => {
+    this.movePhotosOnce(photoBase);
+    let dropped: string[] = [];
+    const done = outcome(() => {
       const found = findCall(fn, args);
       if (found.call.kind === 'write' && storage.sql.databaseSize >= MAX_JAR_BYTES) {
         throw new JarError(507, 'The jar is full: delete something first');
       }
-      return found.call.run(storage, found.args);
+      return storage.transactionSync(() => {
+        const result = found.call.run(storage, found.args);
+        if (found.call.leftBehind) dropped = dropPhotos(storage, found.call.leftBehind(found.args, result));
+        if (found.call.kind !== 'read' && JSON.stringify(found.args).includes('"data:')) {
+          moveDataPhotos(storage, photoBase);
+        }
+        return result;
+      });
     });
+    return done.ok && dropped.length > 0 ? { ...done, dropped } : done;
+  }
+
+  // Keeps an uploaded JPEG (already checked by the Worker) for a device of
+  // the family; its URL. Uploads nothing came to show are tidied up here too.
+  async addPhoto(secret: string, data: ArrayBuffer, photoBase: string): Promise<JarOutcome> {
+    const hash = await hashSecret(secret);
+    const storage = this.ctx.storage;
+    if (!isJar(storage) || this.seen(hash) == null) return NOT_A_DEVICE;
+    const dropped = sweepPhotos(storage, Date.now());
+    if (storage.sql.databaseSize + data.byteLength >= MAX_JAR_BYTES) {
+      return { ok: false, status: 507, error: 'The jar is full: delete something first' };
+    }
+    const url = photoUrl(photoBase, addPhoto(storage, new Uint8Array(data)));
+    return { ok: true, result: url, dropped };
+  }
+
+  // The photo, for anyone holding its URL: the id is the secret.
+  async photo(photoId: string): Promise<StoredPhoto | null> {
+    if (!isJar(this.ctx.storage)) return null;
+    return readPhoto(this.ctx.storage, photoId);
+  }
+
+  // An upload a device of the family didn't save after all. A photo that
+  // something shows stays (409).
+  async deletePhoto(secret: string, photoId: string): Promise<JarOutcome> {
+    const hash = await hashSecret(secret);
+    const storage = this.ctx.storage;
+    if (!isJar(storage) || this.seen(hash) == null) return NOT_A_DEVICE;
+    const result = deletePhoto(storage, photoId);
+    if (result === 'gone') return { ok: false, status: 404, error: 'No such photo' };
+    if (result === 'in use') return { ok: false, status: 409, error: 'Something still shows that photo' };
+    return { ok: true, result: null, dropped: [photoId] };
   }
 
   // Whether `secret` is one of the family's devices, before the Worker hands
@@ -163,6 +230,22 @@ export class FamilyJar extends DurableObject<Env> {
       run(storage, 'DELETE FROM devices WHERE id = ?', target);
       return null;
     });
+  }
+
+  // A jar from before WJ-49 keeps web photos as data: URIs in its rows; they
+  // move into the photos table at its first call since, when the jar knows
+  // the URL to give them. A jar a device uploads (WJ-47) moves them as the
+  // family is created.
+  private movePhotosOnce(photoBase: string): void {
+    if (this.photosMoved) return;
+    const storage = this.ctx.storage;
+    if (!first(storage, 'SELECT 1 FROM jar_meta WHERE key = ?', PHOTOS_MOVED)) {
+      storage.transactionSync(() => {
+        moveDataPhotos(storage, photoBase);
+        run(storage, "INSERT INTO jar_meta (key, value) VALUES (?, '1')", PHOTOS_MOVED);
+      });
+    }
+    this.photosMoved = true;
   }
 
   // The id of the family's device with this hash, or null, checking every one

@@ -9,9 +9,13 @@ export const MAX_JAR_BYTES = 50 * 1024 * 1024;
 export const MAX_NAME_LENGTH = 100;
 export const MAX_LABEL_LENGTH = 60;
 export const MAX_EMOJI_LENGTH = 32;
-// A photo is a file path on phones and a data: URI on the web (up to 1024 px,
-// usually a few hundred KB). A SQLite row in a Durable Object holds 2 MB.
+// A photo is the URL of one in the jar (WJ-49). Older jars also hold file
+// paths from phones and data: URIs from the web (up to 1024 px, usually a few
+// hundred KB), which the jar turns into photos of its own.
 export const MAX_PHOTO_URI_LENGTH = 1024 * 1024;
+// One photo in the jar: a JPEG up to 1024 px, usually 100 to 300 KB. A SQLite
+// row in a Durable Object holds 2 MB.
+export const MAX_JAR_PHOTO_BYTES = 1024 * 1024;
 
 // Wishes can cost up to 6 digits in the app, tasks and consequences 5.
 export const MAX_COINS = 999_999;

@@ -1,4 +1,5 @@
 import { randomToken } from './codes';
+import { forgetPhotos, photoBase } from './familyPhotos';
 import type { JarOutcome } from './FamilyJar';
 import { readCapped, type Reply } from './http';
 import type { CreateFamilyReply } from './jar/api';
@@ -26,7 +27,11 @@ export async function createFamily(request: Request, env: Env, reply: Reply): Pr
   const familyId = randomToken();
   const secret = randomToken();
   // Typed by hand: RPC typing can't carry `unknown` through.
-  const outcome = (await env.FAMILY_JARS.getByName(familyId).create(secret, body)) as JarOutcome;
+  const outcome = (await env.FAMILY_JARS.getByName(familyId).create(
+    secret,
+    body,
+    photoBase(request, familyId),
+  )) as JarOutcome;
   if (!outcome.ok) return refuse(outcome, reply);
   const created: CreateFamilyReply = { token: `${familyId}.${secret}`, familyId };
   return reply(JSON.stringify(created), 201, { 'Content-Type': 'application/json' });
@@ -47,8 +52,9 @@ export async function callJar(request: Request, env: Env, reply: Reply): Promise
   const { fn, args } = body as { fn?: unknown; args?: unknown };
 
   const jar = env.FAMILY_JARS.getByName(device.familyId);
-  const outcome = (await jar.call(device.secret, fn, args)) as JarOutcome;
+  const outcome = (await jar.call(device.secret, fn, args, photoBase(request, device.familyId))) as JarOutcome;
   if (!outcome.ok) return refuse(outcome, reply);
+  await forgetPhotos(request, device.familyId, outcome.dropped);
   return reply(JSON.stringify({ result: outcome.result }), 200, { 'Content-Type': 'application/json' });
 }
 

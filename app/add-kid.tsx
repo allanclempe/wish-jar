@@ -3,10 +3,10 @@ import { useState } from 'react';
 import { Alert, Image, Pressable, StyleSheet, Text, TextInput } from 'react-native';
 
 import { ScrollScreen } from '../src/components/ScrollScreen';
-import { insertKid, useFamilyJar } from '../src/db';
+import { discardPhoto, insertKid, useFamilyJar } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { PhotoSourceButtons, usePickPhoto } from '../src/photos/PhotoPicker';
-import { removePhoto, storePhoto } from '../src/photos/photos';
+import { storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
 export default function AddKidScreen() {
@@ -29,12 +29,12 @@ export default function AddKidScreen() {
     setSaving(true);
     let storedPhotoUri: string | null = null;
     try {
-      storedPhotoUri = photoUri ? await storePhoto(photoUri) : null;
+      storedPhotoUri = photoUri ? await storePhoto(jar, photoUri) : null;
       await insertKid(jar, { name, photoUri: storedPhotoUri });
       await refreshKids();
       router.back();
     } catch {
-      removePhoto(storedPhotoUri);
+      discardPhoto(jar, storedPhotoUri);
       Alert.alert('Could not save', 'Something went wrong while saving. Please try again.');
       setSaving(false);
     }

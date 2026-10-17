@@ -16,7 +16,8 @@ export function insertWish(
   return jar.call('insertWish', input);
 }
 
-// Returns the wish's previous photo, so the caller can remove it once replaced.
+// Returns the wish's previous photo, which the jar deletes itself once nothing
+// shows it (photos.ts).
 export function updateWish(
   jar: FamilyJar,
   wishId: number,
@@ -25,8 +26,8 @@ export function updateWish(
   return jar.call('updateWish', wishId, input);
 }
 
-// A claimed wish's coins stay spent. Returns the wish's photo, so the caller
-// can remove it.
+// A claimed wish's coins stay spent. Returns the wish's photo, which the jar
+// deletes itself (photos.ts).
 export function deleteWish(jar: FamilyJar, wishId: number): Promise<string | null> {
   return jar.call('deleteWish', wishId);
 }

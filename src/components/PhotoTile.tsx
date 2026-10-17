@@ -3,6 +3,7 @@ import type { ReactNode } from 'react';
 import { Image, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import type { Icon } from '../db';
+import { shownPhoto } from '../photos/photos';
 import { colors, fonts, offsetShadow, radius, spacing, sunshineShadow } from '../theme';
 
 // Tilting every other tile a touch makes a grid of them look laid out by hand.
@@ -62,7 +63,8 @@ export function PhotoTile({
   above,
   style,
 }: PhotoTileProps) {
-  const photo = icon.photoUri != null;
+  const photoUri = shownPhoto(icon.photoUri);
+  const photo = photoUri != null;
   const nameSize = nameFontSize(name, large);
 
   return (
@@ -79,7 +81,7 @@ export function PhotoTile({
       >
         {photo ? (
           <Image
-            source={{ uri: icon.photoUri ?? undefined }}
+            source={{ uri: photoUri ?? undefined }}
             style={styles.photo}
             resizeMode="cover"
           />

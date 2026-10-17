@@ -1,3 +1,5 @@
+import { fetch as expoFetch } from 'expo/fetch';
+
 import type {
   CreateFamilyReply,
   CreateFamilyRequest,
@@ -6,6 +8,7 @@ import type {
   JarFn,
   JarImport,
   JoinRequest,
+  PhotoUpload,
 } from '../../relay/src/jar/api';
 import { PHOTO_RELAY_URL } from '../photos/phoneRelay';
 
@@ -21,6 +24,8 @@ export const JAR_URL = process.env.EXPO_PUBLIC_JAR_URL || PHOTO_RELAY_URL;
 const CALL_TIMEOUT_MS = 15_000;
 // A whole jar going up, photos and all, on the first launch.
 const CREATE_TIMEOUT_MS = 60_000;
+// A photo of a few hundred KB, on a frame's slow Wi-Fi.
+const UPLOAD_TIMEOUT_MS = 60_000;
 
 // A call the jar didn't answer. `status` is the relay's HTTP status, or null
 // when the relay couldn't be reached at all.
@@ -56,6 +61,8 @@ export type FamilyJar = {
   // The relay's other endpoints for a device of the family, such as its
   // devices (devices.ts). GET reads; the rest wait their turn like writes.
   send<T>(method: Method, path: string): Promise<T>;
+  // Puts a JPEG in the family jar (WJ-49); its URL.
+  upload(jpeg: Uint8Array<ArrayBuffer>): Promise<string>;
 };
 
 // What went wrong on a call, so the app can show the reconnecting screen.
@@ -93,6 +100,10 @@ export function createJarClient(token: string, onProblem?: (problem: JarProblem)
     send(method, path) {
       return queued(method === 'GET', () => request(method, path, undefined, CALL_TIMEOUT_MS, token));
     },
+    upload(jpeg) {
+      // Not behind the writes: nothing shows the photo until a write saves it.
+      return queued(true, () => uploadJpeg(jpeg, token)).then((body) => body.url);
+    },
   };
 }
 
@@ -129,6 +140,33 @@ export async function rejoinEchoShow(alexaDeviceId: string): Promise<CreateFamil
 export async function linkEchoShow(token: string, alexaDeviceId: string): Promise<void> {
   const body: EchoShowRequest = { alexaDeviceId };
   await request('POST', '/devices/echo-show/link', body, CALL_TIMEOUT_MS, token);
+}
+
+// expo/fetch on phones, which sends bytes as they are; the browser's own fetch
+// on the web.
+async function uploadJpeg(jpeg: Uint8Array<ArrayBuffer>, token: string): Promise<PhotoUpload> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
+  try {
+    let response;
+    try {
+      response = await expoFetch(`${JAR_URL}/photos`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'image/jpeg', Authorization: `Bearer ${token}` },
+        body: jpeg,
+        signal: controller.signal,
+      });
+    } catch (error) {
+      throw new JarCallError(`Family jar: ${String(error)}`, null);
+    }
+    if (!response.ok) {
+      const reason = await response.text().catch(() => '');
+      throw new JarCallError(reason || `Family jar: HTTP ${response.status}`, response.status);
+    }
+    return (await response.json()) as PhotoUpload;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // Replies with no content (204) come back as null.
