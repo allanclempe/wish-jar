@@ -9,6 +9,9 @@ import { JoinFamilyForm } from './JoinFamilyForm';
 type Props = {
   // Start was tapped and the family is being made.
   starting: boolean;
+  // Said under the choices, such as whether an Echo Show will find its family
+  // by itself next time (WJ-45).
+  note?: string | null;
   onStart: () => void;
   onJoined: (token: string) => void;
 };
@@ -17,7 +20,7 @@ type Props = {
 // family's jar here, or join the one the family already has with a code from
 // another of its devices. A phone that scanned a join code's QR code lands
 // here with the code filled in (?join=).
-export function SetUpJar({ starting, onStart, onJoined }: Props) {
+export function SetUpJar({ starting, note, onStart, onJoined }: Props) {
   const { join } = useGlobalSearchParams<{ join?: string }>();
   const [joining, setJoining] = useState(() => typeof join === 'string' && join.length > 0);
 
@@ -63,6 +66,7 @@ export function SetUpJar({ starting, onStart, onJoined }: Props) {
                 disabled={starting}
                 onPress={() => setJoining(true)}
               />
+              {note ? <Text style={styles.note}>{note}</Text> : null}
             </>
           )}
         </View>
@@ -140,5 +144,6 @@ const styles = StyleSheet.create({
   choiceTitle: { ...typography.heading, color: colors.text },
   choiceSubtitle: { ...typography.caption, color: colors.textMuted },
   chevron: { fontSize: 32, color: colors.primary, fontFamily: fonts.semibold },
+  note: { ...typography.caption, color: colors.textMuted, textAlign: 'center', marginTop: spacing.sm },
   back: { ...typography.body, color: colors.textMuted, fontFamily: fonts.semibold, marginTop: spacing.sm },
 });

@@ -4,9 +4,9 @@
 // (WJ-47), a second device (WJ-48) is the backup.
 //
 // The Echo Show's browser has no localStorage (null) and starts every skill
-// session with empty storage anyway, so there the token lives only in memory
-// and each session starts on the setup screen (start a jar or join one, WJ-48).
-// Giving the Show a lasting place in a family is WJ-45's.
+// session with empty storage anyway, so there both are kept in sessionStorage,
+// for reloads within the skill session. At its next launch the Show gets a new
+// token from the relay with its Alexa device id (WJ-45, src/db/open.ts).
 export type DeviceState = {
   // "<familyId>.<secret>" (relay/src/families.ts).
   token: string | null;
@@ -18,10 +18,16 @@ const ACTIVE_KID_KEY = 'wish-jar:active-kid-id';
 
 let current: DeviceState = { token: null, activeKidId: null };
 
-// localStorage, or null where there is none or it may not be used.
+// localStorage; sessionStorage where there's no localStorage (the Echo
+// Show); null where neither may be used.
 function storage(): Storage | null {
   try {
-    return globalThis.localStorage ?? null;
+    if (globalThis.localStorage) return globalThis.localStorage;
+  } catch {
+    // Blocked: try sessionStorage.
+  }
+  try {
+    return globalThis.sessionStorage ?? null;
   } catch {
     return null;
   }
@@ -44,9 +50,9 @@ export async function loadDevice(): Promise<DeviceState> {
   return current;
 }
 
-// Without localStorage the state stays in memory for this page only (see
-// above). Where there is one, a failed write throws: a token that isn't kept
-// is a jar lost at the next launch.
+// Without any storage the state stays in memory for this page only. Where
+// there is some, a failed write throws: a token that isn't kept is a jar lost
+// at the next launch.
 export async function saveDevice(state: DeviceState): Promise<void> {
   current = state;
   const store = storage();

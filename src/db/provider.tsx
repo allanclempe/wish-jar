@@ -14,7 +14,7 @@ import { SetUpJar } from '../family/SetUpJar';
 import { colors, fonts, radius, spacing, typography } from '../theme';
 import { FirstLaunchBusy } from './firstLaunch';
 import { createJarClient, JarCallError, type FamilyJar, type JarProblem } from './jar';
-import { openFamilyJar, startFamilyJar } from './open';
+import { echoShowSetupNote, openFamilyJar, startFamilyJar } from './open';
 
 // While the relay can't be reached, the app tries again this often by itself:
 // a frame on the wall has nobody to tap "Try again".
@@ -74,7 +74,14 @@ export function FamilyJarProvider({ children }: PropsWithChildren) {
   }
   if (token === undefined) return null;
   if (token === null) {
-    return <SetUpJar starting={starting} onStart={() => setStarting(true)} onJoined={switchFamily} />;
+    return (
+      <SetUpJar
+        starting={starting}
+        note={echoShowSetupNote()}
+        onStart={() => setStarting(true)}
+        onJoined={switchFamily}
+      />
+    );
   }
   // A new token is another family: everything under it starts afresh.
   return (
