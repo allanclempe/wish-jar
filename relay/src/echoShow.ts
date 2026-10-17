@@ -1,3 +1,4 @@
+import { takeLimit, waitHeaders } from './CallerLimits';
 import { randomToken } from './codes';
 import { parseDeviceToken, readJson, refuse } from './families';
 import type { JarOutcome } from './FamilyJar';
@@ -57,6 +58,8 @@ async function rejoin(request: Request, env: Env, reply: Reply): Promise<Respons
   const alexaDeviceId = await readAlexaDeviceId(request, reply);
   if (alexaDeviceId instanceof Response) return alexaDeviceId;
 
+  const wait = await takeLimit(request, env, 'echoShows');
+  if (wait != null) return reply('Too many tries: wait a little', 429, waitHeaders(wait));
   const hash = await echoShowHash(alexaDeviceId);
   const showLink = env.ECHO_SHOW_LINKS.getByName(hash);
   const familyId = await showLink.familyId();

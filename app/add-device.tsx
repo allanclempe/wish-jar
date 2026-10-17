@@ -6,8 +6,10 @@ import { ScrollScreen } from '../src/components/ScrollScreen';
 import {
   closeJoinCode,
   createJoinCode,
+  JarCallError,
   listDevices,
   useFamilyJar,
+  waitWords,
   type Device,
   type JoinCode,
 } from '../src/db';
@@ -22,6 +24,8 @@ const QR_SIZE = 200;
 type ScreenState =
   | { status: 'loading' }
   | { status: 'error' }
+  // The relay asked to wait (WJ-51): too many codes from this connection.
+  | { status: 'busy'; wait: string }
   | { status: 'waiting'; code: JoinCode }
   | { status: 'expired' }
   | { status: 'joined'; device: Device };
@@ -67,8 +71,10 @@ export default function AddDeviceScreen() {
         open = created;
         setState({ status: 'waiting', code: created });
         timer = setTimeout(() => poll(created, known), POLL_MS);
-      } catch {
-        if (!stopped) setState({ status: 'error' });
+      } catch (error) {
+        if (stopped) return;
+        if (error instanceof JarCallError && error.tooMany) setState({ status: 'busy', wait: waitWords(error) });
+        else setState({ status: 'error' });
       }
     }
 
@@ -96,6 +102,16 @@ export default function AddDeviceScreen() {
   if (state.status === 'error') {
     return (
       <Message emoji="📶" text="Couldn't get a code. Check the internet, then try again.">
+        <Button label="Try again" onPress={newCode} />
+      </Message>
+    );
+  }
+  if (state.status === 'busy') {
+    return (
+      <Message
+        emoji="⏳"
+        text={`Lots of codes have been asked for from this internet connection. Wait ${state.wait}, then try again.`}
+      >
         <Button label="Try again" onPress={newCode} />
       </Message>
     );

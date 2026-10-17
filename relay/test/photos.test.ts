@@ -2,6 +2,8 @@ import { runInDurableObject } from 'cloudflare:test';
 import { env, exports } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 
+import { fromSomewhere } from './caller';
+
 import type { CreateFamilyReply, Icon, JarApi, JarFn, JarImport, PhotoUpload } from '../src/jar/api';
 import { MAX_JAR_BYTES, MAX_JAR_PHOTO_BYTES } from '../src/jar/limits';
 import { FORGOTTEN_AFTER_MS } from '../src/jar/photos';
@@ -13,7 +15,7 @@ const NO_ICON: Icon = { emoji: null, photoUri: null };
 const ID = '[A-Za-z0-9_-]{43}';
 
 function relay(path: string, init?: RequestInit) {
-  return exports.default.fetch(new Request(path.startsWith('http') ? path : `${BASE}${path}`, init));
+  return exports.default.fetch(fromSomewhere(new Request(path.startsWith('http') ? path : `${BASE}${path}`, init)));
 }
 
 // A few bytes that start like a JPEG, different every time.

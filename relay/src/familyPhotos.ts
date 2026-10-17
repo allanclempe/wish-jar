@@ -1,3 +1,4 @@
+import { takeLimit, waitHeaders } from './CallerLimits';
 import { parseDeviceToken, refuse } from './families';
 import type { JarOutcome } from './FamilyJar';
 import { readCapped, type Reply } from './http';
@@ -32,6 +33,8 @@ export async function uploadPhoto(request: Request, env: Env, reply: Reply): Pro
   const device = parseDeviceToken(request.headers.get('Authorization'));
   if (!device) return reply('Not a device of this family', 401, { 'WWW-Authenticate': 'Bearer' });
   if (request.headers.get('Content-Type') !== 'image/jpeg') return reply('Send a JPEG', 415);
+  const wait = await takeLimit(request, env, 'uploads');
+  if (wait != null) return reply('Too many photos at once: wait a little', 429, waitHeaders(wait));
   const photo = await readCapped(request, MAX_JAR_PHOTO_BYTES);
   if (!photo) return reply('Photo too big', 413);
   if (!isJpeg(new Uint8Array(photo))) return reply('Send a JPEG', 415);

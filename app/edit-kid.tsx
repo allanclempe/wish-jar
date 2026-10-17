@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DeleteButton } from '../src/components/DeleteButton';
 import { ScrollScreen } from '../src/components/ScrollScreen';
-import { deleteKid, discardPhoto, getKid, updateKid, useFamilyJar } from '../src/db';
+import { deleteKid, discardPhoto, getKid, saveProblem, updateKid, useFamilyJar } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { PhotoSourceButtons, usePickPhoto } from '../src/photos/PhotoPicker';
 import { shownPhoto, storePhoto } from '../src/photos/photos';
@@ -64,11 +64,11 @@ export default function EditKidScreen() {
       await updateKid(jar, kidId, { name, photoUri: savedPhotoUri });
       await refreshKids();
       router.back();
-    } catch {
+    } catch (error) {
       if (savedPhotoUri !== photoUri) {
         discardPhoto(jar, savedPhotoUri);
       }
-      Alert.alert('Could not save', 'Something went wrong while saving. Please try again.');
+      Alert.alert('Could not save', saveProblem(error));
       setSaving(false);
     }
   }

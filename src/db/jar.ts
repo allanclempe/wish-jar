@@ -28,11 +28,13 @@ const CREATE_TIMEOUT_MS = 60_000;
 const UPLOAD_TIMEOUT_MS = 60_000;
 
 // A call the jar didn't answer. `status` is the relay's HTTP status, or null
-// when the relay couldn't be reached at all.
+// when the relay couldn't be reached at all. `retryAfter` is how many seconds
+// the relay asked to wait, when it said.
 export class JarCallError extends Error {
   constructor(
     message: string,
     readonly status: number | null,
+    readonly retryAfter: number | null = null,
   ) {
     super(message);
     this.name = 'JarCallError';
@@ -41,7 +43,14 @@ export class JarCallError extends Error {
   // The connection, not the call, is at fault: the same call will do once the
   // relay is back.
   get lost(): boolean {
-    return this.status === null || this.status === 429 || this.status >= 500;
+    return this.status === null || this.status >= 500;
+  }
+
+  // This internet connection did too much of something just now, such as
+  // starting families or sending photos (WJ-51): the same call will do once
+  // the wait is over (waitWords), not straight away.
+  get tooMany(): boolean {
+    return this.status === 429;
   }
 
   // The relay doesn't know this device's token: it was removed from its
@@ -165,14 +174,46 @@ async function uploadJpeg(jpeg: Uint8Array<ArrayBuffer>, token: string): Promise
     } catch (error) {
       throw new JarCallError(`Family jar: ${String(error)}`, null);
     }
-    if (!response.ok) {
-      const reason = await response.text().catch(() => '');
-      throw new JarCallError(reason || `Family jar: HTTP ${response.status}`, response.status);
-    }
+    if (!response.ok) throw await refusal(response);
     return (await response.json()) as PhotoUpload;
   } finally {
     clearTimeout(timer);
   }
+}
+
+// "a minute", "20 minutes", "3 hours": how long the relay asked to wait, in
+// words, rounded up.
+export function waitWords(error: JarCallError): string {
+  return wordsFor(error.retryAfter);
+}
+
+export function wordsFor(seconds: number | null): string {
+  if (seconds == null) return 'a few minutes';
+  const minutes = Math.max(1, Math.ceil(seconds / 60));
+  if (minutes === 1) return 'a minute';
+  if (minutes < 60) return `${minutes} minutes`;
+  const hours = Math.ceil(minutes / 60);
+  return hours === 1 ? 'an hour' : `${hours} hours`;
+}
+
+// What a save screen says when a save didn't go through.
+export function saveProblem(error: unknown): string {
+  if (error instanceof JarCallError && error.tooMany) {
+    return `Lots of photos went up from this internet connection just now. Wait ${waitWords(error)}, then try again.`;
+  }
+  return 'Something went wrong while saving. Please try again.';
+}
+
+// The relay's refusal, with what it says in plain text ("The jar is full:
+// delete something first").
+async function refusal(response: Response): Promise<JarCallError> {
+  const reason = await response.text().catch(() => '');
+  const wait = Number(response.headers.get('Retry-After'));
+  return new JarCallError(
+    reason || `Family jar: HTTP ${response.status}`,
+    response.status,
+    Number.isFinite(wait) && wait > 0 ? wait : null,
+  );
 }
 
 // Replies with no content (204) come back as null.
@@ -201,11 +242,7 @@ async function request<T>(
   } finally {
     clearTimeout(timer);
   }
-  if (!response.ok) {
-    // The relay says why in plain text ("The jar is full: delete something first").
-    const reason = await response.text().catch(() => '');
-    throw new JarCallError(reason || `Family jar: HTTP ${response.status}`, response.status);
-  }
+  if (!response.ok) throw await refusal(response);
   if (response.status === 204) return null as T;
   try {
     return (await response.json()) as T;

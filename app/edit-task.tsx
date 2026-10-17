@@ -11,6 +11,7 @@ import {
   deleteTask,
   discardPhoto,
   getTask,
+  saveProblem,
   updateTask,
   useFamilyJar,
   type Icon,
@@ -89,11 +90,11 @@ export default function EditTaskScreen() {
         icon: { emoji: icon.emoji, photoUri: savedPhotoUri },
       });
       router.back();
-    } catch {
+    } catch (error) {
       if (savedPhotoUri !== icon.photoUri) {
         discardPhoto(jar, savedPhotoUri);
       }
-      Alert.alert('Could not save', 'Something went wrong while saving. Please try again.');
+      Alert.alert('Could not save', saveProblem(error));
       setSaving(false);
     }
   }

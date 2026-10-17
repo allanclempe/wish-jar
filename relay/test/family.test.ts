@@ -2,6 +2,8 @@ import { runInDurableObject } from 'cloudflare:test';
 import { env, exports } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 
+import { fromSomewhere } from './caller';
+
 import type * as App from '../../src/db/types';
 import type * as Jar from '../src/jar/api';
 import type { CreateFamilyReply, Icon, JarApi, JarFn, JarImport } from '../src/jar/api';
@@ -25,7 +27,7 @@ const DAY = '2026-10-17';
 const NO_ICON: Icon = { emoji: null, photoUri: null };
 
 function relay(path: string, init?: RequestInit) {
-  return exports.default.fetch(new Request(`${BASE}${path}`, init));
+  return exports.default.fetch(fromSomewhere(new Request(`${BASE}${path}`, init)));
 }
 
 function createFamily(body?: unknown, headers: Record<string, string> = {}) {

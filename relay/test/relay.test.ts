@@ -2,6 +2,8 @@ import { runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';
 import { env, exports } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 
+import { fromSomewhere } from './caller';
+
 import { CODE_LETTERS, MAX_PHOTO_BYTES } from '../src/codes';
 
 const BASE = 'https://relay.example';
@@ -10,7 +12,7 @@ const APP = 'https://wish-jar.expo.app';
 type Code = { code: string; token: string; expiresAt: number; url: string };
 
 function relay(path: string, init?: RequestInit) {
-  return exports.default.fetch(new Request(`${BASE}${path}`, init));
+  return exports.default.fetch(fromSomewhere(new Request(`${BASE}${path}`, init)));
 }
 
 async function newCode(): Promise<Code> {

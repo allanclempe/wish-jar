@@ -15,7 +15,7 @@ import { SetUpJar } from '../family/SetUpJar';
 import { colors, fonts, radius, spacing, typography } from '../theme';
 import { moveLocalPhotosOnline } from '../photos/photos';
 import { FirstLaunchBusy } from './firstLaunch';
-import { createJarClient, JarCallError, type FamilyJar, type JarProblem } from './jar';
+import { createJarClient, JarCallError, waitWords, type FamilyJar, type JarProblem } from './jar';
 import { connectLive, createJarChanges, newClientId, type JarChanges, type JarTable } from './live';
 import { echoShowSetupNote, openFamilyJar, startFamilyJar } from './open';
 
@@ -43,6 +43,8 @@ export function FamilyJarProvider({ children }: PropsWithChildren) {
   // undefined until known; null when the device has no family yet.
   const [token, setToken] = useState<string | null | undefined>(undefined);
   const [openFailure, setOpenFailure] = useState<unknown>(null);
+  // Why the last Start a new jar didn't go through, said on the setup screen.
+  const [startRefused, setStartRefused] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -54,7 +56,17 @@ export function FamilyJarProvider({ children }: PropsWithChildren) {
         setToken(opened);
       },
       (error: unknown) => {
-        if (!cancelled) setOpenFailure(error);
+        if (cancelled) return;
+        // Too many new jars from this internet connection (WJ-51): back to
+        // the choices, saying so, as joining the family's jar still works.
+        if (starting && error instanceof JarCallError && error.tooMany) {
+          setStartRefused(
+            `Lots of new jars have been started from this internet connection today. Try again in ${waitWords(error)}, or join a family jar with a code.`,
+          );
+          setStarting(false);
+          return;
+        }
+        setOpenFailure(error);
       },
     );
     return () => {
@@ -69,11 +81,17 @@ export function FamilyJarProvider({ children }: PropsWithChildren) {
     setToken(joined);
   }, []);
 
-  // A lost connection is tried again by itself, after every failed try;
-  // anything else waits for a tap.
+  // A lost connection is tried again by itself, after every failed try, and
+  // so is a relay that asked to wait (WJ-51), once the wait is over; anything
+  // else waits for a tap.
   useEffect(() => {
-    if (!(openFailure instanceof JarCallError && openFailure.lost)) return;
-    const timer = setTimeout(retryOpening, RECONNECT_EVERY_MS);
+    if (!(openFailure instanceof JarCallError)) return;
+    let wait: number;
+    if (openFailure.lost) wait = RECONNECT_EVERY_MS;
+    else if (openFailure.tooMany) wait = Math.max(RECONNECT_EVERY_MS, (openFailure.retryAfter ?? 60) * 1000);
+    else return;
+    // setTimeout gives up past about 24 days; the relay never asks for that.
+    const timer = setTimeout(retryOpening, Math.min(wait, 2 ** 31 - 1));
     return () => clearTimeout(timer);
   }, [openFailure, retryOpening]);
 
@@ -85,8 +103,11 @@ export function FamilyJarProvider({ children }: PropsWithChildren) {
     return (
       <SetUpJar
         starting={starting}
-        note={echoShowSetupNote()}
-        onStart={() => setStarting(true)}
+        note={startRefused ?? echoShowSetupNote()}
+        onStart={() => {
+          setStartRefused(null);
+          setStarting(true);
+        }}
         onJoined={switchFamily}
       />
     );
@@ -222,6 +243,11 @@ function openingMessage(error: unknown): string {
   if (error instanceof FirstLaunchBusy) return error.message;
   if (!(error instanceof JarCallError)) {
     return 'Could not open the jar kept on this device. Try again.';
+  }
+  // The relay's limits for one internet connection (WJ-51), such as an Echo
+  // Show's rejoins.
+  if (error.tooMany) {
+    return `Wish Jar has opened lots of times from this internet connection just now. It tries again by itself in ${waitWords(error)}.`;
   }
   // The jar is online only (WJ-47), and the Echo Show keeps nothing at all:
   // what's safe is the jar itself, not this device's copy.

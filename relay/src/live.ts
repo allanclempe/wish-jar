@@ -1,3 +1,4 @@
+import { takeLimit, waitHeaders } from './CallerLimits';
 import { parseDeviceToken } from './families';
 import { corsReply } from './http';
 
@@ -61,12 +62,16 @@ export async function liveApi(request: Request, env: Env): Promise<Response> {
   }
   const device = liveToken(request);
   if (!device) return refusedSocket();
+  // A failed upgrade looks like a lost connection to the app, which tries
+  // again later, backing off: what's wanted here.
+  const wait = await takeLimit(request, env, 'live');
+  if (wait != null) return text('Too many connections: wait a little', 429, waitHeaders(wait));
   return env.FAMILY_JARS.getByName(device.familyId).fetch(request);
 }
 
-function text(body: string, status: number): Response {
+function text(body: string, status: number, headers: Record<string, string> = {}): Response {
   return new Response(body, {
     status,
-    headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' },
+    headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', ...headers },
   });
 }
