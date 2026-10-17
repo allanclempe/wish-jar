@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wish Jar: Alexa check</title>
+<!-- Diagnostic page for the Echo Show web view. Plain ES5 on purpose, so it
+     still runs if the device's engine is too old for the app bundle. -->
+<script src="https://cdn.html.games.alexa.a2z.com/alexa-html/latest/alexa-html.js"></script>
+<style>
+  body { margin: 0; padding: 16px 20px 40px; font: 20px/1.35 sans-serif; background: #fff; color: #222; }
+  h1 { font-size: 26px; margin: 0 0 12px; }
+  table { border-collapse: collapse; width: 100%; }
+  td { padding: 4px 8px; border-bottom: 1px solid #ddd; vertical-align: top; }
+  td:first-child { width: 34%; font-weight: bold; }
+  .ok { color: #08702a; } .bad { color: #b00020; } .info { color: #555; }
+  button { font-size: 22px; padding: 12px 20px; margin: 16px 12px 0 0; }
+  #errors { position: fixed; left: 0; right: 0; bottom: 0; max-height: 45%; overflow: auto;
+    background: #b00020; color: #fff; font: 16px/1.3 monospace; padding: 8px 12px;
+    z-index: 2147483647; white-space: pre-wrap; display: none; }
+</style>
+</head>
+<body>
+<h1>Wish Jar: Alexa check</h1>
+<table id="results"></table>
+<button id="run-app">Run the app here</button>
+<button id="rerun">Check again</button>
+<div id="errors"></div>
+<script>
+(function () {
+  var errorsBox = document.getElementById('errors');
+  function showError(text) {
+    errorsBox.style.display = 'block';
+    errorsBox.appendChild(document.createTextNode(text + '\n'));
+  }
+  window.addEventListener('error', function (e) {
+    var where = e.filename ? ' (' + e.filename.split('/').pop() + ':' + e.lineno + ':' + e.colno + ')' : '';
+    var target = e.target && e.target !== window && (e.target.src || e.target.href);
+    showError('Error: ' + (e.message || ('failed to load ' + target)) + where);
+  }, true);
+  window.addEventListener('unhandledrejection', function (e) {
+    var r = e.reason;
+    showError('Unhandled rejection: ' + (r && (r.stack || r.message) || String(r)));
+  });
+  ['error', 'warn'].forEach(function (level) {
+    var original = console[level];
+    console[level] = function () {
+      var parts = [];
+      for (var i = 0; i < arguments.length; i++) {
+        var a = arguments[i];
+        parts.push(a instanceof Error ? (a.stack || a.message) : typeof a === 'object' ? safeJson(a) : String(a));
+      }
+      showError('console.' + level + ': ' + parts.join(' '));
+      return original.apply(console, arguments);
+    };
+  });
+  function safeJson(value) {
+    try { return JSON.stringify(value); } catch (e) { return String(value); }
+  }
+
+  var table = document.getElementById('results');
+  function row(name, status, detail) {
+    var tr = document.createElement('tr');
+    var label = document.createElement('td');
+    label.textContent = name;
+    var value = document.createElement('td');
+    value.className = status;
+    value.textContent = detail;
+    tr.appendChild(label);
+    tr.appendChild(value);
+    table.appendChild(tr);
+    return value;
+  }
+  function pending(name) {
+    var cell = row(name, 'info', 'checking...');
+    return function (status, detail) { cell.className = status; cell.textContent = detail; };
+  }
+  function message(e) { return (e && (e.name ? e.name + ': ' : '') + (e.message || '')) || String(e); }
+
+  var now = new Date().toISOString();
+  var MARKER = 'wish-jar-alexa-check';
+
+  function runChecks() {
+    table.innerHTML = '';
+    errorsBox.innerHTML = '';
+    errorsBox.style.display = 'none';
+
+    var chrome = /Chrome\/([\d.]+)/.exec(navigator.userAgent);
+    row('Chromium', chrome ? 'info' : 'bad', chrome ? chrome[1] : 'not found');
+    row('User agent', 'info', navigator.userAgent);
+    row('Screen', 'info', screen.width + 'x' + screen.height + ' @' + window.devicePixelRatio + 'x, window ' + innerWidth + 'x' + innerHeight);
+    row('Cross-origin isolated', window.crossOriginIsolated ? 'ok' : 'bad', String(window.crossOriginIsolated));
+    row('SharedArrayBuffer', typeof SharedArrayBuffer === 'function' ? 'ok' : 'bad', typeof SharedArrayBuffer);
+    row('WebAssembly', typeof WebAssembly === 'object' ? 'ok' : 'bad', typeof WebAssembly);
+    row('Web Locks', navigator.locks ? 'ok' : 'bad', navigator.locks ? 'yes' : 'no');
+    row('Worker', typeof Worker === 'function' ? 'ok' : 'bad', typeof Worker);
+
+    var syntax = [
+      ['optional chaining', 'var a = {}; return a?.b;'],
+      ['nullish ??', 'return null ?? 1;'],
+      ['class fields', 'class A { x = 1; #y = 2; } return new A().x;'],
+      ['async/await', 'return (async function () { await 0; })();'],
+      ['logical assignment', 'var a = null; a ??= 1; return a;']
+    ];
+    var syntaxOk = [], syntaxBad = [];
+    syntax.forEach(function (s) {
+      try { new Function(s[1])(); syntaxOk.push(s[0]); } catch (e) { syntaxBad.push(s[0] + ' (' + message(e) + ')'); }
+    });
+    row('Modern JS syntax', syntaxBad.length ? 'bad' : 'ok',
+      syntaxBad.length ? 'missing: ' + syntaxBad.join(', ') : 'all supported');
+
+    ['localStorage', 'sessionStorage'].forEach(function (name) {
+      try {
+        var store = window[name];
+        var previous = store.getItem(MARKER);
+        store.setItem(MARKER, now);
+        row(name, 'ok', 'works; last visit: ' + (previous || 'none'));
+      } catch (e) {
+        row(name, 'bad', message(e));
+      }
+    });
+
+    var idb = pending('IndexedDB');
+    try {
+      var open = indexedDB.open(MARKER, 1);
+      open.onupgradeneeded = function () { open.result.createObjectStore('kv'); };
+      open.onerror = function () { idb('bad', message(open.error)); };
+      open.onsuccess = function () {
+        var db = open.result;
+        var tx = db.transaction('kv', 'readwrite');
+        var store = tx.objectStore('kv');
+        var get = store.get('visit');
+        get.onsuccess = function () {
+          store.put(now, 'visit');
+          idb('ok', 'works; last visit: ' + (get.result || 'none'));
+        };
+        get.onerror = function () { idb('bad', message(get.error)); };
+      };
+    } catch (e) {
+      idb('bad', message(e));
+    }
+
+    var opfs = pending('OPFS (main thread)');
+    if (!navigator.storage || !navigator.storage.getDirectory) {
+      opfs('bad', 'navigator.storage.getDirectory missing');
+    } else {
+      navigator.storage.getDirectory().then(function (dir) {
+        return dir.getFileHandle(MARKER + '.txt', { create: true });
+      }).then(function (handle) {
+        return handle.getFile().then(function (file) { return file.text(); }).then(function (previous) {
+          return handle.createWritable().then(function (w) {
+            return w.write(now).then(function () { return w.close(); });
+          }).then(function () { opfs('ok', 'works; last visit: ' + (previous || 'none')); });
+        });
+      }).catch(function (e) { opfs('bad', message(e)); });
+    }
+
+    var persisted = pending('Persistent storage');
+    if (navigator.storage && navigator.storage.persisted) {
+      navigator.storage.persisted().then(function (p) {
+        return navigator.storage.estimate().then(function (est) {
+          persisted('info', 'persisted: ' + p + ', quota: ' + Math.round(est.quota / 1048576) + ' MB');
+        });
+      }).catch(function (e) { persisted('bad', message(e)); });
+    } else {
+      persisted('bad', 'navigator.storage.persisted missing');
+    }
+
+    // wa-sqlite's AccessHandlePoolVFS (used by expo-sqlite on web) needs
+    // createSyncAccessHandle inside a worker.
+    var sync = pending('OPFS sync handle (worker)');
+    try {
+      var source = [
+        'self.onmessage = function () {',
+        '  if (!self.navigator.storage || !self.navigator.storage.getDirectory) { postMessage("bad|getDirectory missing in worker"); return; }',
+        '  navigator.storage.getDirectory().then(function (d) { return d.getFileHandle("' + MARKER + '-sync.bin", { create: true }); })',
+        '  .then(function (f) { if (!f.createSyncAccessHandle) throw new Error("createSyncAccessHandle missing"); return f.createSyncAccessHandle(); })',
+        '  .then(function (h) { h.close(); postMessage("ok|works"); })',
+        '  .catch(function (e) { postMessage("bad|" + (e.name ? e.name + ": " : "") + e.message); });',
+        '};'
+      ].join('\n');
+      var worker = new Worker(URL.createObjectURL(new Blob([source], { type: 'text/javascript' })));
+      var timer = setTimeout(function () { sync('bad', 'no answer from worker after 10 s'); worker.terminate(); }, 10000);
+      worker.onmessage = function (e) {
+        clearTimeout(timer);
+        var parts = String(e.data).split('|');
+        sync(parts[0], parts.slice(1).join('|'));
+        worker.terminate();
+      };
+      worker.onerror = function (e) { clearTimeout(timer); sync('bad', 'worker error: ' + (e.message || 'unknown')); };
+      worker.postMessage('go');
+    } catch (e) {
+      sync('bad', message(e));
+    }
+
+    var alexa = pending('Alexa client');
+    if (typeof Alexa === 'undefined') {
+      alexa('bad', 'alexa-html.js did not load');
+    } else {
+      Alexa.create({ version: '1.1' }).then(function (result) {
+        window.alexaClient = result.alexa;
+        alexa('ok', 'ready; start data: ' + safeJson(result.message));
+      }).catch(function (e) {
+        alexa('bad', 'Alexa.create failed: ' + (e && (e.message || safeJson(e))));
+      });
+    }
+  }
+
+  // Loads the real app into this page, keeping the error overlay above it,
+  // so any error that leaves the app white shows up on screen.
+  function runApp() {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '/', true);
+    xhr.onload = function () {
+      var doc = new DOMParser().parseFromString(xhr.responseText, 'text/html');
+      var scripts = [];
+      Array.prototype.forEach.call(doc.querySelectorAll('script'), function (s) {
+        scripts.push(s);
+        s.parentNode.removeChild(s);
+      });
+      document.head.innerHTML = doc.head.innerHTML;
+      document.body.innerHTML = doc.body.innerHTML;
+      // The app's head replaced the check page's stylesheet, so style inline.
+      errorsBox.style.cssText = 'position:fixed;left:0;right:0;bottom:0;max-height:45%;overflow:auto;' +
+        'background:#b00020;color:#fff;font:16px/1.3 monospace;padding:8px 12px;z-index:2147483647;' +
+        'white-space:pre-wrap;display:block';
+      document.body.appendChild(errorsBox);
+      history.replaceState(null, '', '/');
+      scripts.forEach(function (old) {
+        var s = document.createElement('script');
+        for (var i = 0; i < old.attributes.length; i++) {
+          s.setAttribute(old.attributes[i].name, old.attributes[i].value);
+        }
+        s.async = false;
+        if (!old.src) s.text = old.text;
+        document.body.appendChild(s);
+      });
+      showError('App loaded into the check page. Errors appear here.');
+      setTimeout(function () {
+        if (errorsBox.childNodes.length === 1) errorsBox.style.display = 'none';
+      }, 4000);
+    };
+    xhr.onerror = function () { showError('Could not fetch / (' + xhr.status + ')'); };
+    xhr.send();
+  }
+
+  document.getElementById('rerun').onclick = runChecks;
+  document.getElementById('run-app').onclick = runApp;
+  runChecks();
+})();
+</script>
+</body>
+</html>
