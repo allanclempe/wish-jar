@@ -1,19 +1,20 @@
 import * as Haptics from 'expo-haptics';
-import { useFocusEffect } from 'expo-router';
-import { useCallback, useMemo, useState } from 'react';
+import { useFocusEffect, useIsFocused } from 'expo-router';
+import { memo, useCallback, useMemo, useState } from 'react';
 import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Celebration, FadeInUp } from '../../src/components/Animations';
 import { EmptyState } from '../../src/components/EmptyState';
+import { HiddenWhenBlurred } from '../../src/components/HiddenWhenBlurred';
 import { IconBadge } from '../../src/components/Icons';
 import { DreamSky } from '../../src/components/Sky';
 import { WishCard } from '../../src/components/WishCard';
 import { claimWish, listWishes, useDatabase, type Wish } from '../../src/db';
-import { useActiveKid } from '../../src/kids/ActiveKidProvider';
+import { useActiveKid, useSavings } from '../../src/kids/ActiveKidProvider';
 import { useParentLock } from '../../src/parent/ParentLockProvider';
 import { colors, dreamSky, fonts, radius, spacing, typography, useLargeScreen } from '../../src/theme';
-import { orderWishes, type WishProgress } from '../../src/wishes/order';
+import { orderWishes, sameWishes, type WishProgress } from '../../src/wishes/order';
 
 // The hero card: as wide as the list, wider than tall, and capped on the
 // frame so the closest wish does not swallow the screen.
@@ -23,9 +24,32 @@ const HERO_MAX_WIDTH = 760;
 // The grid tiles stand a little taller than wide, like the task tiles.
 const TILE_ASPECT = 0.8;
 
-export default function WishlistScreen() {
+export default function WishlistTab() {
+  return (
+    <HiddenWhenBlurred>
+      <WishlistScreen />
+    </HiddenWhenBlurred>
+  );
+}
+
+// Memoized: expo-router re-renders the tab's route on every tab switch, and
+// on the frame redrawing a whole screen for that was most of the switch.
+const WishlistScreen = memo(function WishlistScreen() {
+  const { activeKid } = useActiveKid();
+  const savings = useSavings();
+  const focused = useIsFocused();
+  const liveCoins = activeKid ? (savings[activeKid.id] ?? 0) : 0;
+  // While another tab is in front the board keeps the coins it last showed,
+  // so a tick doesn't re-render every hidden wish card; it catches up as the
+  // tab comes back, before it shows.
+  const [coins, setCoins] = useState(liveCoins);
+  if (focused && coins !== liveCoins) setCoins(liveCoins);
+  return <WishBoard coins={coins} />;
+});
+
+const WishBoard = memo(function WishBoard({ coins }: { coins: number }) {
   const db = useDatabase();
-  const { activeKid, savings, recordSavingsChange } = useActiveKid();
+  const { activeKid, recordSavingsChange } = useActiveKid();
   const large = useLargeScreen();
   const { requestPin } = useParentLock();
   const [wishes, setWishes] = useState<Wish[]>([]);
@@ -37,7 +61,7 @@ export default function WishlistScreen() {
     useCallback(() => {
       let cancelled = false;
       listWishes(db).then((loaded) => {
-        if (!cancelled) setWishes(loaded);
+        if (!cancelled) setWishes((current) => (sameWishes(current, loaded) ? current : loaded));
       });
       return () => {
         cancelled = true;
@@ -80,7 +104,6 @@ export default function WishlistScreen() {
     return state === 'unlocked' ? () => claim(wish) : state === 'locked' ? nudgeLocked : undefined;
   }
 
-  const coins = activeKid ? (savings[activeKid.id] ?? 0) : 0;
   const columns = large ? 4 : 2;
   const ordered = useMemo(() => {
     if (!activeKid) return [];
@@ -177,7 +200,7 @@ export default function WishlistScreen() {
       <Celebration burst={burst} />
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: { flex: 1 },

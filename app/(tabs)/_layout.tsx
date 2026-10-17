@@ -1,8 +1,7 @@
 import { Tabs } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { Animated, StyleSheet } from 'react-native';
+import { StyleSheet, Text } from 'react-native';
 
-import { useNativeDriver } from '../../src/components/Animations';
+import { SpringTo } from '../../src/components/Animations';
 import { BottomTabBar } from '../../src/components/BottomTabBar';
 import { TopTabBar } from '../../src/components/TopTabBar';
 import { useActiveKid } from '../../src/kids/ActiveKidProvider';
@@ -13,29 +12,11 @@ import { useLargeScreen, useTabsOnTop } from '../../src/theme';
 // thumb already shows the choice, and a bigger icon would sit off-centre in it.
 function TabEmoji({ emoji, focused }: { emoji: string; focused: boolean }) {
   const large = useLargeScreen();
-  const [focus] = useState(() => new Animated.Value(focused ? 1 : 0));
-
-  useEffect(() => {
-    Animated.spring(focus, {
-      toValue: focused ? 1 : 0,
-      friction: 8,
-      tension: 90,
-      useNativeDriver,
-    }).start();
-  }, [focused, focus]);
 
   return (
-    <Animated.Text
-      style={[
-        styles.emoji,
-        large && styles.emojiLarge,
-        {
-          opacity: focus.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] }),
-        },
-      ]}
-    >
-      {emoji}
-    </Animated.Text>
+    <SpringTo to={{ opacity: focused ? 1 : 0.55 }}>
+      <Text style={[styles.emoji, large && styles.emojiLarge]}>{emoji}</Text>
+    </SpringTo>
   );
 }
 

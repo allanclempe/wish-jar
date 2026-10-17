@@ -1,9 +1,10 @@
 import { useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { memo, useCallback, useState } from 'react';
 import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmptyState } from '../../src/components/EmptyState';
+import { HiddenWhenBlurred } from '../../src/components/HiddenWhenBlurred';
 import { IconBadge } from '../../src/components/Icons';
 import { listConsequences, removeConsequence, useDatabase, type Consequence } from '../../src/db';
 import { useActiveKid } from '../../src/kids/ActiveKidProvider';
@@ -12,7 +13,17 @@ import { dayKey } from '../../src/tasks/day';
 import { FadeInUp } from '../../src/components/Animations';
 import { colors, fonts, offsetShadow, radius, shadow, spacing, typography, useLargeScreen } from '../../src/theme';
 
-export default function ConsequencesScreen() {
+export default function ConsequencesTab() {
+  return (
+    <HiddenWhenBlurred>
+      <ConsequencesScreen />
+    </HiddenWhenBlurred>
+  );
+}
+
+// Memoized: expo-router re-renders the tab's route on every tab switch, and
+// on the frame redrawing a whole screen for that was most of the switch.
+const ConsequencesScreen = memo(function ConsequencesScreen() {
   const db = useDatabase();
   const { activeKid, recordSavingsChange } = useActiveKid();
   const large = useLargeScreen();
@@ -110,7 +121,7 @@ export default function ConsequencesScreen() {
       </View>
     </SafeAreaView>
   );
-}
+});
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },

@@ -1,8 +1,9 @@
 import type { Tabs } from 'expo-router';
-import { useEffect, useRef, useState, type ComponentProps } from 'react';
-import { Animated, Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
+import { useState, type ComponentProps } from 'react';
+import { Pressable, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 
 import { colors, fonts, offsetShadow, radius, spacing, useLargeScreen } from '../theme';
+import { SpringTo } from './Animations';
 
 export type TabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>['tabBar']>>[0] & {
   // Fill the width available, each tab an equal share: the bottom bar on phones.
@@ -21,32 +22,9 @@ export function TabToggle({ state, descriptors, navigation, stretch = false }: T
   // The tabs are as wide as their labels, so the thumb follows their measured
   // positions rather than a fixed width.
   const [layouts, setLayouts] = useState<Record<string, TabLayout>>({});
-  const [left] = useState(() => new Animated.Value(0));
-  const [width] = useState(() => new Animated.Value(0));
-  const [opacity] = useState(() => new Animated.Value(0));
-  const placed = useRef(false);
 
   const focusedKey = state.routes[state.index]?.key;
   const target = focusedKey ? layouts[focusedKey] : undefined;
-  const targetX = target?.x;
-  const targetWidth = target?.width;
-
-  useEffect(() => {
-    if (targetX === undefined || targetWidth === undefined) return;
-    if (!placed.current) {
-      // The first time, the thumb appears where it belongs instead of sliding in.
-      placed.current = true;
-      left.setValue(targetX);
-      width.setValue(targetWidth);
-      opacity.setValue(1);
-      return;
-    }
-    // Layout values can't use the native driver.
-    Animated.parallel([
-      Animated.spring(left, { toValue: targetX, friction: 8, tension: 90, useNativeDriver: false }),
-      Animated.spring(width, { toValue: targetWidth, friction: 8, tension: 90, useNativeDriver: false }),
-    ]).start();
-  }, [targetX, targetWidth, left, width, opacity]);
 
   function measure(key: string) {
     return ({ nativeEvent }: LayoutChangeEvent) => {
@@ -63,7 +41,8 @@ export function TabToggle({ state, descriptors, navigation, stretch = false }: T
     <View style={[styles.tabs, stretch && styles.tabsStretch]} accessibilityRole="tablist">
       {/* No border or padding here, so the measured x of a tab is where the thumb goes. */}
       <View style={styles.track}>
-        <Animated.View style={[styles.thumb, { left, width, opacity }]} />
+        {/* Once the tab is measured the thumb appears under it, then slides to each new one. */}
+        {target ? <SpringTo to={{ left: target.x, width: target.width }} style={styles.thumb} /> : null}
         {state.routes.map((route, index) => {
           const { options } = descriptors[route.key];
           const focused = state.index === index;

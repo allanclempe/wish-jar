@@ -24,3 +24,24 @@ export function currentPeriod(now: Date = new Date()): Period {
 export function tasksForPeriod(tasks: Task[], period: Period): Task[] {
   return tasks.filter((task) => task.period === period);
 }
+
+// Whether two loads of the tasks are the same, so the list can keep the task
+// objects it has: the cards are memoized on them, and the tasks are read
+// again every time the tab is shown.
+export function sameTasks(a: Task[], b: Task[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every((task, i) => {
+      const other = b[i];
+      return (
+        task.id === other.id &&
+        task.name === other.name &&
+        task.period === other.period &&
+        task.coinAmount === other.coinAmount &&
+        task.icon.emoji === other.icon.emoji &&
+        task.icon.photoUri === other.icon.photoUri &&
+        task.createdAt === other.createdAt
+      );
+    })
+  );
+}

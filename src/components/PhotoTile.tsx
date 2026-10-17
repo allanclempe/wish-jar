@@ -144,7 +144,7 @@ type StickerProps = {
 };
 
 // A yellow label slapped over the photo, tilted, with a dark lift under it.
-// Wrap it in an Animated.View to spring it in.
+// Wrap it in a SpringIn to spring it in.
 export function Sticker({ label, size = 'regular' }: StickerProps) {
   return (
     <View style={[styles.sticker, size === 'small' && styles.stickerSmall, size === 'large' && styles.stickerLarge]}>

@@ -1,17 +1,19 @@
 import * as Haptics from 'expo-haptics';
-import { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { memo, useState } from 'react';
+import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
 import type { Task } from '../db';
 import { useSound } from '../sound/SoundProvider';
 import { colors, fonts, offsetShadow, pastelFor, spacing } from '../theme';
-import { Celebration, useNativeDriver } from './Animations';
+import { Celebration, FloatUp, SpringIn, Squish } from './Animations';
 import { CoinPill, PhotoTile, Sticker, tiltForIndex } from './PhotoTile';
 
 type TaskCardProps = {
   task: Task;
   done: boolean;
-  onPress: () => void;
+  // Given the task, so the list can pass one handler that never changes and
+  // a tick only re-renders the card it changed.
+  onPress: (task: Task) => void;
   // Its place in the grid, for the alternating tilt.
   index?: number;
   large?: boolean;
@@ -22,51 +24,29 @@ type TaskCardProps = {
 // A big photo tile for one task. Ticking it squishes the card, pops a check
 // in, slaps a DONE sticker over the photo, bursts a little confetti and
 // floats the coins up toward the counter in the header, with a ding.
-export function TaskCard({ task, done, onPress, index = 0, large = false, style }: TaskCardProps) {
+export const TaskCard = memo(function TaskCard({ task, done, onPress, index = 0, large = false, style }: TaskCardProps) {
   const { playCoin } = useSound();
-  const [squish] = useState(() => new Animated.Value(1));
-  // Drives the check and the sticker: both spring in off this one value.
-  const [check] = useState(() => new Animated.Value(done ? 1 : 0));
-  const [coinFloat] = useState(() => new Animated.Value(0));
-  const [burst, setBurst] = useState(0);
-  // Only a tap animates; ticks loaded from the database just appear.
-  const tapped = useRef(false);
-
-  useEffect(() => {
-    if (!tapped.current) {
-      check.setValue(done ? 1 : 0);
-      return;
-    }
-    tapped.current = false;
-    if (done) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      squish.setValue(0.9);
-      check.setValue(0);
-      coinFloat.setValue(0);
-      Animated.parallel([
-        Animated.spring(squish, { toValue: 1, friction: 3, tension: 160, useNativeDriver }),
-        Animated.spring(check, { toValue: 1, friction: 4, tension: 120, useNativeDriver }),
-        Animated.timing(coinFloat, {
-          toValue: 1,
-          duration: 900,
-          easing: Easing.out(Easing.quad),
-          useNativeDriver,
-        }),
-      ]).start();
-    } else {
-      Haptics.selectionAsync().catch(() => {});
-      Animated.timing(check, { toValue: 0, duration: 150, useNativeDriver }).start();
-    }
-  }, [done, check, squish, coinFloat]);
+  // Ticks so far, each one squishing the card, floating the coins and
+  // bursting the confetti.
+  const [ticks, setTicks] = useState(0);
+  // The last tap: what it set the card to, and how many taps so far. Only a
+  // tap animates the check and the sticker; ticks loaded from the database,
+  // for another kid or a new day, just appear.
+  const [tap, setTap] = useState<{ done: boolean; count: number } | null>(null);
+  const animate = tap != null && tap.done === done;
 
   function press() {
-    tapped.current = true;
+    const next = !done;
+    setTap((last) => ({ done: next, count: (last?.count ?? 0) + 1 }));
     // Before anything async: browsers only start a sound from inside the tap.
-    if (!done) {
+    if (next) {
       playCoin();
-      setBurst((count) => count + 1);
+      setTicks((count) => count + 1);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    } else {
+      Haptics.selectionAsync().catch(() => {});
     }
-    onPress();
+    onPress(task);
   }
 
   const checkSize = large ? CHECK_SIZE_LARGE : CHECK_SIZE;
@@ -77,85 +57,60 @@ export function TaskCard({ task, done, onPress, index = 0, large = false, style 
       accessibilityRole="checkbox"
       accessibilityLabel={task.name}
       accessibilityState={{ checked: done }}
-      style={style}
+      // A style function rather than a function child: pressing re-renders
+      // only the Pressable, not the photo tile inside it.
+      style={({ pressed }) => [style, pressed && styles.pressed]}
     >
-      {({ pressed }) => (
-        <Animated.View style={[styles.fill, { transform: [{ scale: pressed ? 0.97 : 1 }, { scale: squish }] }]}>
-          <PhotoTile
-            icon={task.icon}
-            fallbackEmoji="🧹"
-            name={task.name}
-            tint={pastelFor(task.id)}
-            tilt={tiltForIndex(index)}
-            done={done}
-            large={large}
-            style={styles.fill}
-            topLeft={<CoinPill coins={task.coinAmount} large={large} />}
-            sticker={
-              <Animated.View
-                style={{
-                  opacity: check.interpolate({ inputRange: [0, 0.25, 1], outputRange: [0, 1, 1] }),
-                  // Lands from above the card and overshoots, like a real slap.
-                  transform: [{ scale: check.interpolate({ inputRange: [0, 1], outputRange: [2.6, 1] }) }],
-                }}
-              >
-                <Sticker label="DONE!" size={large ? 'large' : 'regular'} />
-              </Animated.View>
-            }
-            bottomRight={
-              <View
-                style={[
-                  styles.checkCircle,
-                  { width: checkSize, height: checkSize, borderRadius: checkSize / 2 },
-                  done && styles.checkCircleDone,
-                ]}
-              >
-                <Animated.Text
-                  style={[
-                    styles.checkMark,
-                    large && styles.checkMarkLarge,
-                    {
-                      opacity: check,
-                      transform: [{ scale: check.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1] }) }],
-                    },
-                  ]}
-                >
-                  ✓
-                </Animated.Text>
-              </View>
-            }
-            above={
-              <>
-                <Celebration burst={burst} size={large ? 26 : 20} count={10} />
-                <Animated.Text
-                  pointerEvents="none"
-                  style={[
-                    styles.coinFloat,
-                    {
-                      opacity: coinFloat.interpolate({ inputRange: [0, 0.15, 0.7, 1], outputRange: [0, 1, 1, 0] }),
-                      transform: [
-                        { translateY: coinFloat.interpolate({ inputRange: [0, 1], outputRange: [0, -90] }) },
-                        { scale: coinFloat.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0.6, 1.3, 1] }) },
-                      ],
-                    },
-                  ]}
-                >
-                  +{task.coinAmount} 🪙
-                </Animated.Text>
-              </>
-            }
-          />
-        </Animated.View>
-      )}
+      <Squish play={ticks} from={0.9} style={styles.fill}>
+        <PhotoTile
+          icon={task.icon}
+          fallbackEmoji="🧹"
+          name={task.name}
+          tint={pastelFor(task.id)}
+          tilt={tiltForIndex(index)}
+          done={done}
+          large={large}
+          style={styles.fill}
+          topLeft={<CoinPill coins={task.coinAmount} large={large} />}
+          sticker={
+            // Lands from above the card and overshoots, like a real slap.
+            <SpringIn shown={done} animate={animate} play={tap?.count} from={2.6}>
+              <Sticker label="DONE!" size={large ? 'large' : 'regular'} />
+            </SpringIn>
+          }
+          bottomRight={
+            <View
+              style={[
+                styles.checkCircle,
+                { width: checkSize, height: checkSize, borderRadius: checkSize / 2 },
+                done && styles.checkCircleDone,
+              ]}
+            >
+              <SpringIn shown={done} animate={animate} play={tap?.count} from={0.2}>
+                <Text style={[styles.checkMark, large && styles.checkMarkLarge]}>✓</Text>
+              </SpringIn>
+            </View>
+          }
+          above={
+            <>
+              <Celebration burst={ticks} size={large ? 26 : 20} count={10} />
+              <FloatUp play={ticks} style={styles.coinFloat}>
+                <Text style={styles.coinFloatText}>+{task.coinAmount} 🪙</Text>
+              </FloatUp>
+            </>
+          }
+        />
+      </Squish>
     </Pressable>
   );
-}
+});
 
 const CHECK_SIZE = 50;
 const CHECK_SIZE_LARGE = 62;
 
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+  pressed: { transform: [{ scale: 0.97 }] },
   checkCircle: {
     borderWidth: 4,
     borderColor: colors.border,
@@ -167,10 +122,8 @@ const styles = StyleSheet.create({
   checkCircleDone: { borderColor: colors.successDark, backgroundColor: colors.success },
   checkMark: { fontSize: 28, fontFamily: fonts.display, color: colors.surface },
   checkMarkLarge: { fontSize: 34 },
-  coinFloat: {
-    position: 'absolute',
-    right: spacing.md,
-    top: 0,
+  coinFloat: { position: 'absolute', right: spacing.md, top: 0 },
+  coinFloatText: {
     fontSize: 26,
     fontFamily: fonts.display,
     color: colors.primaryDark,
