@@ -15,8 +15,21 @@ export type RelayCode = {
   url: string;
 };
 
+// The relay asked to wait before another code (WJ-51): too many from this
+// internet connection. `retryAfter` is the seconds it said, if it did.
+export class TooManyCodes extends Error {
+  constructor(readonly retryAfter: number | null) {
+    super('Photo relay: too many codes');
+    this.name = 'TooManyCodes';
+  }
+}
+
 export async function createRelayCode(): Promise<RelayCode> {
   const response = await fetch(`${PHOTO_RELAY_URL}/codes`, { method: 'POST' });
+  if (response.status === 429) {
+    const wait = Number(response.headers.get('Retry-After'));
+    throw new TooManyCodes(Number.isFinite(wait) && wait > 0 ? wait : null);
+  }
   if (!response.ok) throw new Error(`Photo relay: HTTP ${response.status}`);
   return response.json();
 }

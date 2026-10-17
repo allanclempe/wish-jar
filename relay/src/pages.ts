@@ -174,6 +174,9 @@ export function codePage(code: string, state: DropState): string {
         if (response.status === 409) {
           return oops('🎉', 'A photo was already sent with this code. Ask Wish Jar for a new code to send another.');
         }
+        if (response.status === 429) {
+          return oops('⏳', 'Lots of photos have been sent from this internet connection just now. Wait a few minutes, then try again.', 'retry');
+        }
         if (response.status === 413 || response.status === 415) {
           return oops('😕', "That photo didn't work. Try a different one?", 'other');
         }

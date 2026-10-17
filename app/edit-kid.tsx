@@ -5,14 +5,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DeleteButton } from '../src/components/DeleteButton';
 import { ScrollScreen } from '../src/components/ScrollScreen';
-import { deleteKid, getKid, updateKid, useDatabase } from '../src/db';
+import { deleteKid, discardPhoto, getKid, saveProblem, updateKid, useFamilyJar } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { PhotoSourceButtons, usePickPhoto } from '../src/photos/PhotoPicker';
-import { removePhoto, storePhoto } from '../src/photos/photos';
+import { shownPhoto, storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
 export default function EditKidScreen() {
-  const db = useDatabase();
+  const jar = useFamilyJar();
   const { id } = useLocalSearchParams<{ id: string }>();
   const kidId = Number(id);
   const { refreshKids } = useActiveKid();
@@ -27,22 +27,26 @@ export default function EditKidScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    getKid(db, kidId).then((kid) => {
-      if (cancelled) return;
-      if (!kid) {
-        Alert.alert('Kid not found', 'This kid may have been removed.');
-        router.back();
-        return;
-      }
-      setName(kid.name);
-      setPhotoUri(kid.photoUri);
-      setOriginalPhotoUri(kid.photoUri);
-      setLoaded(true);
-    });
+    getKid(jar, kidId).then(
+      (kid) => {
+        if (cancelled) return;
+        if (!kid) {
+          Alert.alert('Kid not found', 'This kid may have been removed.');
+          router.back();
+          return;
+        }
+        setName(kid.name);
+        setPhotoUri(kid.photoUri);
+        setOriginalPhotoUri(kid.photoUri);
+        setLoaded(true);
+      },
+      // A failed load shows on the jar's reconnecting screen.
+      () => {},
+    );
     return () => {
       cancelled = true;
     };
-  }, [db, kidId]);
+  }, [jar, kidId]);
 
   async function choosePhoto() {
     const uri = await pickPhoto();
@@ -55,19 +59,16 @@ export default function EditKidScreen() {
     let savedPhotoUri = photoUri;
     try {
       if (photoUri && photoUri !== originalPhotoUri) {
-        savedPhotoUri = await storePhoto(photoUri);
+        savedPhotoUri = await storePhoto(jar, photoUri);
       }
-      const previousPhotoUri = await updateKid(db, kidId, { name, photoUri: savedPhotoUri });
-      if (previousPhotoUri !== savedPhotoUri) {
-        removePhoto(previousPhotoUri);
-      }
+      await updateKid(jar, kidId, { name, photoUri: savedPhotoUri });
       await refreshKids();
       router.back();
-    } catch {
+    } catch (error) {
       if (savedPhotoUri !== photoUri) {
-        removePhoto(savedPhotoUri);
+        discardPhoto(jar, savedPhotoUri);
       }
-      Alert.alert('Could not save', 'Something went wrong while saving. Please try again.');
+      Alert.alert('Could not save', saveProblem(error));
       setSaving(false);
     }
   }
@@ -76,7 +77,7 @@ export default function EditKidScreen() {
     if (saving) return;
     setSaving(true);
     try {
-      (await deleteKid(db, kidId)).forEach(removePhoto);
+      await deleteKid(jar, kidId);
       await refreshKids();
       router.back();
     } catch {
@@ -85,6 +86,8 @@ export default function EditKidScreen() {
     }
   }
 
+  const shownPhotoUri = shownPhoto(photoUri);
+
   if (!loaded) {
     return <SafeAreaView style={styles.safe} />;
   }
@@ -92,8 +95,8 @@ export default function EditKidScreen() {
   return (
     <ScrollScreen>
       <Pressable style={styles.photo} onPress={choosePhoto} accessibilityRole="button">
-        {photoUri ? (
-          <Image source={{ uri: photoUri }} style={styles.photoImage} />
+        {shownPhotoUri ? (
+          <Image source={{ uri: shownPhotoUri }} style={styles.photoImage} />
         ) : (
           <Text style={styles.photoPlaceholder}>📷</Text>
         )}

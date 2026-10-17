@@ -6,14 +6,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Celebration, FadeInUp, Wiggle } from '../src/components/Animations';
 import { WishCard } from '../src/components/WishCard';
-import { listWishes, useDatabase, type Wish } from '../src/db';
+import { listWishes, useFamilyJar, type Wish } from '../src/db';
 import { useSound } from '../src/sound/SoundProvider';
 import { colors, offsetShadow, radius, spacing, typography, useLargeScreen } from '../src/theme';
 
 // Shown when a task tick gives the kid enough coins for one or more wishes.
 // `ids` is the comma-separated list of wishes it unlocked.
 export default function WishUnlockedScreen() {
-  const db = useDatabase();
+  const jar = useFamilyJar();
   const { ids } = useLocalSearchParams<{ ids: string }>();
   const [wishes, setWishes] = useState<Wish[]>([]);
   const [burst, setBurst] = useState(0);
@@ -23,16 +23,20 @@ export default function WishUnlockedScreen() {
   useEffect(() => {
     const wanted = new Set(String(ids ?? '').split(',').map(Number));
     let cancelled = false;
-    listWishes(db).then((loaded) => {
-      if (cancelled) return;
-      setWishes(loaded.filter((wish) => wanted.has(wish.id)));
-      setBurst((count) => count + 1);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    });
+    listWishes(jar).then(
+      (loaded) => {
+        if (cancelled) return;
+        setWishes(loaded.filter((wish) => wanted.has(wish.id)));
+        setBurst((count) => count + 1);
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      },
+      // A failed load shows on the jar's reconnecting screen.
+      () => {},
+    );
     return () => {
       cancelled = true;
     };
-  }, [db, ids]);
+  }, [jar, ids]);
 
   const many = wishes.length > 1;
 

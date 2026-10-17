@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 
+import { shownPhoto } from '../photos/photos';
 import { colors, fonts, offsetShadow, pastelFor } from '../theme';
 import type { WishProgress } from '../wishes/order';
 import { Wiggle } from './Animations';
@@ -36,6 +37,8 @@ export function WishCard({
 }: WishCardProps) {
   const unlocked = state === 'unlocked';
   const locked = state === 'locked';
+  // As PhotoTile shows it: a phone's own file shows the emoji elsewhere.
+  const photo = shownPhoto(wish.icon.photoUri) != null;
   const claimed = state === 'claimed';
   const stickerSize = hero ? (large ? 'large' : 'regular') : large ? 'regular' : 'small';
   const label = unlocked
@@ -77,7 +80,7 @@ export function WishCard({
               claimed ? null : (
                 <View style={styles.progress}>
                   {locked ? (
-                    <Text style={[styles.toGo, large && styles.toGoLarge, wish.icon.photoUri == null && styles.toGoEmoji]}>
+                    <Text style={[styles.toGo, large && styles.toGoLarge, !photo && styles.toGoEmoji]}>
                       🪙 {coinsStillNeeded} to go
                     </Text>
                   ) : null}
@@ -85,7 +88,7 @@ export function WishCard({
                     progress={progress}
                     height={large ? 14 : 10}
                     color={colors.sunshine}
-                    trackColor={wish.icon.photoUri != null ? 'rgba(255, 255, 255, 0.5)' : 'rgba(61, 44, 46, 0.15)'}
+                    trackColor={photo ? 'rgba(255, 255, 255, 0.5)' : 'rgba(61, 44, 46, 0.15)'}
                   />
                 </View>
               )

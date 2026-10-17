@@ -1,4 +1,5 @@
 export * from './provider';
+export { JarCallError, saveProblem, waitWords } from './jar';
 export * from './types';
 export * from './kids';
 export * from './tasks';
@@ -8,3 +9,5 @@ export * from './consequenceTypes';
 export * from './consequences';
 export * from './wishes';
 export * from './settings';
+export * from './devices';
+export * from './photos';

@@ -11,7 +11,7 @@ import {
 } from 'react';
 import { AppState, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { getParentPin, PIN_LENGTH, useDatabase } from '../db';
+import { getParentPin, PIN_LENGTH, useFamilyJar } from '../db';
 import { colors, fonts, radius, spacing, typography } from '../theme';
 import { PinPad } from './PinPad';
 
@@ -140,7 +140,7 @@ export function ParentLockProvider({ children }: PropsWithChildren) {
 const ACCEPTED_MS = 700;
 
 function PinPrompt({ text, onDone }: { text?: PinPromptText; onDone: (ok: boolean) => void }) {
-  const db = useDatabase();
+  const jar = useFamilyJar();
   const [value, setValue] = useState('');
   const [shake, setShake] = useState(0);
   const [accepted, setAccepted] = useState(false);
@@ -155,7 +155,9 @@ function PinPrompt({ text, onDone }: { text?: PinPromptText; onDone: (ok: boolea
     if (accepted) return;
     setValue(next);
     if (next.length < PIN_LENGTH) return;
-    if (next === (await getParentPin(db))) {
+    // A PIN that can't be read (the jar's reconnecting screen says why) lets
+    // nobody in.
+    if (next === (await getParentPin(jar).catch(() => null))) {
       setAccepted(true);
     } else {
       setValue('');

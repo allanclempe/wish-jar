@@ -8,18 +8,20 @@ import { ScrollScreen } from '../src/components/ScrollScreen';
 import { IconPicker, CONSEQUENCE_EMOJIS } from '../src/components/Icons';
 import {
   deleteConsequenceType,
+  discardPhoto,
   getConsequenceType,
+  saveProblem,
   updateConsequenceType,
-  useDatabase,
+  useFamilyJar,
   type Icon,
 } from '../src/db';
-import { removePhoto, storePhoto } from '../src/photos/photos';
+import { storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
 type Errors = { name?: string; coinAmount?: string };
 
 export default function EditConsequenceTypeScreen() {
-  const db = useDatabase();
+  const jar = useFamilyJar();
   const { id } = useLocalSearchParams<{ id: string }>();
   const consequenceTypeId = Number(id);
   const [loaded, setLoaded] = useState(false);
@@ -32,23 +34,27 @@ export default function EditConsequenceTypeScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    getConsequenceType(db, consequenceTypeId).then((type) => {
-      if (cancelled) return;
-      if (!type) {
-        Alert.alert('Consequence not found', 'This consequence may have been removed.');
-        router.back();
-        return;
-      }
-      setName(type.name);
-      setCoinAmount(String(type.coinAmount));
-      setIcon(type.icon);
-      setOriginalPhotoUri(type.icon.photoUri);
-      setLoaded(true);
-    });
+    getConsequenceType(jar, consequenceTypeId).then(
+      (type) => {
+        if (cancelled) return;
+        if (!type) {
+          Alert.alert('Consequence not found', 'This consequence may have been removed.');
+          router.back();
+          return;
+        }
+        setName(type.name);
+        setCoinAmount(String(type.coinAmount));
+        setIcon(type.icon);
+        setOriginalPhotoUri(type.icon.photoUri);
+        setLoaded(true);
+      },
+      // A failed load shows on the jar's reconnecting screen.
+      () => {},
+    );
     return () => {
       cancelled = true;
     };
-  }, [db, consequenceTypeId]);
+  }, [jar, consequenceTypeId]);
 
   function validate(): Errors {
     const next: Errors = {};
@@ -71,22 +77,19 @@ export default function EditConsequenceTypeScreen() {
     let savedPhotoUri = icon.photoUri;
     try {
       if (icon.photoUri && icon.photoUri !== originalPhotoUri) {
-        savedPhotoUri = await storePhoto(icon.photoUri);
+        savedPhotoUri = await storePhoto(jar, icon.photoUri);
       }
-      const previousPhotoUri = await updateConsequenceType(db, consequenceTypeId, {
+      await updateConsequenceType(jar, consequenceTypeId, {
         name,
         coinAmount: Number(coinAmount.trim()),
         icon: { emoji: icon.emoji, photoUri: savedPhotoUri },
       });
-      if (previousPhotoUri !== savedPhotoUri) {
-        removePhoto(previousPhotoUri);
-      }
       router.back();
-    } catch {
+    } catch (error) {
       if (savedPhotoUri !== icon.photoUri) {
-        removePhoto(savedPhotoUri);
+        discardPhoto(jar, savedPhotoUri);
       }
-      Alert.alert('Could not save', 'Something went wrong while saving. Please try again.');
+      Alert.alert('Could not save', saveProblem(error));
       setSaving(false);
     }
   }
@@ -95,7 +98,7 @@ export default function EditConsequenceTypeScreen() {
     if (saving) return;
     setSaving(true);
     try {
-      removePhoto(await deleteConsequenceType(db, consequenceTypeId));
+      await deleteConsequenceType(jar, consequenceTypeId);
       router.back();
     } catch {
       Alert.alert('Could not delete', 'Something went wrong while deleting. Please try again.');

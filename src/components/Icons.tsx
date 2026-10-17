@@ -2,6 +2,7 @@ import { Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Icon } from '../db';
 import { PhotoSourceButtons } from '../photos/PhotoPicker';
+import { shownPhoto } from '../photos/photos';
 import { colors, radius, spacing } from '../theme';
 
 export const ICON_EMOJIS = [
@@ -26,9 +27,10 @@ type IconBadgeProps = {
 
 export function IconBadge({ icon, fallbackEmoji, size = 48 }: IconBadgeProps) {
   const shape = { width: size, height: size, borderRadius: size / 2 };
+  const photoUri = shownPhoto(icon.photoUri);
 
-  if (icon.photoUri) {
-    return <Image source={{ uri: icon.photoUri }} style={[shape, styles.photo]} />;
+  if (photoUri) {
+    return <Image source={{ uri: photoUri }} style={[shape, styles.photo]} />;
   }
 
   return (

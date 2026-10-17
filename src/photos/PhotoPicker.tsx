@@ -155,7 +155,7 @@ export function PhotoSourceButtons({ onPhoto, selected = false }: PhotoSourceBut
 }
 
 // What's kept for a kid or an icon: sharp enough for the biggest badge, and
-// small enough as a data URI in the frame's database.
+// quick to upload to the family jar from the frame.
 const PHOTO_SIZE = 512;
 const THUMB_SIZE = 150;
 const REFRESH_MS = 4000;

@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { ScrollScreen } from '../src/components/ScrollScreen';
-import { giveBonusCoins, useDatabase } from '../src/db';
+import { giveBonusCoins, useFamilyJar } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { clampBonusCoins, MAX_BONUS_COINS } from '../src/kids/savings';
 import { useSound } from '../src/sound/SoundProvider';
@@ -14,7 +14,7 @@ const QUICK_PICKS = [1, 2, 5, 10];
 // For something special outside the tasks: the coins go straight into the
 // playing kid's savings, and the counter in the kids' bar bounces on the way back.
 export default function BonusCoinsScreen() {
-  const db = useDatabase();
+  const jar = useFamilyJar();
   const { activeKid, recordSavingsChange } = useActiveKid();
   const { playCoin } = useSound();
   const large = useLargeScreen();
@@ -25,7 +25,7 @@ export default function BonusCoinsScreen() {
     if (!activeKid || saving) return;
     setSaving(true);
     try {
-      await giveBonusCoins(db, { kidId: activeKid.id, coins });
+      await giveBonusCoins(jar, { kidId: activeKid.id, coins });
       recordSavingsChange(activeKid.id, coins);
       playCoin();
       router.back();

@@ -1,4 +1,4 @@
-import { router, useFocusEffect } from 'expo-router';
+import { router, useFocusEffect, useIsFocused } from 'expo-router';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 
@@ -8,10 +8,12 @@ import {
   listWishes,
   setTaskCompletion,
   sumCoinsEarnedOn,
-  useDatabase,
+  useFamilyJar,
+  useJarVersion,
   type Kid,
   type Period,
   type Task,
+  type TaskCompletionChange,
 } from '../db';
 import { useActiveKid } from '../kids/ActiveKidProvider';
 import { useSound } from '../sound/SoundProvider';
@@ -98,7 +100,7 @@ export function CurrentPeriodTasks(props: CurrentPeriodTasksProps) {
 }
 
 function KidPeriodTasks({ period, day, kid: activeKid }: CurrentPeriodTasksProps & { kid: Kid }) {
-  const db = useDatabase();
+  const jar = useFamilyJar();
   const { recordTaskCompletion } = useActiveKid();
   const { playFanfare } = useSound();
   const large = useLargeScreen();
@@ -108,6 +110,15 @@ function KidPeriodTasks({ period, day, kid: activeKid }: CurrentPeriodTasksProps
   const [doneKeys, setDoneKeys] = useState<Set<string>>(() => new Set());
   // Read and written synchronously so rapid taps see each other before re-render.
   const doneRef = useRef(new Set<string>());
+  // Counts taps, so ticks loading while one lands are loaded again after it.
+  const taps = useRef(0);
+  // Tasks and ticks another device changed load again (WJ-50); the ticks only
+  // once this tab is in front, like the tasks (useFocusEffect).
+  const tasksVersion = useJarVersion('tasks');
+  const focused = useIsFocused();
+  const liveTicksVersion = useJarVersion('completions');
+  const [ticksVersion, setTicksVersion] = useState(liveTicksVersion);
+  if (focused && ticksVersion !== liveTicksVersion) setTicksVersion(liveTicksVersion);
   // The kid and day whose saved ticks are loaded; taps wait until they match.
   const [hydratedKey, setHydratedKey] = useState<string | null>(null);
   const [burst, setBurst] = useState(0);
@@ -157,38 +168,56 @@ function KidPeriodTasks({ period, day, kid: activeKid }: CurrentPeriodTasksProps
       let cancelled = false;
       // "Loading" only shows before the first load; later ones keep the list
       // up while they run.
-      listTasks(db).then((loaded) => {
-        if (cancelled) return;
-        setTasks((current) => (sameTasks(current, loaded) ? current : loaded));
-        setLoading(false);
-      });
+      // A failed load shows on the jar's reconnecting screen.
+      listTasks(jar).then(
+        (loaded) => {
+          if (cancelled) return;
+          setTasks((current) => (sameTasks(current, loaded) ? current : loaded));
+          setLoading(false);
+        },
+        () => {},
+      );
       return () => {
         cancelled = true;
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [db, activeKidId]),
+    }, [jar, activeKidId, tasksVersion]),
   );
 
   // Saved ticks are for one kid on one day, so reload them when either changes;
   // once the day key changes no task looks done.
   useEffect(() => {
     let cancelled = false;
-    listCompletedTaskIds(db, activeKidId, day).then((taskIds) => {
-      if (cancelled) return;
-      doneRef.current = new Set(taskIds.map((taskId) => `${day}:${activeKidId}:${taskId}`));
-      setDoneKeys(new Set(doneRef.current));
-      setHydratedKey(`${day}:${activeKidId}`);
-    });
+    const load = () => {
+      const tapsBefore = taps.current;
+      listCompletedTaskIds(jar, activeKidId, day).then(
+        (taskIds) => {
+          if (cancelled) return;
+          // A tap landed meanwhile, which these ticks may not have: the next
+          // load waits for its save (jar.ts), so it has it.
+          if (taps.current !== tapsBefore) return load();
+          const loaded = new Set(taskIds.map((taskId) => `${day}:${activeKidId}:${taskId}`));
+          const current = doneRef.current;
+          const same = loaded.size === current.size && [...loaded].every((key) => current.has(key));
+          doneRef.current = loaded;
+          if (!same) setDoneKeys(new Set(loaded));
+          setHydratedKey(`${day}:${activeKidId}`);
+        },
+        () => {},
+      );
+    };
+    load();
     return () => {
       cancelled = true;
     };
-  }, [db, activeKidId, day]);
+  }, [jar, activeKidId, day, ticksVersion]);
 
   const kidId = activeKid.id;
   const currentTasks = tasksForPeriod(tasks, period);
 
   async function toggleDone(task: Task) {
     if (hydratedKey !== `${day}:${kidId}`) return;
+    taps.current += 1;
     const key = `${day}:${kidId}:${task.id}`;
     const completed = !doneRef.current.has(key);
     if (completed) {
@@ -206,13 +235,26 @@ function KidPeriodTasks({ period, day, kid: activeKid }: CurrentPeriodTasksProps
     } else if (!completed) {
       cancelCelebration();
     }
-    const change = await setTaskCompletion(db, {
-      kidId,
-      taskId: task.id,
-      dayKey: day,
-      coinAmount: task.coinAmount,
-      completed,
-    });
+    let change: TaskCompletionChange;
+    try {
+      change = await setTaskCompletion(jar, {
+        kidId,
+        taskId: task.id,
+        dayKey: day,
+        coinAmount: task.coinAmount,
+        completed,
+      });
+    } catch {
+      // Not saved (the jar says why on its reconnecting screen), so the card
+      // goes back to how it was, unless another tap has moved it since.
+      if (doneRef.current.has(key) === completed) {
+        if (completed) doneRef.current.delete(key);
+        else doneRef.current.add(key);
+        setDoneKeys(new Set(doneRef.current));
+      }
+      if (completed) cancelCelebration();
+      return;
+    }
     if (!change.changed) return;
     recordTaskCompletion(kidId, change.coins, completed);
     if (completed) {
@@ -242,7 +284,7 @@ function KidPeriodTasks({ period, day, kid: activeKid }: CurrentPeriodTasksProps
       celebrationTimer.current = null;
       celebrated.add(key);
       // Today's coins across every period, read once the tick is saved.
-      const coinsToday = await sumCoinsEarnedOn(db, kidId, day).catch(() => 0);
+      const coinsToday = await sumCoinsEarnedOn(jar, kidId, day).catch(() => 0);
       if (!holdUnlocks.current) return;
       setCelebration({ coinsToday });
     }, UNLOCK_DELAY_MS);
@@ -291,7 +333,9 @@ function KidPeriodTasks({ period, day, kid: activeKid }: CurrentPeriodTasksProps
   }
 
   async function showUnlockedWishes(before: number, after: number) {
-    const kidWishes = (await listWishes(db)).filter((wish) => wish.kidId === kidId);
+    // The tick is saved; if the wishes don't load, nothing opens.
+    const wishes = await listWishes(jar).catch(() => []);
+    const kidWishes = wishes.filter((wish) => wish.kidId === kidId);
     const unlocked = wishesUnlockedBy(kidWishes, before, after);
     if (unlocked.length === 0) return;
     for (const wish of unlocked) pendingUnlocks.current.set(wish.id, wish.coinAmount);

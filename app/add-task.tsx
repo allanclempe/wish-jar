@@ -5,14 +5,21 @@ import { Alert, Pressable, StyleSheet, Text, TextInput } from 'react-native';
 import { ScrollScreen } from '../src/components/ScrollScreen';
 import { IconPicker } from '../src/components/Icons';
 import { PeriodPicker } from '../src/components/PeriodPicker';
-import { insertTask, useDatabase, type Icon, type Period } from '../src/db';
-import { removePhoto, storePhoto } from '../src/photos/photos';
+import {
+  discardPhoto,
+  insertTask,
+  saveProblem,
+  useFamilyJar,
+  type Icon,
+  type Period,
+} from '../src/db';
+import { storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
 type Errors = { name?: string; coinAmount?: string };
 
 export default function AddTaskScreen() {
-  const db = useDatabase();
+  const jar = useFamilyJar();
   const [name, setName] = useState('');
   const [period, setPeriod] = useState<Period>('morning');
   const [coinAmount, setCoinAmount] = useState('');
@@ -40,17 +47,17 @@ export default function AddTaskScreen() {
     setSaving(true);
     let storedPhotoUri: string | null = null;
     try {
-      storedPhotoUri = icon.photoUri ? await storePhoto(icon.photoUri) : null;
-      await insertTask(db, {
+      storedPhotoUri = icon.photoUri ? await storePhoto(jar, icon.photoUri) : null;
+      await insertTask(jar, {
         name,
         period,
         coinAmount: Number(coinAmount.trim()),
         icon: { emoji: icon.emoji, photoUri: storedPhotoUri },
       });
       router.back();
-    } catch {
-      removePhoto(storedPhotoUri);
-      Alert.alert('Could not save', 'Something went wrong while saving. Please try again.');
+    } catch (error) {
+      discardPhoto(jar, storedPhotoUri);
+      Alert.alert('Could not save', saveProblem(error));
       setSaving(false);
     }
   }

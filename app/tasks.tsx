@@ -4,24 +4,30 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IconBadge } from '../src/components/Icons';
-import { listTasks, useDatabase, type Task } from '../src/db';
+import { listTasks, useFamilyJar, useJarVersion, type Task } from '../src/db';
 import { EmptyState } from '../src/components/EmptyState';
 import { colors, contentMaxWidth, fonts, primaryShadow, radius, spacing, typography } from '../src/theme';
 
 export default function TasksScreen() {
-  const db = useDatabase();
+  const jar = useFamilyJar();
+  const version = useJarVersion('tasks');
   const [tasks, setTasks] = useState<Task[]>([]);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      listTasks(db).then((loaded) => {
-        if (!cancelled) setTasks(loaded);
-      });
+      listTasks(jar).then(
+        (loaded) => {
+          if (!cancelled) setTasks(loaded);
+        },
+        () => {},
+      );
       return () => {
         cancelled = true;
       };
-    }, [db]),
+      // `version` loads again what another device changed.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [jar, version]),
   );
 
   return (

@@ -11,15 +11,15 @@ import {
 
 import { ScrollScreen } from '../src/components/ScrollScreen';
 import { IconPicker } from '../src/components/Icons';
-import { insertWish, useDatabase, type Icon } from '../src/db';
+import { discardPhoto, insertWish, saveProblem, useFamilyJar, type Icon } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
-import { removePhoto, storePhoto } from '../src/photos/photos';
+import { storePhoto } from '../src/photos/photos';
 import { colors, fonts, radius, spacing, typography } from '../src/theme';
 
 type Errors = { name?: string; coinAmount?: string; kidId?: string };
 
 export default function AddWishScreen() {
-  const db = useDatabase();
+  const jar = useFamilyJar();
   const { kids } = useActiveKid();
   const [name, setName] = useState('');
   const [coinAmount, setCoinAmount] = useState('');
@@ -53,17 +53,17 @@ export default function AddWishScreen() {
     setSaving(true);
     let storedPhotoUri: string | null = null;
     try {
-      storedPhotoUri = icon.photoUri ? await storePhoto(icon.photoUri) : null;
-      await insertWish(db, {
+      storedPhotoUri = icon.photoUri ? await storePhoto(jar, icon.photoUri) : null;
+      await insertWish(jar, {
         kidId,
         name,
         coinAmount: Number(coinAmount.trim()),
         icon: { emoji: icon.emoji, photoUri: storedPhotoUri },
       });
       router.back();
-    } catch {
-      removePhoto(storedPhotoUri);
-      Alert.alert('Could not save', 'Something went wrong while saving. Please try again.');
+    } catch (error) {
+      discardPhoto(jar, storedPhotoUri);
+      Alert.alert('Could not save', saveProblem(error));
       setSaving(false);
     }
   }

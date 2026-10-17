@@ -7,14 +7,23 @@ import { DeleteButton } from '../src/components/DeleteButton';
 import { ScrollScreen } from '../src/components/ScrollScreen';
 import { IconPicker } from '../src/components/Icons';
 import { PeriodPicker } from '../src/components/PeriodPicker';
-import { deleteTask, getTask, updateTask, useDatabase, type Icon, type Period } from '../src/db';
-import { removePhoto, storePhoto } from '../src/photos/photos';
+import {
+  deleteTask,
+  discardPhoto,
+  getTask,
+  saveProblem,
+  updateTask,
+  useFamilyJar,
+  type Icon,
+  type Period,
+} from '../src/db';
+import { storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
 type Errors = { name?: string; coinAmount?: string };
 
 export default function EditTaskScreen() {
-  const db = useDatabase();
+  const jar = useFamilyJar();
   const { id } = useLocalSearchParams<{ id: string }>();
   const taskId = Number(id);
   const [loaded, setLoaded] = useState(false);
@@ -28,24 +37,28 @@ export default function EditTaskScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    getTask(db, taskId).then((task) => {
-      if (cancelled) return;
-      if (!task) {
-        Alert.alert('Task not found', 'This task may have been removed.');
-        router.back();
-        return;
-      }
-      setName(task.name);
-      setPeriod(task.period);
-      setCoinAmount(String(task.coinAmount));
-      setIcon(task.icon);
-      setOriginalPhotoUri(task.icon.photoUri);
-      setLoaded(true);
-    });
+    getTask(jar, taskId).then(
+      (task) => {
+        if (cancelled) return;
+        if (!task) {
+          Alert.alert('Task not found', 'This task may have been removed.');
+          router.back();
+          return;
+        }
+        setName(task.name);
+        setPeriod(task.period);
+        setCoinAmount(String(task.coinAmount));
+        setIcon(task.icon);
+        setOriginalPhotoUri(task.icon.photoUri);
+        setLoaded(true);
+      },
+      // A failed load shows on the jar's reconnecting screen.
+      () => {},
+    );
     return () => {
       cancelled = true;
     };
-  }, [db, taskId]);
+  }, [jar, taskId]);
 
   function validate(): Errors {
     const next: Errors = {};
@@ -68,23 +81,20 @@ export default function EditTaskScreen() {
     let savedPhotoUri = icon.photoUri;
     try {
       if (icon.photoUri && icon.photoUri !== originalPhotoUri) {
-        savedPhotoUri = await storePhoto(icon.photoUri);
+        savedPhotoUri = await storePhoto(jar, icon.photoUri);
       }
-      const previousPhotoUri = await updateTask(db, taskId, {
+      await updateTask(jar, taskId, {
         name,
         period,
         coinAmount: Number(coinAmount.trim()),
         icon: { emoji: icon.emoji, photoUri: savedPhotoUri },
       });
-      if (previousPhotoUri !== savedPhotoUri) {
-        removePhoto(previousPhotoUri);
-      }
       router.back();
-    } catch {
+    } catch (error) {
       if (savedPhotoUri !== icon.photoUri) {
-        removePhoto(savedPhotoUri);
+        discardPhoto(jar, savedPhotoUri);
       }
-      Alert.alert('Could not save', 'Something went wrong while saving. Please try again.');
+      Alert.alert('Could not save', saveProblem(error));
       setSaving(false);
     }
   }
@@ -93,7 +103,7 @@ export default function EditTaskScreen() {
     if (saving) return;
     setSaving(true);
     try {
-      removePhoto(await deleteTask(db, taskId));
+      await deleteTask(jar, taskId);
       router.back();
     } catch {
       Alert.alert('Could not delete', 'Something went wrong while deleting. Please try again.');

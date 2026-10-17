@@ -3,7 +3,14 @@ import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { ScrollScreen } from '../src/components/ScrollScreen';
-import { listConsequenceTypes, listTasks, listWishes, useDatabase } from '../src/db';
+import {
+  listConsequenceTypes,
+  listDevices,
+  listTasks,
+  listWishes,
+  useFamilyJar,
+  useJarVersion,
+} from '../src/db';
 import { currentTimeZone, onFrame, timeZoneName } from '../src/device/frame';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { useSound } from '../src/sound/SoundProvider';
@@ -70,30 +77,41 @@ function plural(count: number, one: string, many: string) {
 }
 
 export default function SettingsScreen() {
-  const db = useDatabase();
+  const jar = useFamilyJar();
+  const version = useJarVersion('tasks', 'wishes', 'consequence_types', 'devices');
   const { kids } = useActiveKid();
   const { soundOn, setSoundOn } = useSound();
   const [taskCount, setTaskCount] = useState(0);
   const [wishCount, setWishCount] = useState(0);
   const [consequenceCount, setConsequenceCount] = useState(0);
+  const [deviceCount, setDeviceCount] = useState<number | null>(null);
   const [timeZone, setTimeZone] = useState(currentTimeZone);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
       setTimeZone(currentTimeZone());
-      Promise.all([listTasks(db), listWishes(db), listConsequenceTypes(db)]).then(
+      Promise.all([listTasks(jar), listWishes(jar), listConsequenceTypes(jar)]).then(
         ([tasks, wishes, consequenceTypes]) => {
           if (cancelled) return;
           setTaskCount(tasks.length);
           setWishCount(wishes.length);
           setConsequenceCount(consequenceTypes.length);
         },
+        () => {},
+      );
+      listDevices(jar).then(
+        (devices) => {
+          if (!cancelled) setDeviceCount(devices.length);
+        },
+        () => {},
       );
       return () => {
         cancelled = true;
       };
-    }, [db]),
+      // `version` loads again what another device changed.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [jar, version]),
   );
 
   return (
@@ -131,6 +149,16 @@ export default function SettingsScreen() {
           onValueChange={(on) => {
             setSoundOn(on).catch(() => {});
           }}
+        />
+        <MenuItem
+          emoji="📱"
+          title="Devices"
+          subtitle={
+            deviceCount == null
+              ? 'Phones, frames and screens sharing this jar'
+              : `${plural(deviceCount, 'device', 'devices')} sharing this jar`
+          }
+          onPress={() => router.push('/devices')}
         />
         <MenuItem
           emoji="🔢"

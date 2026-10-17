@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { EmptyState } from '../src/components/EmptyState';
+import { shownPhoto } from '../src/photos/photos';
 import { colors, contentMaxWidth, fonts, primaryShadow, radius, spacing, typography } from '../src/theme';
 
 export default function KidsScreen() {
@@ -24,14 +25,15 @@ export default function KidsScreen() {
           }
           renderItem={({ item }) => {
             const isActive = item.id === activeKid?.id;
+            const photoUri = shownPhoto(item.photoUri);
             return (
               <Pressable
                 style={[styles.row, isActive && styles.rowActive]}
                 onPress={() => router.push({ pathname: '/edit-kid', params: { id: String(item.id) } })}
                 accessibilityRole="button"
               >
-                {item.photoUri ? (
-                  <Image source={{ uri: item.photoUri }} style={styles.avatar} />
+                {photoUri ? (
+                  <Image source={{ uri: photoUri }} style={styles.avatar} />
                 ) : (
                   <View style={[styles.avatar, styles.avatarEmpty]}>
                     <Text style={styles.avatarEmoji}>🙂</Text>

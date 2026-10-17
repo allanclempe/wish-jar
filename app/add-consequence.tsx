@@ -7,7 +7,8 @@ import { IconBadge } from '../src/components/Icons';
 import {
   addConsequence,
   listConsequenceTypes,
-  useDatabase,
+  useFamilyJar,
+  useJarVersion,
   type ConsequenceType,
 } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
@@ -16,7 +17,8 @@ import { EmptyState } from '../src/components/EmptyState';
 import { colors, contentMaxWidth, fonts, radius, spacing, typography } from '../src/theme';
 
 export default function AddConsequenceScreen() {
-  const db = useDatabase();
+  const jar = useFamilyJar();
+  const version = useJarVersion('consequence_types');
   const { activeKid, recordSavingsChange } = useActiveKid();
   const [types, setTypes] = useState<ConsequenceType[]>([]);
   const [saving, setSaving] = useState(false);
@@ -24,20 +26,25 @@ export default function AddConsequenceScreen() {
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      listConsequenceTypes(db).then((loaded) => {
-        if (!cancelled) setTypes(loaded);
-      });
+      listConsequenceTypes(jar).then(
+        (loaded) => {
+          if (!cancelled) setTypes(loaded);
+        },
+        () => {},
+      );
       return () => {
         cancelled = true;
       };
-    }, [db]),
+      // `version` loads again what another device changed.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [jar, version]),
   );
 
   async function choose(type: ConsequenceType) {
     if (!activeKid || saving) return;
     setSaving(true);
     try {
-      const change = await addConsequence(db, {
+      const change = await addConsequence(jar, {
         kidId: activeKid.id,
         consequenceType: type,
         dayKey: dayKey(),

@@ -1,6 +1,7 @@
 import { useEffect, useEffectEvent, useState, type PropsWithChildren } from 'react';
 import { ActivityIndicator, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { wordsFor } from '../db/jar';
 import { colors, fonts, radius, spacing, typography } from '../theme';
 import {
   closeRelayCode,
@@ -8,6 +9,7 @@ import {
   createRelayCode,
   PHOTO_RELAY_URL,
   relayQrUri,
+  TooManyCodes,
   type RelayCode,
 } from './phoneRelay';
 
@@ -17,6 +19,8 @@ const QR_SIZE = 220;
 type SheetState =
   | { status: 'loading' }
   | { status: 'error' }
+  // The relay asked to wait (WJ-51): too many codes from this connection.
+  | { status: 'busy'; wait: string }
   | { status: 'waiting'; code: RelayCode }
   | { status: 'expired' };
 
@@ -61,8 +65,10 @@ export function PhonePhotoSheet({ onDone }: { onDone: (uri: string | null) => vo
         setState({ status: 'waiting', code: created });
         timer = setTimeout(() => poll(created), POLL_MS);
       },
-      () => {
-        if (!stopped) setState({ status: 'error' });
+      (error: unknown) => {
+        if (stopped) return;
+        if (error instanceof TooManyCodes) setState({ status: 'busy', wait: wordsFor(error.retryAfter) });
+        else setState({ status: 'error' });
       },
     );
 
@@ -85,6 +91,15 @@ export function PhonePhotoSheet({ onDone }: { onDone: (uri: string | null) => vo
   } else if (state.status === 'error') {
     content = (
       <Message emoji="📶" text="Couldn't get a code. Check the internet, then try again.">
+        <Button label="Try again" onPress={newCode} />
+      </Message>
+    );
+  } else if (state.status === 'busy') {
+    content = (
+      <Message
+        emoji="⏳"
+        text={`Lots of photo codes have been asked for from this internet connection. Wait ${state.wait}, then try again.`}
+      >
         <Button label="Try again" onPress={newCode} />
       </Message>
     );
