@@ -88,7 +88,8 @@ app reads the folder directly, which needs Android's storage permission
 - `/frameo/photos/<name>?size=N` turns one upright (EXIF), crops it to the
   middle square and scales it to N px. The app keeps it at 512 px.
 - `/frameo/photos/<name>?width=W&height=H` turns one upright and scales the
-  whole photo to fit inside W×H px, for the slideshow below.
+  whole photo to fit inside W×H px; with `&fit=cover`, to fill W×H px, cropped
+  from the middle. The slideshow below uses `fit=cover`.
 
 ### Slideshow while nobody's using it
 
@@ -98,9 +99,11 @@ work: Frameo can't open other apps, so a tap would leave the frame in Frameo.
 
 So once nobody has touched the frame for 3 minutes, Wish Jar shows the photos
 sent with Frameo itself (`src/photos/Slideshow.tsx`): the newest first, 15
-seconds each, fading from one to the next. Along the bottom, each kid's card
-shows their coins and the wish they're closest to, with its progress bar. A tap
-anywhere goes back to the screen that was open.
+seconds each, filling the screen and fading from one to the next. Swiping left
+or right goes to the next or previous photo. Along the bottom, each kid's card
+shows their coins and the wish they're closest to, with its progress bar. A
+double tap anywhere goes back to the screen that was open; a single tap does
+nothing, so brushing the frame doesn't end the slideshow.
 
 The photo list is read again after each round, so a photo sent in the
 meantime joins the next one. With no photos yet, or no permission to read them

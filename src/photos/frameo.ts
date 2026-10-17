@@ -39,7 +39,8 @@ export function frameoPhotoUri(photo: FrameoPhoto, size: number): string {
   return `/frameo/photos/${encodeURIComponent(photo.name)}?size=${Math.round(size)}`;
 }
 
-// The whole photo upright, scaled by the frame app to fit inside `width` x `height` px.
+// The photo upright, scaled by the frame app to fill `width` x `height` px and
+// cropped to it from the middle.
 export function frameoSlideUri(photo: FrameoPhoto, width: number, height: number): string {
-  return `/frameo/photos/${encodeURIComponent(photo.name)}?width=${Math.round(width)}&height=${Math.round(height)}`;
+  return `/frameo/photos/${encodeURIComponent(photo.name)}?width=${Math.round(width)}&height=${Math.round(height)}&fit=cover`;
 }

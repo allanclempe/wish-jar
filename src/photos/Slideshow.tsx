@@ -1,14 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   AppState,
   Image,
   Modal,
   PixelRatio,
-  Pressable,
   StyleSheet,
   Text,
   useWindowDimensions,
   View,
+  type PointerEvent,
 } from 'react-native';
 
 import { IconBadge } from '../components/Icons';
@@ -25,12 +25,20 @@ const SLIDE_MS = 15 * 1000;
 // Run by the browser as a CSS transition rather than stepped from JavaScript,
 // which the frame's slow chip can't keep smooth.
 const FADE_MS = 1500;
+// A swiped-to photo fades in quicker: the kid is waiting for it.
+const SWIPE_FADE_MS = 300;
+// How far a finger has to move sideways to count as a swipe, and how little to count as a tap.
+const SWIPE_PX = 60;
+const TAP_PX = 20;
+// The second tap of a double tap comes within this long of the first.
+const DOUBLE_TAP_MS = 400;
 // Anything that counts as someone using Wish Jar.
 const ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'wheel'] as const;
 
 // On the frame (frameoPhotos), shows the photos sent to it with Frameo once
 // nobody has used Wish Jar for a while, with each kid's coins and closest wish
-// along the bottom. A tap goes back to whatever screen was open. Without
+// along the bottom. Swiping goes to the next or previous photo, and a double tap
+// goes back to whatever screen was open. Without
 // photos, or without permission to read them, Wish Jar just stays as it is.
 export function IdleSlideshow() {
   const [photos, setPhotos] = useState<FrameoPhoto[] | null>(null);
@@ -87,6 +95,8 @@ type SlideState = {
   previous: string | null;
   // The photo has loaded, so it can fade in.
   loaded: boolean;
+  // Swiped to rather than reached by the timer, so it fades in quicker.
+  swiped: boolean;
 };
 
 function Slides({ photos, onClose }: { photos: FrameoPhoto[]; onClose: () => void }) {
@@ -98,11 +108,13 @@ function Slides({ photos, onClose }: { photos: FrameoPhoto[]; onClose: () => voi
     step: 0,
     previous: null,
     loaded: false,
+    swiped: false,
   }));
   const uri = frameoSlideUri(slide.photos[slide.index], width * ratio, height * ratio);
 
   // Newest first, and the list is read again at the end of each round, so a
-  // photo sent in the meantime joins the next one.
+  // photo sent in the meantime joins the next one. Showing any slide, swiped
+  // to or not, starts its 15 seconds again.
   useEffect(() => {
     let cancelled = false;
     const timer = setTimeout(async () => {
@@ -118,7 +130,7 @@ function Slides({ photos, onClose }: { photos: FrameoPhoto[]; onClose: () => voi
         }
       }
       if (cancelled) return;
-      setSlide({ photos: next, index, step: slide.step + 1, previous: uri, loaded: false });
+      setSlide({ photos: next, index, step: slide.step + 1, previous: uri, loaded: false, swiped: false });
     }, SLIDE_MS);
     return () => {
       cancelled = true;
@@ -131,21 +143,69 @@ function Slides({ photos, onClose }: { photos: FrameoPhoto[]; onClose: () => voi
     setSlide((current) => (current.step === step ? { ...current, loaded: true } : current));
   }
 
+  // Next (1) or previous (-1), going round the photos already listed.
+  function swipe(by: 1 | -1) {
+    const count = slide.photos.length;
+    setSlide({
+      photos: slide.photos,
+      index: (slide.index + by + count) % count,
+      step: slide.step + 1,
+      previous: uri,
+      loaded: false,
+      swiped: true,
+    });
+  }
+
+  // Read from pointer events rather than a responder or Pressable, which on
+  // the web turn a short swipe into a press.
+  const down = useRef<{ x: number; y: number } | null>(null);
+  const lastTap = useRef(0);
+
+  function onPointerDown(event: PointerEvent) {
+    down.current = { x: event.nativeEvent.clientX, y: event.nativeEvent.clientY };
+  }
+
+  function onPointerUp(event: PointerEvent) {
+    const start = down.current;
+    down.current = null;
+    if (!start) return;
+    const dx = event.nativeEvent.clientX - start.x;
+    const dy = event.nativeEvent.clientY - start.y;
+    if (Math.abs(dx) >= SWIPE_PX && Math.abs(dx) > Math.abs(dy)) {
+      lastTap.current = 0;
+      swipe(dx < 0 ? 1 : -1);
+    } else if (Math.abs(dx) < TAP_PX && Math.abs(dy) < TAP_PX) {
+      const now = Date.now();
+      if (now - lastTap.current < DOUBLE_TAP_MS) onClose();
+      else lastTap.current = now;
+    }
+  }
+
   return (
-    <Pressable
-      style={styles.screen}
-      onPress={onClose}
-      accessibilityRole="button"
-      accessibilityLabel="Back to Wish Jar"
+    <View
+      style={[styles.screen, noBrowserGestures]}
+      onPointerDown={onPointerDown}
+      onPointerUp={onPointerUp}
+      onPointerCancel={() => (down.current = null)}
+      accessible
+      accessibilityLabel="Photos. Swipe for the next one, double tap to go back to Wish Jar"
     >
       {slide.previous ? (
-        <Image source={{ uri: slide.previous }} style={StyleSheet.absoluteFill} resizeMode="contain" />
+        <Image source={{ uri: slide.previous }} style={StyleSheet.absoluteFill} resizeMode="cover" />
       ) : null}
-      <View key={slide.step} style={[styles.slide, fade, { opacity: slide.loaded ? 1 : 0 }]}>
-        <Image source={{ uri }} style={StyleSheet.absoluteFill} resizeMode="contain" onLoad={fadeIn} />
+      <View
+        key={slide.step}
+        style={[
+          styles.slide,
+          fade,
+          { transitionDuration: `${slide.swiped ? SWIPE_FADE_MS : FADE_MS}ms` } as object,
+          { opacity: slide.loaded ? 1 : 0 },
+        ]}
+      >
+        <Image source={{ uri }} style={StyleSheet.absoluteFill} resizeMode="cover" onLoad={fadeIn} />
       </View>
       <KidsStrip />
-    </Pressable>
+    </View>
   );
 }
 
@@ -219,14 +279,17 @@ function KidsStrip() {
 // React Native Web passes these through to CSS; they aren't in React Native's style types.
 const fade = {
   transitionProperty: 'opacity',
-  transitionDuration: `${FADE_MS}ms`,
   transitionTimingFunction: 'ease-in-out',
   willChange: 'opacity',
 } as object;
 
+// Keeps the WebView from scrolling, zooming or going back on a swipe, which
+// would also cancel the swipe's pointer events.
+const noBrowserGestures = { touchAction: 'none', userSelect: 'none' } as object;
+
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#000000' },
-  // Opaque, so a narrower photo's bars hide the one before instead of showing it around the edges.
+  // Opaque, so the one before doesn't show through while this one loads.
   slide: { ...StyleSheet.absoluteFill, backgroundColor: '#000000' },
   strip: {
     position: 'absolute',

@@ -272,7 +272,8 @@ public class MainActivity extends Activity {
    *   /frameo/photos               the newest ones first, as [{"name": "…", "time": <ms>}]
    *   /frameo/photos/<name>?size=N  one of them upright, cropped square and N px wide, as JPEG
    *   /frameo/photos/<name>?width=W&height=H  the whole photo upright, fitted inside W x H, as
-   *                                 JPEG: for the idle slideshow (src/photos/Slideshow.tsx)
+   *                                 JPEG; with &fit=cover, filling W x H and cropped to it from
+   *                                 the middle: for the idle slideshow (src/photos/Slideshow.tsx)
    *   POST /frameo/connect          opens Frameo to add a friend, and comes back (connectPhone)
    * The photo routes answer 403 until Wish Jar may read shared storage. /frameo/photos?ask=1 also
    * asks for that permission; the picker passes it when it opens, so a "Deny" isn't asked again on
@@ -304,7 +305,7 @@ public class MainActivity extends Activity {
     int width = intParameter(url, "width", 0, 64, 1920);
     int height = intParameter(url, "height", 0, 64, 1920);
     byte[] jpeg = file == null ? null
-        : width > 0 && height > 0 ? wholePhoto(file, width, height)
+        : width > 0 && height > 0 ? wholePhoto(file, width, height, "cover".equals(url.getQueryParameter("fit")))
         : squarePhoto(file, intParameter(url, "size", 512, 64, 1024));
     if (jpeg == null) return json(404, "Not Found", "{\"error\":\"not found\"}");
     return new WebResourceResponse("image/jpeg", null, 200, "OK", headers(), new ByteArrayInputStream(jpeg));
@@ -395,10 +396,11 @@ public class MainActivity extends Activity {
 
   /**
    * The whole photo turned upright and scaled down to fit inside width x height px, as JPEG: a
-   * slideshow slide. Decoded at a power-of-two sample like squarePhoto, so it never has to fit in
+   * slideshow slide. With cover, scaled down to fill width x height instead and cropped to it
+   * from the middle. Decoded at a power-of-two sample like squarePhoto, so it never has to fit in
    * memory at full size.
    */
-  private static byte[] wholePhoto(File file, int width, int height) {
+  private static byte[] wholePhoto(File file, int width, int height, boolean cover) {
     BitmapFactory.Options options = new BitmapFactory.Options();
     options.inJustDecodeBounds = true;
     BitmapFactory.decodeFile(file.getPath(), options);
@@ -408,7 +410,7 @@ public class MainActivity extends Activity {
     // The box in the photo's own orientation, before it's turned upright.
     int boxWidth = sideways ? height : width;
     int boxHeight = sideways ? width : height;
-    float fit = Math.min(1f, Math.min((float) boxWidth / options.outWidth, (float) boxHeight / options.outHeight));
+    float fit = Math.min(1f, pick(cover, (float) boxWidth / options.outWidth, (float) boxHeight / options.outHeight));
     options.inJustDecodeBounds = false;
     options.inSampleSize = 1;
     while (fit * options.inSampleSize * 2 <= 1) options.inSampleSize *= 2;
@@ -416,16 +418,30 @@ public class MainActivity extends Activity {
     if (decoded == null) return null;
 
     float scale = Math.min(1f,
-        Math.min((float) boxWidth / decoded.getWidth(), (float) boxHeight / decoded.getHeight()));
+        pick(cover, (float) boxWidth / decoded.getWidth(), (float) boxHeight / decoded.getHeight()));
     Matrix matrix = new Matrix();
     matrix.postScale(scale, scale);
     matrix.postRotate(rotation);
     Bitmap slide = Bitmap.createBitmap(decoded, 0, 0, decoded.getWidth(), decoded.getHeight(), matrix, true);
+    if (slide != decoded) decoded.recycle();
+    if (cover) {
+      // Only what shows on screen: the page centres the slide and covers the screen with it.
+      int cropWidth = Math.min(width, slide.getWidth());
+      int cropHeight = Math.min(height, slide.getHeight());
+      Bitmap cropped = Bitmap.createBitmap(slide, (slide.getWidth() - cropWidth) / 2,
+          (slide.getHeight() - cropHeight) / 2, cropWidth, cropHeight);
+      if (cropped != slide) slide.recycle();
+      slide = cropped;
+    }
     ByteArrayOutputStream out = new ByteArrayOutputStream();
     slide.compress(Bitmap.CompressFormat.JPEG, 85, out);
-    if (slide != decoded) slide.recycle();
-    decoded.recycle();
+    slide.recycle();
     return out.toByteArray();
+  }
+
+  /** The scale that fills the box (cover) or fits inside it, from the scales for each side. */
+  private static float pick(boolean cover, float widthScale, float heightScale) {
+    return cover ? Math.max(widthScale, heightScale) : Math.min(widthScale, heightScale);
   }
 
   /** A whole-number query parameter clamped to min..max, or fallback when it's missing or bad. */
