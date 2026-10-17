@@ -2,6 +2,7 @@ import { SQLiteProvider, useSQLiteContext, type SQLiteDatabase } from 'expo-sqli
 import { useEffect, useRef, useState, type PropsWithChildren } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { addStarterTasks } from '../tasks/starter';
 import { colors, fonts, radius, spacing, typography } from '../theme';
 import { migrateDatabase } from './migrations';
 
@@ -62,6 +63,7 @@ function writeReloadAttempts(attempts: number): boolean {
 async function initDatabase(db: SQLiteDatabase): Promise<void> {
   await migrateDatabase(db);
   writeReloadAttempts(0);
+  await addStarterTasks(db);
 }
 
 export function DatabaseProvider({ children }: PropsWithChildren) {
