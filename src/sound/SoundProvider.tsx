@@ -3,12 +3,22 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 
 import { getSoundEnabled, setSoundEnabled, useDatabase } from '../db';
 
-// Two short clips from Kenney's CC0 packs (assets/sounds/CREDITS.md): a ding
-// for every tick and a fanfare for the last one of the period.
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const COIN = require('../../assets/sounds/coin.ogg');
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const FANFARE = require('../../assets/sounds/fanfare.ogg');
+// Short clips from Kenney's CC0 packs (assets/sounds/CREDITS.md): a ding for
+// every tick, a fanfare for the last one of the period, a pluck for the taps
+// that move around the app (tabs, kids, buttons), so a kid hears that a tap
+// landed, and a bong for a wish that's still locked.
+const CLIPS = {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  coin: require('../../assets/sounds/coin.ogg'),
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  fanfare: require('../../assets/sounds/fanfare.ogg'),
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  tap: require('../../assets/sounds/tap.ogg'),
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  locked: require('../../assets/sounds/locked.ogg'),
+};
+
+type Clip = keyof typeof CLIPS;
 
 type SoundContextValue = {
   // The grown-ups' setting; on until they turn it off.
@@ -16,6 +26,8 @@ type SoundContextValue = {
   setSoundOn: (on: boolean) => Promise<void>;
   playCoin: () => void;
   playFanfare: () => void;
+  playTap: () => void;
+  playLocked: () => void;
 };
 
 const SoundContext = createContext<SoundContextValue | null>(null);
@@ -28,7 +40,7 @@ const SoundContext = createContext<SoundContextValue | null>(null);
 export function SoundProvider({ children }: PropsWithChildren) {
   const db = useDatabase();
   const [soundOn, setSoundOnState] = useState(true);
-  const players = useRef<{ coin: AudioPlayer; fanfare: AudioPlayer } | null>(null);
+  const players = useRef<Record<Clip, AudioPlayer> | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,14 +57,18 @@ export function SoundProvider({ children }: PropsWithChildren) {
       // Short effects: they mix with whatever else is playing and follow the
       // phone's silent switch, like a game's sounds do.
       setAudioModeAsync({ playsInSilentMode: false, interruptionMode: 'mixWithOthers' }).catch(() => {});
-      players.current = { coin: createAudioPlayer(COIN), fanfare: createAudioPlayer(FANFARE) };
+      players.current = {
+        coin: createAudioPlayer(CLIPS.coin),
+        fanfare: createAudioPlayer(CLIPS.fanfare),
+        tap: createAudioPlayer(CLIPS.tap),
+        locked: createAudioPlayer(CLIPS.locked),
+      };
     } catch {
       players.current = null;
     }
     return () => {
       try {
-        players.current?.coin.remove();
-        players.current?.fanfare.remove();
+        for (const player of Object.values(players.current ?? {})) player.remove();
       } catch {
         // Already gone.
       }
@@ -66,7 +82,7 @@ export function SoundProvider({ children }: PropsWithChildren) {
     soundOnRef.current = soundOn;
   }, [soundOn]);
 
-  const play = useCallback((which: 'coin' | 'fanfare') => {
+  const play = useCallback((which: Clip) => {
     if (!soundOnRef.current) return;
     const player = players.current?.[which];
     if (!player) return;
@@ -81,6 +97,8 @@ export function SoundProvider({ children }: PropsWithChildren) {
 
   const playCoin = useCallback(() => play('coin'), [play]);
   const playFanfare = useCallback(() => play('fanfare'), [play]);
+  const playTap = useCallback(() => play('tap'), [play]);
+  const playLocked = useCallback(() => play('locked'), [play]);
 
   const setSoundOn = useCallback(
     async (on: boolean) => {
@@ -91,8 +109,8 @@ export function SoundProvider({ children }: PropsWithChildren) {
   );
 
   const value = useMemo<SoundContextValue>(
-    () => ({ soundOn, setSoundOn, playCoin, playFanfare }),
-    [soundOn, setSoundOn, playCoin, playFanfare],
+    () => ({ soundOn, setSoundOn, playCoin, playFanfare, playTap, playLocked }),
+    [soundOn, setSoundOn, playCoin, playFanfare, playTap, playLocked],
   );
 
   return <SoundContext.Provider value={value}>{children}</SoundContext.Provider>;

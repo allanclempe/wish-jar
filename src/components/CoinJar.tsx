@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { memo } from 'react';
+import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
 import Svg, { Circle, Ellipse, G, Path, Rect } from 'react-native-svg';
 
 import { colors } from '../theme';
-import { useNativeDriver } from './Animations';
+import { SpringScale, Squish } from './Animations';
 
 // The jar is drawn in the mockup's coordinate space (mock.js `jar()`), a
 // 128 x 160 viewBox starting at (-2, -6); everything below is in those units
@@ -78,48 +78,26 @@ type CoinJarProps = {
 // get ticked. Its lid sits tilted on top until the last task, when it closes
 // and the jar sparkles and grins. Decorative, not tappable: the progress it
 // shows is read out by the count next to it.
-export function CoinJar({ done, total, size = 112, style }: CoinJarProps) {
+export const CoinJar = memo(function CoinJar({ done, total, size = 112, style }: CoinJarProps) {
   const scale = size / VIEW_HEIGHT;
   const width = VIEW_WIDTH * scale;
   const full = total > 0 && done >= total;
   const fills = layerFill(done, total);
 
-  const [layers] = useState(() => fills.map((fill) => new Animated.Value(fill)));
-  const [bounce] = useState(() => new Animated.Value(1));
-  const previousDone = useRef(done);
-
-  useEffect(() => {
-    const steps = fills.map((fill, index) =>
-      fill > 0
-        ? Animated.spring(layers[index], { toValue: fill, friction: 4, tension: 120, useNativeDriver })
-        : Animated.timing(layers[index], { toValue: 0, duration: 150, useNativeDriver }),
-    );
-    // A small squish of the whole jar on each tick or un-tick, not on load.
-    if (done !== previousDone.current) {
-      previousDone.current = done;
-      bounce.setValue(0.94);
-      steps.push(Animated.spring(bounce, { toValue: 1, friction: 3, tension: 160, useNativeDriver }));
-    }
-    const animation = Animated.parallel(steps);
-    animation.start();
-    return () => animation.stop();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [done, total]);
-
   const px = (x: number) => (x - VIEW_X) * scale;
   const py = (y: number) => (y - VIEW_Y) * scale;
 
   return (
-    <Animated.View
+    // A small squish of the whole jar on each tick or un-tick, not on load.
+    <Squish
+      play={done}
+      from={0.94}
       pointerEvents="none"
       accessibilityElementsHidden
       importantForAccessibility="no-hide-descendants"
-      style={[{ width, height: size, transform: [{ scale: bounce }] }, style]}
+      style={[{ width, height: size }, style]}
     >
-      {/* The glass behind the coins. */}
-      <Svg width={width} height={size} viewBox={VIEW_BOX}>
-        <Path d={BODY} fill={GLASS_FILL} />
-      </Svg>
+      <JarGlass width={width} size={size} />
       <View
         style={[
           styles.clip,
@@ -135,11 +113,12 @@ export function CoinJar({ done, total, size = 112, style }: CoinJarProps) {
           },
         ]}
       >
-        {LAYERS.map((coins, layer) => {
+        {LAYERS.map((_, layer) => {
           const top = LAYER_BOTTOM_Y - layer * LAYER_GAP - LAYER_HEIGHT / 2;
           return (
-            <Animated.View
+            <SpringScale
               key={layer}
+              value={fills[layer]}
               style={[
                 styles.layer,
                 {
@@ -147,56 +126,15 @@ export function CoinJar({ done, total, size = 112, style }: CoinJarProps) {
                   top: py(top) - py(BODY_TOP),
                   width: LAYER_WIDTH * scale,
                   height: LAYER_HEIGHT * scale,
-                  transform: [{ scale: layers[layer] }],
                 },
               ]}
             >
-              <Svg
-                width={LAYER_WIDTH * scale}
-                height={LAYER_HEIGHT * scale}
-                viewBox={`${LAYER_LEFT} ${top} ${LAYER_WIDTH} ${LAYER_HEIGHT}`}
-              >
-                {coins.map((coin, index) => (
-                  <G key={index} transform={`translate(${coin.x} ${coin.y}) rotate(${coin.rotate})`}>
-                    <Ellipse rx={14} ry={8} fill={colors.sunshine} stroke={colors.sunshineDark} strokeWidth={3} />
-                    <Ellipse rx={6} ry={2.5} cy={-2} fill={COIN_SHINE} />
-                  </G>
-                ))}
-              </Svg>
-            </Animated.View>
+              <CoinLayerArt layer={layer} scale={scale} />
+            </SpringScale>
           );
         })}
       </View>
-      {/* The outline, shine, face and lid over the coins. */}
-      <Svg width={width} height={size} viewBox={VIEW_BOX} style={StyleSheet.absoluteFill}>
-        <Path d={BODY} fill="none" stroke={OUTLINE} strokeWidth={4} />
-        <Path d="M36 52 v62" stroke="#fff" strokeWidth={6} strokeLinecap="round" opacity={0.75} />
-        {full ? (
-          <>
-            <Path d="M46 86 q7 -9 14 0" stroke={OUTLINE} strokeWidth={4} fill="none" strokeLinecap="round" />
-            <Path d="M64 86 q7 -9 14 0" stroke={OUTLINE} strokeWidth={4} fill="none" strokeLinecap="round" />
-            <Path d="M50 98 q12 16 24 0" stroke={OUTLINE} strokeWidth={4} fill="none" strokeLinecap="round" />
-            <Circle cx={40} cy={96} r={5} fill={CHEEK} opacity={0.8} />
-            <Circle cx={84} cy={96} r={5} fill={CHEEK} opacity={0.8} />
-          </>
-        ) : (
-          <>
-            <Circle cx={52} cy={84} r={6} fill={OUTLINE} />
-            <Circle cx={72} cy={84} r={6} fill={OUTLINE} />
-            <Circle cx={54} cy={82} r={2} fill="#fff" />
-            <Circle cx={74} cy={82} r={2} fill="#fff" />
-            <Path d="M54 98 q8 8 16 0" stroke={OUTLINE} strokeWidth={4} fill="none" strokeLinecap="round" />
-          </>
-        )}
-        {full ? (
-          <Rect x={30} y={6} width={64} height={20} rx={7} fill={colors.primary} stroke={OUTLINE} strokeWidth={4} />
-        ) : (
-          <G transform="translate(78 10) rotate(18)">
-            <Rect x={-32} y={-10} width={64} height={20} rx={7} fill={colors.primary} stroke={OUTLINE} strokeWidth={4} />
-          </G>
-        )}
-        <Rect x={36} y={24} width={52} height={10} fill={GLASS} stroke={OUTLINE} strokeWidth={4} />
-      </Svg>
+      <JarFront full={full} width={width} size={size} />
       {/* Text rather than SVG text so the frame's Twemoji font draws them. */}
       {full ? (
         <>
@@ -204,9 +142,76 @@ export function CoinJar({ done, total, size = 112, style }: CoinJarProps) {
           <Text style={[styles.sparkle, { left: px(4), top: py(24), fontSize: 18 * scale }]}>✨</Text>
         </>
       ) : null}
-    </Animated.View>
+    </Squish>
   );
-}
+});
+
+// The jar's drawings are memoized apart from the jar, so a tick, which only
+// springs the coin layers, doesn't redraw every SVG shape: on the frame each
+// one costs a React render.
+
+// The glass behind the coins.
+const JarGlass = memo(function JarGlass({ width, size }: { width: number; size: number }) {
+  return (
+    <Svg width={width} height={size} viewBox={VIEW_BOX}>
+      <Path d={BODY} fill={GLASS_FILL} />
+    </Svg>
+  );
+});
+
+// One layer of coins, seen edge-on.
+const CoinLayerArt = memo(function CoinLayerArt({ layer, scale }: { layer: number; scale: number }) {
+  const top = LAYER_BOTTOM_Y - layer * LAYER_GAP - LAYER_HEIGHT / 2;
+  return (
+    <Svg
+      width={LAYER_WIDTH * scale}
+      height={LAYER_HEIGHT * scale}
+      viewBox={`${LAYER_LEFT} ${top} ${LAYER_WIDTH} ${LAYER_HEIGHT}`}
+    >
+      {LAYERS[layer].map((coin, index) => (
+        <G key={index} transform={`translate(${coin.x} ${coin.y}) rotate(${coin.rotate})`}>
+          <Ellipse rx={14} ry={8} fill={colors.sunshine} stroke={colors.sunshineDark} strokeWidth={3} />
+          <Ellipse rx={6} ry={2.5} cy={-2} fill={COIN_SHINE} />
+        </G>
+      ))}
+    </Svg>
+  );
+});
+
+// The outline, shine, face and lid over the coins.
+const JarFront = memo(function JarFront({ full, width, size }: { full: boolean; width: number; size: number }) {
+  return (
+    <Svg width={width} height={size} viewBox={VIEW_BOX} style={StyleSheet.absoluteFill}>
+      <Path d={BODY} fill="none" stroke={OUTLINE} strokeWidth={4} />
+      <Path d="M36 52 v62" stroke="#fff" strokeWidth={6} strokeLinecap="round" opacity={0.75} />
+      {full ? (
+        <>
+          <Path d="M46 86 q7 -9 14 0" stroke={OUTLINE} strokeWidth={4} fill="none" strokeLinecap="round" />
+          <Path d="M64 86 q7 -9 14 0" stroke={OUTLINE} strokeWidth={4} fill="none" strokeLinecap="round" />
+          <Path d="M50 98 q12 16 24 0" stroke={OUTLINE} strokeWidth={4} fill="none" strokeLinecap="round" />
+          <Circle cx={40} cy={96} r={5} fill={CHEEK} opacity={0.8} />
+          <Circle cx={84} cy={96} r={5} fill={CHEEK} opacity={0.8} />
+        </>
+      ) : (
+        <>
+          <Circle cx={52} cy={84} r={6} fill={OUTLINE} />
+          <Circle cx={72} cy={84} r={6} fill={OUTLINE} />
+          <Circle cx={54} cy={82} r={2} fill="#fff" />
+          <Circle cx={74} cy={82} r={2} fill="#fff" />
+          <Path d="M54 98 q8 8 16 0" stroke={OUTLINE} strokeWidth={4} fill="none" strokeLinecap="round" />
+        </>
+      )}
+      {full ? (
+        <Rect x={30} y={6} width={64} height={20} rx={7} fill={colors.primary} stroke={OUTLINE} strokeWidth={4} />
+      ) : (
+        <G transform="translate(78 10) rotate(18)">
+          <Rect x={-32} y={-10} width={64} height={20} rx={7} fill={colors.primary} stroke={OUTLINE} strokeWidth={4} />
+        </G>
+      )}
+      <Rect x={36} y={24} width={52} height={10} fill={GLASS} stroke={OUTLINE} strokeWidth={4} />
+    </Svg>
+  );
+});
 
 const styles = StyleSheet.create({
   clip: { position: 'absolute', overflow: 'hidden' },

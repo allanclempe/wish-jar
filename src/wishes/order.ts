@@ -53,3 +53,24 @@ export function wishesUnlockedBy(wishes: Wish[], before: number, after: number):
     (wish) => wish.claimedAt == null && before < wish.coinAmount && wish.coinAmount <= after,
   );
 }
+
+// Whether two loads of the wishes are the same, so the wishes tab can keep
+// what it has instead of re-rendering every card each time it is shown.
+export function sameWishes(a: Wish[], b: Wish[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every((wish, i) => {
+      const other = b[i];
+      return (
+        wish.id === other.id &&
+        wish.kidId === other.kidId &&
+        wish.name === other.name &&
+        wish.coinAmount === other.coinAmount &&
+        wish.icon.emoji === other.icon.emoji &&
+        wish.icon.photoUri === other.icon.photoUri &&
+        wish.createdAt === other.createdAt &&
+        wish.claimedAt === other.claimedAt
+      );
+    })
+  );
+}

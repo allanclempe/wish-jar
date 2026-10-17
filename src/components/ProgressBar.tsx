@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
-import { Animated, Easing, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { colors } from '../theme';
+import { GrowWidth } from './Animations';
 
 const HEIGHT = 20;
 
@@ -26,17 +26,6 @@ export function ProgressBar({
 }: ProgressBarProps) {
   const clamped = Math.min(Math.max(progress, 0), 1);
   const percent = Math.round(clamped * 100);
-  const [fill] = useState(() => new Animated.Value(0));
-
-  useEffect(() => {
-    // Width can't use the native driver.
-    Animated.timing(fill, {
-      toValue: clamped,
-      duration: 800,
-      easing: Easing.out(Easing.back(1.2)),
-      useNativeDriver: false,
-    }).start();
-  }, [clamped, fill]);
 
   const complete = clamped >= 1;
   const shineInset = height / 2;
@@ -48,11 +37,11 @@ export function ProgressBar({
       accessibilityRole="progressbar"
       accessibilityValue={{ min: 0, max: 100, now: percent }}
     >
-      <Animated.View
+      <GrowWidth
+        fraction={clamped}
         style={[
           styles.fill,
           { height, borderRadius: height / 2, backgroundColor: complete ? colors.successDark : color },
-          { width: fill.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'], extrapolate: 'clamp' }) },
         ]}
       >
         <View
@@ -61,7 +50,7 @@ export function ProgressBar({
             { top: shineInset - shineHeight - 1, left: shineInset, right: shineInset, height: shineHeight },
           ]}
         />
-      </Animated.View>
+      </GrowWidth>
     </View>
   );
 }

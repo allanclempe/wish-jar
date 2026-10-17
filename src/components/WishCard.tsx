@@ -19,9 +19,10 @@ type WishCardProps = WishProgress & {
 };
 
 // A big photo tile for one wish: the coins it costs in the corner, a bar
-// filling up over the photo with how many coins are still to go. Locked, the
-// photo is soft and washed out under a padlock; unlocked, it glows, rocks
-// gently and wears a GET IT! sticker; claimed, a GOT IT! one.
+// filling up over the photo with how many coins are still to go. Locked, a
+// small padlock sits in the corner and the wish stays in full view, so a kid
+// can see what they're saving for; unlocked, it glows, rocks gently and wears
+// a GET IT! sticker; claimed, a GOT IT! one.
 export function WishCard({
   wish,
   state,
@@ -52,7 +53,7 @@ export function WishCard({
       style={style}
     >
       {({ pressed }) => (
-        // Only unlocked cards move: the frame runs animations in JavaScript.
+        // Only unlocked cards move, to stand out from the rest.
         <Wiggle active={unlocked} angle={2.5} style={[styles.fill, pressed && !claimed && styles.pressed]}>
           <PhotoTile
             icon={wish.icon}
@@ -60,12 +61,18 @@ export function WishCard({
             name={wish.name}
             tint={pastelFor(wish.id)}
             tilt={hero ? 0 : tiltForIndex(index)}
-            locked={locked}
             glow={unlocked}
             done={claimed}
             large={large}
             style={styles.fill}
             topLeft={<CoinPill coins={wish.coinAmount} large={large} />}
+            topRight={
+              locked ? (
+                <View style={[styles.padlock, large && styles.padlockLarge]}>
+                  <Text style={[styles.padlockText, large && styles.padlockTextLarge]}>🔒</Text>
+                </View>
+              ) : null
+            }
             aboveName={
               claimed ? null : (
                 <View style={styles.progress}>
@@ -88,11 +95,7 @@ export function WishCard({
                 <Sticker label="GET IT!" size={stickerSize} />
               ) : claimed ? (
                 <Sticker label="GOT IT!" size={stickerSize} />
-              ) : (
-                <View style={[styles.padlock, large && styles.padlockLarge]}>
-                  <Text style={[styles.padlockText, large && styles.padlockTextLarge]}>🔒</Text>
-                </View>
-              )
+              ) : null
             }
           />
         </Wiggle>
@@ -116,11 +119,12 @@ const styles = StyleSheet.create({
   },
   toGoLarge: { fontSize: 19, lineHeight: 24 },
   toGoEmoji: { color: colors.text, textShadowColor: 'rgba(255, 255, 255, 0.6)' },
-  // A white round sticker with the padlock on it, straight, not slapped on.
+  // A white round badge with the padlock on it, small enough to leave the
+  // wish in view.
   padlock: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     backgroundColor: colors.surface,
     borderWidth: 3,
     borderColor: colors.border,
@@ -128,7 +132,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     ...offsetShadow('rgba(61, 44, 46, 0.25)'),
   },
-  padlockLarge: { width: 84, height: 84, borderRadius: 42 },
-  padlockText: { fontSize: 30, lineHeight: 38 },
-  padlockTextLarge: { fontSize: 40, lineHeight: 50 },
+  padlockLarge: { width: 50, height: 50, borderRadius: 25 },
+  padlockText: { fontSize: 18, lineHeight: 24 },
+  padlockTextLarge: { fontSize: 24, lineHeight: 30 },
 });

@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Celebration, FadeInUp, Wiggle } from '../src/components/Animations';
 import { WishCard } from '../src/components/WishCard';
 import { listWishes, useDatabase, type Wish } from '../src/db';
+import { useSound } from '../src/sound/SoundProvider';
 import { colors, offsetShadow, radius, spacing, typography, useLargeScreen } from '../src/theme';
 
 // Shown when a task tick gives the kid enough coins for one or more wishes.
@@ -17,6 +18,7 @@ export default function WishUnlockedScreen() {
   const [wishes, setWishes] = useState<Wish[]>([]);
   const [burst, setBurst] = useState(0);
   const large = useLargeScreen();
+  const { playTap } = useSound();
 
   useEffect(() => {
     const wanted = new Set(String(ids ?? '').split(',').map(Number));
@@ -63,14 +65,20 @@ export default function WishUnlockedScreen() {
 
         <Pressable
           style={({ pressed }) => [styles.button, pressed && styles.pressed]}
-          onPress={() => router.dismissTo('/wishlist')}
+          onPress={() => {
+            playTap();
+            router.dismissTo('/wishlist');
+          }}
           accessibilityRole="button"
         >
           <Text style={styles.buttonText}>🎁 Go to my wishes</Text>
         </Pressable>
         <Pressable
           style={({ pressed }) => [styles.later, pressed && styles.pressed]}
-          onPress={() => router.back()}
+          onPress={() => {
+            playTap();
+            router.back();
+          }}
           accessibilityRole="button"
         >
           <Text style={styles.laterText}>Keep doing tasks</Text>

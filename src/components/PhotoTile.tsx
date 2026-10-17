@@ -22,18 +22,18 @@ type PhotoTileProps = {
   tilt?: number;
   // A green rim and overlay, with the emoji faded.
   done?: boolean;
-  // Out of reach for now: the photo goes soft and washed out, an emoji fades.
-  locked?: boolean;
   // Ready to take: a yellow rim with a sunshine halo around the tile.
   glow?: boolean;
   // Frame and tablet sizes: thicker rim, bigger emoji and name.
   large?: boolean;
-  // Slots, all optional: the coin pill in the top-left corner, the check in
-  // the bottom-right one, a sticker over the middle, a line above the name
+  // Slots, all optional: the coin pill in the top-left corner, a wish's
+  // padlock in the top-right one, the check in the bottom-right one, a
+  // sticker over the middle, a line above the name
   // (a wish's progress bar), and anything that floats above the tile (like
   // the coins flying up when a task is ticked). Only `above` sits outside the
   // clipped rim, so it can leave the tile.
   topLeft?: ReactNode;
+  topRight?: ReactNode;
   bottomRight?: ReactNode;
   sticker?: ReactNode;
   aboveName?: ReactNode;
@@ -52,10 +52,10 @@ export function PhotoTile({
   tint,
   tilt = 0,
   done = false,
-  locked = false,
   glow = false,
   large = false,
   topLeft,
+  topRight,
   bottomRight,
   sticker,
   aboveName,
@@ -82,20 +82,14 @@ export function PhotoTile({
             source={{ uri: icon.photoUri ?? undefined }}
             style={styles.photo}
             resizeMode="cover"
-            // The one blur the frame can afford: a CSS filter on the web
-            // export, a native one on a phone.
-            blurRadius={locked ? LOCKED_BLUR : undefined}
           />
         ) : (
           <View style={[styles.emojiBox, large && styles.emojiBoxLarge, aboveName != null && styles.emojiBoxAbove]}>
-            <Text style={[styles.emoji, large && styles.emojiLarge, (done || locked) && styles.emojiDone]}>
+            <Text style={[styles.emoji, large && styles.emojiLarge, done && styles.emojiDone]}>
               {icon.emoji ?? fallbackEmoji}
             </Text>
           </View>
         )}
-        {photo && locked ? (
-          <View pointerEvents="none" style={[StyleSheet.absoluteFill, styles.lockedWash]} />
-        ) : null}
         {photo ? (
           <LinearGradient
             pointerEvents="none"
@@ -126,6 +120,7 @@ export function PhotoTile({
           </View>
         ) : null}
         {topLeft != null ? <View style={[styles.topLeft, large && styles.topLeftLarge]}>{topLeft}</View> : null}
+        {topRight != null ? <View style={[styles.topRight, large && styles.topRightLarge]}>{topRight}</View> : null}
         {bottomRight != null ? (
           <View style={[styles.bottomRight, large && styles.bottomRightLarge]}>{bottomRight}</View>
         ) : null}
@@ -144,7 +139,7 @@ type StickerProps = {
 };
 
 // A yellow label slapped over the photo, tilted, with a dark lift under it.
-// Wrap it in an Animated.View to spring it in.
+// Wrap it in a SpringIn to spring it in.
 export function Sticker({ label, size = 'regular' }: StickerProps) {
   return (
     <View style={[styles.sticker, size === 'small' && styles.stickerSmall, size === 'large' && styles.stickerLarge]}>
@@ -186,7 +181,6 @@ const DONE_SHADE = ['rgba(39, 174, 96, 0.3)', 'rgba(39, 174, 96, 0.4)', 'rgba(61
 const DONE_SHADE_STOPS = [0, 0.4, 1] as const;
 
 const FILL = { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 } as const;
-const LOCKED_BLUR = 3;
 const HALO = 7;
 const RIM = 4;
 const RIM_LARGE = 5;
@@ -228,7 +222,6 @@ const styles = StyleSheet.create({
   emojiLarge: { fontSize: 120, lineHeight: 140 },
   emojiDone: { opacity: 0.4 },
   emojiDoneWash: { backgroundColor: 'rgba(39, 174, 96, 0.12)' },
-  lockedWash: { backgroundColor: 'rgba(255, 255, 255, 0.45)' },
   // The name and whatever sits above it, along the bottom of the tile.
   bottom: {
     position: 'absolute',
@@ -283,6 +276,8 @@ const styles = StyleSheet.create({
   coinTextLarge: { fontSize: 20, lineHeight: 30 },
   topLeft: { position: 'absolute', top: INSET, left: INSET },
   topLeftLarge: { top: INSET_LARGE, left: INSET_LARGE },
+  topRight: { position: 'absolute', top: INSET, right: INSET },
+  topRightLarge: { top: INSET_LARGE, right: INSET_LARGE },
   bottomRight: { position: 'absolute', bottom: INSET, right: INSET },
   bottomRightLarge: { bottom: INSET_LARGE, right: INSET_LARGE },
 });

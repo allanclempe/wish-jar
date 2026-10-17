@@ -1,11 +1,11 @@
 import { LinearGradient } from 'expo-linear-gradient';
-import { useEffect, useState } from 'react';
-import { Animated, Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import type { Kid, Period } from '../db';
+import { useSound } from '../sound/SoundProvider';
 import { PERIOD_LABELS } from '../tasks/period';
 import { colors, fonts, offsetShadow, radius, spacing, typography, useLargeScreen } from '../theme';
-import { Celebration, Wiggle, useNativeDriver } from './Animations';
+import { Celebration, SpringIn, Wiggle } from './Animations';
 import { CoinJar } from './CoinJar';
 
 type PeriodDoneOverlayProps = {
@@ -25,21 +25,20 @@ type PeriodDoneOverlayProps = {
 // wish-unlocked screen, which opens after this one is closed.
 export function PeriodDoneOverlay({ kid, period, total, coinsToday, onSeeWishes, onKeepGoing }: PeriodDoneOverlayProps) {
   const large = useLargeScreen();
+  const { playTap } = useSound();
   const { width, height } = useWindowDimensions();
   // Held sideways (the frame, a phone in landscape) there is no room for the
   // whole column, so the kid and the title go left and the jar and buttons right.
   const landscape = width > height;
-  const [appear] = useState(() => new Animated.Value(0));
-
-  useEffect(() => {
-    Animated.spring(appear, { toValue: 1, friction: 7, tension: 70, useNativeDriver }).start();
-  }, [appear]);
-
   const photoSize = large ? PHOTO_SIZE_LARGE : PHOTO_SIZE;
 
   return (
-    <Animated.View
-      style={[StyleSheet.absoluteFill, { opacity: appear }]}
+    // Fades in as the card springs up from smaller.
+    <SpringIn
+      shown
+      animate
+      from={1}
+      style={StyleSheet.absoluteFill}
       accessibilityViewIsModal
       importantForAccessibility="yes"
     >
@@ -55,13 +54,7 @@ export function PeriodDoneOverlay({ kid, period, total, coinsToday, onSeeWishes,
         </Text>
       ))}
       <ScrollView contentContainerStyle={[styles.content, landscape && styles.contentLandscape]}>
-        <Animated.View
-          style={[
-            styles.card,
-            landscape && styles.cardLandscape,
-            { transform: [{ scale: appear.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }) }] },
-          ]}
-        >
+        <SpringIn shown animate from={0.7} style={[styles.card, landscape && styles.cardLandscape]}>
           <View style={[styles.column, landscape && styles.columnLandscape]}>
             <View style={styles.photoBox}>
               <View style={[styles.ring, { width: photoSize + 16, height: photoSize + 16, borderRadius: (photoSize + 16) / 2 }]}>
@@ -101,24 +94,30 @@ export function PeriodDoneOverlay({ kid, period, total, coinsToday, onSeeWishes,
             )}
             <Pressable
               style={({ pressed }) => [styles.button, large && styles.buttonLarge, pressed && styles.pressed]}
-              onPress={onSeeWishes}
+              onPress={() => {
+                playTap();
+                onSeeWishes();
+              }}
               accessibilityRole="button"
             >
               <Text style={[styles.buttonText, large && styles.buttonTextLarge]}>🎁 See my wishes</Text>
             </Pressable>
             <Pressable
               style={({ pressed }) => [styles.later, large && styles.laterLarge, pressed && styles.pressed]}
-              onPress={onKeepGoing}
+              onPress={() => {
+                playTap();
+                onKeepGoing();
+              }}
               accessibilityRole="button"
             >
               <Text style={[styles.laterText, large && styles.buttonTextLarge]}>Keep going</Text>
             </Pressable>
           </View>
-        </Animated.View>
+        </SpringIn>
       </ScrollView>
       {/* Mounted fresh each time it opens, so one burst as it appears. */}
       <Celebration burst={1} size={large ? 44 : 34} count={24} />
-    </Animated.View>
+    </SpringIn>
   );
 }
 

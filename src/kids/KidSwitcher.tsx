@@ -1,11 +1,11 @@
-import { router } from 'expo-router';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { Animated, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState, type ReactNode } from 'react';
+import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { useNativeDriver } from '../components/Animations';
+import { SpringTo, Squish } from '../components/Animations';
 import { ParentLockButton } from '../parent/ParentLockButton';
-import { useActiveKid } from './ActiveKidProvider';
+import { useSound } from '../sound/SoundProvider';
+import { useActiveKid, useSavings } from './ActiveKidProvider';
 import { colors, fonts, offsetShadow, radius, spacing, sunshineShadow, typography, useLargeScreen } from '../theme';
 
 type KidSwitcherProps = {
@@ -14,15 +14,16 @@ type KidSwitcherProps = {
 };
 
 export function KidSwitcher({ tabs }: KidSwitcherProps) {
-  const { kids, activeKid, savings, selectKid } = useActiveKid();
-  const coins = activeKid ? (savings[activeKid.id] ?? 0) : 0;
+  const { kids, activeKid, selectKid } = useActiveKid();
+  const { playTap } = useSound();
   const large = useLargeScreen();
 
-  // A new kid starts on their tasks, not on the last kid's wishes or consequences.
+  // The new kid stays on the tab that's open, so kids taking turns on the
+  // wishes tab each see their own.
   function switchTo(kidId: number) {
+    playTap();
     if (kidId === activeKid?.id) return;
     selectKid(kidId);
-    router.navigate('/');
   }
 
   return (
@@ -46,7 +47,7 @@ export function KidSwitcher({ tabs }: KidSwitcherProps) {
           ))}
         </ScrollView>
         {tabs}
-        {activeKid ? <CoinCounter coins={coins} large={large} /> : null}
+        {activeKid ? <CoinCounter kidId={activeKid.id} large={large} /> : null}
         <ParentLockButton />
       </View>
     </SafeAreaView>
@@ -62,12 +63,6 @@ type KidAvatarProps = {
 };
 
 function KidAvatar({ name, photoUri, active, large, onPress }: KidAvatarProps) {
-  const [pop] = useState(() => new Animated.Value(active ? 1 : 0));
-
-  useEffect(() => {
-    Animated.spring(pop, { toValue: active ? 1 : 0, friction: 4, tension: 120, useNativeDriver }).start();
-  }, [active, pop]);
-
   return (
     <Pressable
       style={styles.kid}
@@ -76,16 +71,10 @@ function KidAvatar({ name, photoUri, active, large, onPress }: KidAvatarProps) {
       accessibilityLabel={name}
       accessibilityState={{ selected: active }}
     >
-      <Animated.View
-        style={[
-          styles.ring,
-          large && styles.ringLarge,
-          active && styles.ringActive,
-          {
-            opacity: pop.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] }),
-            transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1.08] }) }],
-          },
-        ]}
+      <SpringTo
+        bouncy
+        to={{ opacity: active ? 1 : 0.55, scale: active ? 1.08 : 0.85 }}
+        style={[styles.ring, large && styles.ringLarge, active && styles.ringActive]}
       >
         {photoUri ? (
           <Image
@@ -97,7 +86,7 @@ function KidAvatar({ name, photoUri, active, large, onPress }: KidAvatarProps) {
             <Text style={[styles.avatarEmoji, large && styles.avatarEmojiLarge]}>🙂</Text>
           </View>
         )}
-      </Animated.View>
+      </SpringTo>
       <Text style={[styles.name, large && styles.nameLarge, active && styles.nameActive]} numberOfLines={1}>
         {name}
       </Text>
@@ -106,25 +95,26 @@ function KidAvatar({ name, photoUri, active, large, onPress }: KidAvatarProps) {
 }
 
 // Bounces whenever the count goes up, so earning a coin is felt up here too.
-function CoinCounter({ coins, large }: { coins: number; large: boolean }) {
-  const [bounce] = useState(() => new Animated.Value(1));
-  const previous = useRef(coins);
-
-  useEffect(() => {
-    if (coins > previous.current) {
-      bounce.setValue(1.5);
-      Animated.spring(bounce, { toValue: 1, friction: 3, tension: 140, useNativeDriver }).start();
-    }
-    previous.current = coins;
-  }, [coins, bounce]);
+// It reads the savings itself, so a tick re-renders only the counter.
+function CoinCounter({ kidId, large }: { kidId: number; large: boolean }) {
+  const coins = useSavings()[kidId] ?? 0;
+  // How many times the count has gone up, noted while rendering.
+  const [last, setLast] = useState(coins);
+  const [ups, setUps] = useState(0);
+  if (coins !== last) {
+    setLast(coins);
+    if (coins > last) setUps(ups + 1);
+  }
 
   return (
-    <Animated.View
-      style={[styles.coins, large && styles.coinsLarge, { transform: [{ scale: bounce }] }]}
+    <Squish
+      play={ups}
+      from={1.5}
+      style={[styles.coins, large && styles.coinsLarge]}
       accessibilityLabel={`${coins} ${coins === 1 ? 'coin' : 'coins'}`}
     >
       <Text style={[styles.coinsText, large && styles.coinsTextLarge]}>🪙 {coins}</Text>
-    </Animated.View>
+    </Squish>
   );
 }
 

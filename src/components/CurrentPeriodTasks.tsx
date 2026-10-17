@@ -1,5 +1,5 @@
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View, type LayoutChangeEvent } from 'react-native';
 
 import {
@@ -9,13 +9,14 @@ import {
   setTaskCompletion,
   sumCoinsEarnedOn,
   useDatabase,
+  type Kid,
   type Period,
   type Task,
 } from '../db';
 import { useActiveKid } from '../kids/ActiveKidProvider';
 import { useSound } from '../sound/SoundProvider';
 import { fonts, skies, spacing, typography, useLargeScreen } from '../theme';
-import { PERIOD_EMOJIS, tasksForPeriod } from '../tasks/period';
+import { PERIOD_EMOJIS, sameTasks, tasksForPeriod } from '../tasks/period';
 import { wishesUnlockedBy } from '../wishes/order';
 import { Celebration, FadeInUp } from './Animations';
 import { CoinJar } from './CoinJar';
@@ -91,12 +92,17 @@ type CurrentPeriodTasksProps = {
   day: string;
 };
 
-export function CurrentPeriodTasks({ period, day }: CurrentPeriodTasksProps) {
+export function CurrentPeriodTasks(props: CurrentPeriodTasksProps) {
+  const { activeKid } = useActiveKid();
+  return activeKid ? <KidPeriodTasks {...props} kid={activeKid} /> : null;
+}
+
+function KidPeriodTasks({ period, day, kid: activeKid }: CurrentPeriodTasksProps & { kid: Kid }) {
   const db = useDatabase();
-  const { activeKid, recordTaskCompletion } = useActiveKid();
+  const { recordTaskCompletion } = useActiveKid();
   const { playFanfare } = useSound();
   const large = useLargeScreen();
-  const activeKidId = activeKid?.id ?? null;
+  const activeKidId = activeKid.id;
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [doneKeys, setDoneKeys] = useState<Set<string>>(() => new Set());
@@ -118,6 +124,10 @@ export function CurrentPeriodTasks({ period, day }: CurrentPeriodTasksProps) {
   // The space the grid may fill: the list minus the banner above it.
   const [listSize, setListSize] = useState({ width: 0, height: 0 });
   const [bannerHeight, setBannerHeight] = useState(0);
+  // The cards get one handler that never changes, calling the latest
+  // toggleDone, so a tick re-renders only the card it changed.
+  const toggleRef = useRef<(task: Task) => void>(() => {});
+  const onToggle = useCallback((task: Task) => toggleRef.current(task), []);
 
   useEffect(
     () => () => {
@@ -145,10 +155,11 @@ export function CurrentPeriodTasks({ period, day }: CurrentPeriodTasksProps) {
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      setLoading(true);
+      // "Loading" only shows before the first load; later ones keep the list
+      // up while they run.
       listTasks(db).then((loaded) => {
         if (cancelled) return;
-        setTasks(loaded);
+        setTasks((current) => (sameTasks(current, loaded) ? current : loaded));
         setLoading(false);
       });
       return () => {
@@ -161,7 +172,6 @@ export function CurrentPeriodTasks({ period, day }: CurrentPeriodTasksProps) {
   // Saved ticks are for one kid on one day, so reload them when either changes;
   // once the day key changes no task looks done.
   useEffect(() => {
-    if (activeKidId == null) return;
     let cancelled = false;
     listCompletedTaskIds(db, activeKidId, day).then((taskIds) => {
       if (cancelled) return;
@@ -173,10 +183,6 @@ export function CurrentPeriodTasks({ period, day }: CurrentPeriodTasksProps) {
       cancelled = true;
     };
   }, [db, activeKidId, day]);
-
-  if (!activeKid) {
-    return null;
-  }
 
   const kidId = activeKid.id;
   const currentTasks = tasksForPeriod(tasks, period);
@@ -215,6 +221,10 @@ export function CurrentPeriodTasks({ period, day }: CurrentPeriodTasksProps) {
       dropRelockedWishes(change.savings);
     }
   }
+
+  useLayoutEffect(() => {
+    toggleRef.current = toggleDone;
+  });
 
   // Opens about a second after the last tick, once its sticker, coins and
   // confetti have played. An un-tick before then cancels it.
@@ -371,7 +381,7 @@ export function CurrentPeriodTasks({ period, day }: CurrentPeriodTasksProps) {
                 <TaskCard
                   task={task}
                   done={doneKeys.has(`${day}:${kidId}:${task.id}`)}
-                  onPress={() => toggleDone(task)}
+                  onPress={onToggle}
                   index={index}
                   large={large}
                   style={styles.tile}

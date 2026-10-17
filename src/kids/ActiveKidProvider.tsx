@@ -15,7 +15,6 @@ type ActiveKidContextValue = {
   ready: boolean;
   kids: Kid[];
   activeKid: Kid | null;
-  savings: Record<number, number>;
   refreshKids: () => Promise<void>;
   selectKid: (kidId: number) => Promise<void>;
   recordTaskCompletion: (kidId: number, coinAmount: number, completed: boolean) => void;
@@ -23,6 +22,9 @@ type ActiveKidContextValue = {
 };
 
 const ActiveKidContext = createContext<ActiveKidContextValue | null>(null);
+// Savings change on every tick, so they have a context of their own: only the
+// few screens that show coins re-render, not everything that knows the kid.
+const SavingsContext = createContext<Record<number, number> | null>(null);
 
 export function ActiveKidProvider({ children }: PropsWithChildren) {
   const db = useDatabase();
@@ -95,22 +97,34 @@ export function ActiveKidProvider({ children }: PropsWithChildren) {
       ready,
       kids,
       activeKid: kids.find((kid) => kid.id === activeKidId) ?? null,
-      savings,
       refreshKids,
       selectKid,
       recordTaskCompletion,
       recordSavingsChange,
     }),
-    [ready, kids, activeKidId, savings, refreshKids, selectKid, recordTaskCompletion, recordSavingsChange],
+    [ready, kids, activeKidId, refreshKids, selectKid, recordTaskCompletion, recordSavingsChange],
   );
 
-  return <ActiveKidContext.Provider value={value}>{children}</ActiveKidContext.Provider>;
+  return (
+    <ActiveKidContext.Provider value={value}>
+      <SavingsContext.Provider value={savings}>{children}</SavingsContext.Provider>
+    </ActiveKidContext.Provider>
+  );
 }
 
 export function useActiveKid(): ActiveKidContextValue {
   const context = useContext(ActiveKidContext);
   if (!context) {
     throw new Error('useActiveKid must be used inside ActiveKidProvider');
+  }
+  return context;
+}
+
+// Each kid's coins, by kid id, as far as they have been loaded.
+export function useSavings(): Record<number, number> {
+  const context = useContext(SavingsContext);
+  if (!context) {
+    throw new Error('useSavings must be used inside ActiveKidProvider');
   }
   return context;
 }
