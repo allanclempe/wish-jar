@@ -1,0 +1,25 @@
+diff --git a/src/async-require/asyncRequireModule.ts b/src/async-require/asyncRequireModule.ts
+index 03f7738b2e60a89153737c13853b8419806a2dcf..350eff91dd76e2de868ea5655e513beb78789414 100644
+--- a/src/async-require/asyncRequireModule.ts
++++ b/src/async-require/asyncRequireModule.ts
+@@ -146,14 +146,16 @@ asyncRequire.unstable_resolve = function unstable_resolve(
+   return id;
+ };
+ 
+-// Wraps around `new Worker` and if `crossOriginIsolated` is truthy, indicating CORP/COEP is active,
+-// instantiates the worker with an inline script instead, which works around the CORS error. This is
+-// necessary if the worker script won't have the same CORP/COEP headers as the document
++// Wraps around `new Worker` and instantiates the worker with an inline script instead. With CORP/COEP
++// active (`crossOriginIsolated`), this works around the CORS error when the worker script won't have
++// the same CORP/COEP headers as the document. Wish Jar uses it on every page: the Echo Show's web view
++// (not cross-origin isolated) starts a worker from its URL but the worker never runs, while the same
++// script loaded through the inline shim works.
+ asyncRequire.unstable_createWorker = function unstable_createWorker(
+   workerUrl: string,
+   workerOpts?: WorkerOptions
+ ) {
+-  if (typeof crossOriginIsolated !== 'undefined' && crossOriginIsolated) {
++  if (typeof Blob !== 'undefined' && typeof URL.createObjectURL === 'function') {
+     try {
+       const content = makeWorkerContent(workerUrl);
+       workerUrl = URL.createObjectURL(new Blob([content], { type: 'text/javascript' }));

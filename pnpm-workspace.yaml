@@ -3,3 +3,4 @@ allowBuilds:
 patchedDependencies:
   '@expo/metro-config@57.0.13': patches/@expo__metro-config@57.0.13.patch
   expo-sqlite@57.0.4: patches/expo-sqlite@57.0.4.patch
+  expo@57.0.27: patches/expo@57.0.27.patch
