@@ -4,24 +4,24 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IconBadge } from '../src/components/Icons';
-import { listTasks, useDatabase, type Task } from '../src/db';
+import { listTasks, useFamilyJar, type Task } from '../src/db';
 import { EmptyState } from '../src/components/EmptyState';
 import { colors, contentMaxWidth, fonts, primaryShadow, radius, spacing, typography } from '../src/theme';
 
 export default function TasksScreen() {
-  const db = useDatabase();
+  const jar = useFamilyJar();
   const [tasks, setTasks] = useState<Task[]>([]);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      listTasks(db).then((loaded) => {
+      listTasks(jar).then((loaded) => {
         if (!cancelled) setTasks(loaded);
       });
       return () => {
         cancelled = true;
       };
-    }, [db]),
+    }, [jar]),
   );
 
   return (

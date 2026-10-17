@@ -3,14 +3,14 @@ import { useState } from 'react';
 import { Alert, Image, Pressable, StyleSheet, Text, TextInput } from 'react-native';
 
 import { ScrollScreen } from '../src/components/ScrollScreen';
-import { insertKid, useDatabase } from '../src/db';
+import { insertKid, useFamilyJar } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { PhotoSourceButtons, usePickPhoto } from '../src/photos/PhotoPicker';
 import { removePhoto, storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
 export default function AddKidScreen() {
-  const db = useDatabase();
+  const jar = useFamilyJar();
   const { refreshKids } = useActiveKid();
   const [name, setName] = useState('');
   const [photoUri, setPhotoUri] = useState<string | null>(null);
@@ -30,7 +30,7 @@ export default function AddKidScreen() {
     let storedPhotoUri: string | null = null;
     try {
       storedPhotoUri = photoUri ? await storePhoto(photoUri) : null;
-      await insertKid(db, { name, photoUri: storedPhotoUri });
+      await insertKid(jar, { name, photoUri: storedPhotoUri });
       await refreshKids();
       router.back();
     } catch {

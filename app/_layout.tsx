@@ -13,7 +13,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { LargeHeader } from '../src/components/LargeHeader';
 import { ActiveKidProvider } from '../src/kids/ActiveKidProvider';
-import { DatabaseProvider } from '../src/db/provider';
+import { FamilyJarProvider } from '../src/db/provider';
 import { ParentLockProvider, useParentLock } from '../src/parent/ParentLockProvider';
 import { frameoPhotos } from '../src/photos/frameo';
 import { PhotoPickerProvider } from '../src/photos/PhotoPicker';
@@ -67,7 +67,7 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <DatabaseProvider>
+      <FamilyJarProvider>
         <ActiveKidProvider>
           <ParentLockProvider>
             <SoundProvider>
@@ -79,7 +79,7 @@ export default function RootLayout() {
             </SoundProvider>
           </ParentLockProvider>
         </ActiveKidProvider>
-      </DatabaseProvider>
+      </FamilyJarProvider>
     </SafeAreaProvider>
   );
 }

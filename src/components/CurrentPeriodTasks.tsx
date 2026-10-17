@@ -8,10 +8,11 @@ import {
   listWishes,
   setTaskCompletion,
   sumCoinsEarnedOn,
-  useDatabase,
+  useFamilyJar,
   type Kid,
   type Period,
   type Task,
+  type TaskCompletionChange,
 } from '../db';
 import { useActiveKid } from '../kids/ActiveKidProvider';
 import { useSound } from '../sound/SoundProvider';
@@ -98,7 +99,7 @@ export function CurrentPeriodTasks(props: CurrentPeriodTasksProps) {
 }
 
 function KidPeriodTasks({ period, day, kid: activeKid }: CurrentPeriodTasksProps & { kid: Kid }) {
-  const db = useDatabase();
+  const jar = useFamilyJar();
   const { recordTaskCompletion } = useActiveKid();
   const { playFanfare } = useSound();
   const large = useLargeScreen();
@@ -157,7 +158,7 @@ function KidPeriodTasks({ period, day, kid: activeKid }: CurrentPeriodTasksProps
       let cancelled = false;
       // "Loading" only shows before the first load; later ones keep the list
       // up while they run.
-      listTasks(db).then((loaded) => {
+      listTasks(jar).then((loaded) => {
         if (cancelled) return;
         setTasks((current) => (sameTasks(current, loaded) ? current : loaded));
         setLoading(false);
@@ -166,14 +167,14 @@ function KidPeriodTasks({ period, day, kid: activeKid }: CurrentPeriodTasksProps
         cancelled = true;
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [db, activeKidId]),
+    }, [jar, activeKidId]),
   );
 
   // Saved ticks are for one kid on one day, so reload them when either changes;
   // once the day key changes no task looks done.
   useEffect(() => {
     let cancelled = false;
-    listCompletedTaskIds(db, activeKidId, day).then((taskIds) => {
+    listCompletedTaskIds(jar, activeKidId, day).then((taskIds) => {
       if (cancelled) return;
       doneRef.current = new Set(taskIds.map((taskId) => `${day}:${activeKidId}:${taskId}`));
       setDoneKeys(new Set(doneRef.current));
@@ -182,7 +183,7 @@ function KidPeriodTasks({ period, day, kid: activeKid }: CurrentPeriodTasksProps
     return () => {
       cancelled = true;
     };
-  }, [db, activeKidId, day]);
+  }, [jar, activeKidId, day]);
 
   const kidId = activeKid.id;
   const currentTasks = tasksForPeriod(tasks, period);
@@ -206,13 +207,26 @@ function KidPeriodTasks({ period, day, kid: activeKid }: CurrentPeriodTasksProps
     } else if (!completed) {
       cancelCelebration();
     }
-    const change = await setTaskCompletion(db, {
-      kidId,
-      taskId: task.id,
-      dayKey: day,
-      coinAmount: task.coinAmount,
-      completed,
-    });
+    let change: TaskCompletionChange;
+    try {
+      change = await setTaskCompletion(jar, {
+        kidId,
+        taskId: task.id,
+        dayKey: day,
+        coinAmount: task.coinAmount,
+        completed,
+      });
+    } catch {
+      // Not saved (the jar says why on its reconnecting screen), so the card
+      // goes back to how it was, unless another tap has moved it since.
+      if (doneRef.current.has(key) === completed) {
+        if (completed) doneRef.current.delete(key);
+        else doneRef.current.add(key);
+        setDoneKeys(new Set(doneRef.current));
+      }
+      if (completed) cancelCelebration();
+      return;
+    }
     if (!change.changed) return;
     recordTaskCompletion(kidId, change.coins, completed);
     if (completed) {
@@ -242,7 +256,7 @@ function KidPeriodTasks({ period, day, kid: activeKid }: CurrentPeriodTasksProps
       celebrationTimer.current = null;
       celebrated.add(key);
       // Today's coins across every period, read once the tick is saved.
-      const coinsToday = await sumCoinsEarnedOn(db, kidId, day).catch(() => 0);
+      const coinsToday = await sumCoinsEarnedOn(jar, kidId, day).catch(() => 0);
       if (!holdUnlocks.current) return;
       setCelebration({ coinsToday });
     }, UNLOCK_DELAY_MS);
@@ -291,7 +305,7 @@ function KidPeriodTasks({ period, day, kid: activeKid }: CurrentPeriodTasksProps
   }
 
   async function showUnlockedWishes(before: number, after: number) {
-    const kidWishes = (await listWishes(db)).filter((wish) => wish.kidId === kidId);
+    const kidWishes = (await listWishes(jar)).filter((wish) => wish.kidId === kidId);
     const unlocked = wishesUnlockedBy(kidWishes, before, after);
     if (unlocked.length === 0) return;
     for (const wish of unlocked) pendingUnlocks.current.set(wish.id, wish.coinAmount);

@@ -10,7 +10,7 @@ import { HiddenWhenBlurred } from '../../src/components/HiddenWhenBlurred';
 import { IconBadge } from '../../src/components/Icons';
 import { DreamSky } from '../../src/components/Sky';
 import { WishCard } from '../../src/components/WishCard';
-import { claimWish, listWishes, useDatabase, type Wish } from '../../src/db';
+import { claimWish, listWishes, useFamilyJar, type Wish } from '../../src/db';
 import { useActiveKid, useSavings } from '../../src/kids/ActiveKidProvider';
 import { useParentLock } from '../../src/parent/ParentLockProvider';
 import { useSound } from '../../src/sound/SoundProvider';
@@ -49,7 +49,7 @@ const WishlistScreen = memo(function WishlistScreen() {
 });
 
 const WishBoard = memo(function WishBoard({ coins }: { coins: number }) {
-  const db = useDatabase();
+  const jar = useFamilyJar();
   const { activeKid, recordSavingsChange } = useActiveKid();
   const large = useLargeScreen();
   const { requestPin } = useParentLock();
@@ -62,13 +62,13 @@ const WishBoard = memo(function WishBoard({ coins }: { coins: number }) {
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      listWishes(db).then((loaded) => {
+      listWishes(jar).then((loaded) => {
         if (!cancelled) setWishes((current) => (sameWishes(current, loaded) ? current : loaded));
       });
       return () => {
         cancelled = true;
       };
-    }, [db]),
+    }, [jar]),
   );
 
   // An unlocked wish is handed over by a grown-up, who confirms with the PIN
@@ -85,15 +85,17 @@ const WishBoard = memo(function WishBoard({ coins }: { coins: number }) {
         subtitle: `Grown-up: type the PIN to give ${activeKid.name} "${wish.name}" for 🪙 ${wish.coinAmount}.`,
       });
       if (!confirmed) return;
-      const result = await claimWish(db, { wishId: wish.id, kidId });
+      const result = await claimWish(jar, { wishId: wish.id, kidId });
       if (!result.changed) {
         Alert.alert('Not enough coins', 'This wish needs more coins before it can be claimed.');
         return;
       }
       recordSavingsChange(kidId, -result.coins);
-      setWishes(await listWishes(db));
+      setWishes(await listWishes(jar));
       setBurst((count) => count + 1);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    } catch {
+      Alert.alert('Could not save', 'Something went wrong while saving. Please try again.');
     } finally {
       setClaiming(false);
     }

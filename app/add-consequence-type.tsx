@@ -4,14 +4,14 @@ import { Alert, Pressable, StyleSheet, Text, TextInput } from 'react-native';
 
 import { ScrollScreen } from '../src/components/ScrollScreen';
 import { IconPicker, CONSEQUENCE_EMOJIS } from '../src/components/Icons';
-import { insertConsequenceType, useDatabase, type Icon } from '../src/db';
+import { insertConsequenceType, useFamilyJar, type Icon } from '../src/db';
 import { removePhoto, storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
 type Errors = { name?: string; coinAmount?: string };
 
 export default function AddConsequenceTypeScreen() {
-  const db = useDatabase();
+  const jar = useFamilyJar();
   const [name, setName] = useState('');
   const [coinAmount, setCoinAmount] = useState('');
   const [icon, setIcon] = useState<Icon>({ emoji: null, photoUri: null });
@@ -39,7 +39,7 @@ export default function AddConsequenceTypeScreen() {
     let storedPhotoUri: string | null = null;
     try {
       storedPhotoUri = icon.photoUri ? await storePhoto(icon.photoUri) : null;
-      await insertConsequenceType(db, {
+      await insertConsequenceType(jar, {
         name,
         coinAmount: Number(coinAmount.trim()),
         icon: { emoji: icon.emoji, photoUri: storedPhotoUri },
