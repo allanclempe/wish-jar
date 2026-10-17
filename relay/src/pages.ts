@@ -13,13 +13,13 @@ const POLICY = [
   "frame-ancestors 'none'",
 ].join('; ');
 
-export function htmlResponse(html: string, status = 200): Response {
+export function htmlResponse(html: string, status = 200, policy = POLICY): Response {
   return new Response(html, {
     status,
     headers: {
       'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'no-store',
-      'Content-Security-Policy': POLICY,
+      'Content-Security-Policy': policy,
       'Referrer-Policy': 'no-referrer',
     },
   });

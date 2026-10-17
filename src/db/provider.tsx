@@ -38,8 +38,9 @@ const SwitchFamilyContext = createContext<((token: string) => void) | null>(null
 // one first (SetUpJar).
 export function FamilyJarProvider({ children }: PropsWithChildren) {
   const [opening, setOpening] = useState(0);
-  // Whether to open the device's family, or make one (Start a new jar).
-  const [starting, setStarting] = useState(false);
+  // Whether to open the device's family, or make one (Start a new jar): the
+  // token of the Turnstile check that starting one needs (WJ-54).
+  const [starting, setStarting] = useState<string | null>(null);
   // undefined until known; null when the device has no family yet.
   const [token, setToken] = useState<string | null | undefined>(undefined);
   const [openFailure, setOpenFailure] = useState<unknown>(null);
@@ -49,7 +50,7 @@ export function FamilyJarProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     let cancelled = false;
     // The last failure stays up while this try runs.
-    (starting ? startFamilyJar() : openFamilyJar()).then(
+    (starting ? startFamilyJar(starting) : openFamilyJar()).then(
       (opened) => {
         if (cancelled) return;
         setOpenFailure(null);
@@ -63,7 +64,15 @@ export function FamilyJarProvider({ children }: PropsWithChildren) {
           setStartRefused(
             `Lots of new jars have been started from this internet connection today. Try again in ${waitWords(error)}, or join a family jar with a code.`,
           );
-          setStarting(false);
+          setStarting(null);
+          return;
+        }
+        // The relay turned down the Turnstile check (WJ-54), or its token was
+        // spent on a try that didn't finish: back to the choices, for a new
+        // check.
+        if (starting && error instanceof JarCallError && error.checkFailed) {
+          setStartRefused("The check before starting a jar didn't go through. Tap Start a new jar to try again.");
+          setStarting(null);
           return;
         }
         setOpenFailure(error);
@@ -102,11 +111,11 @@ export function FamilyJarProvider({ children }: PropsWithChildren) {
   if (token === null) {
     return (
       <SetUpJar
-        starting={starting}
+        starting={starting != null}
         note={startRefused ?? echoShowSetupNote()}
-        onStart={() => {
+        onStart={(turnstileToken) => {
           setStartRefused(null);
-          setStarting(true);
+          setStarting(turnstileToken);
         }}
         onJoined={switchFamily}
       />

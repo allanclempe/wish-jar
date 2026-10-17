@@ -25,6 +25,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
+import android.webkit.CookieManager;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -135,6 +136,10 @@ public class MainActivity extends Activity {
     s.setUseWideViewPort(true);
     s.setAllowFileAccess(false);
     s.setAllowContentAccess(false);
+    // Cloudflare's Turnstile widget, which starting a family needs (WJ-54),
+    // runs in a frame from challenges.cloudflare.com and keeps its cookies
+    // there; Android's WebView turns third-party cookies away by default.
+    CookieManager.getInstance().setAcceptThirdPartyCookies(web, true);
     web.setWebViewClient(new WebViewClient() {
       @Override
       public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {

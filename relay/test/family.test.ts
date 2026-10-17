@@ -745,7 +745,7 @@ describe('size cap', () => {
 });
 
 describe('CORS', () => {
-  it("lets Wish Jar's pages in, with the token and JSON", async () => {
+  it("lets Wish Jar's pages in, with the token, the Turnstile token and JSON", async () => {
     const preflight = await relay('/jar/call', {
       method: 'OPTIONS',
       headers: {
@@ -756,7 +756,9 @@ describe('CORS', () => {
     });
     expect(preflight.status).toBe(204);
     expect(preflight.headers.get('Access-Control-Allow-Origin')).toBe(APP);
-    expect(preflight.headers.get('Access-Control-Allow-Headers')).toBe('Authorization, Content-Type');
+    expect(preflight.headers.get('Access-Control-Allow-Headers')).toBe(
+      'Authorization, Content-Type, Turnstile-Token',
+    );
     expect(preflight.headers.get('Access-Control-Allow-Methods')).toBe('POST');
 
     const created = await createFamily({}, { Origin: APP });

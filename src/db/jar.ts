@@ -59,6 +59,12 @@ export class JarCallError extends Error {
   get unknownDevice(): boolean {
     return this.status === 401;
   }
+
+  // Starting a family: the relay turned down its Turnstile token (WJ-54),
+  // which works only once and for 5 minutes. A new check gets a new one.
+  get checkFailed(): boolean {
+    return this.status === 403;
+  }
 }
 
 type Method = 'GET' | 'POST' | 'DELETE';
@@ -124,10 +130,17 @@ export function createJarClient(
 
 // A new family, with this device as its first. With `jar`, the family starts
 // from this device's existing jar instead of an empty one. `label` is how the
-// family's list of devices shows this one.
-export function createFamily(label: string, jar?: JarImport): Promise<CreateFamilyReply> {
+// family's list of devices shows this one. `turnstileToken` is from the
+// Turnstile check the relay asks for (WJ-54, src/family/TurnstileCheck.tsx).
+export function createFamily(
+  label: string,
+  turnstileToken: string,
+  jar?: JarImport,
+): Promise<CreateFamilyReply> {
   const body: CreateFamilyRequest = jar ? { label, jar } : { label };
-  return request('POST', '/families', body, CREATE_TIMEOUT_MS);
+  return request('POST', '/families', body, CREATE_TIMEOUT_MS, undefined, {
+    'Turnstile-Token': turnstileToken,
+  });
 }
 
 // A token of this device's own to the family whose join code was typed
@@ -223,6 +236,7 @@ async function request<T>(
   body: unknown,
   timeoutMs: number,
   token?: string,
+  headers: Record<string, string> = {},
 ): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -233,6 +247,7 @@ async function request<T>(
       headers: {
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...headers,
       },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: controller.signal,

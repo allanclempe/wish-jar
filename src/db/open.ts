@@ -116,8 +116,9 @@ async function linkThisEchoShow(token: string): Promise<void> {
 // before (localJar.ts) goes up with it, and stays on the device untouched;
 // the device only switches to the family jar once the token is kept, so a
 // failure anywhere leaves it as it was, to try again. A device that had no jar
-// gets a fresh family with the starter tasks.
-export async function startFamilyJar(): Promise<string> {
+// gets a fresh family with the starter tasks. `turnstileToken` is from the
+// Turnstile check on the setup screen (WJ-54); it works once.
+export async function startFamilyJar(turnstileToken: string): Promise<string> {
   const device = await loadDevice();
   if (device.token) return device.token;
 
@@ -128,7 +129,7 @@ export async function startFamilyJar(): Promise<string> {
 
     const local = await readLocalJar();
     if (local) {
-      const { token } = await createFamily(deviceLabel(), local.jar);
+      const { token } = await createFamily(deviceLabel(), turnstileToken, local.jar);
       await saveDevice({ token, activeKidId: local.activeKidId });
       firstLaunchDone();
       await linkThisEchoShow(token);
@@ -138,7 +139,7 @@ export async function startFamilyJar(): Promise<string> {
     // The starter tasks go in before the token is kept: a family left
     // half-filled by a lost connection is never opened again, and the next
     // try starts a whole new one rather than adding the list twice.
-    const { token } = await createFamily(deviceLabel());
+    const { token } = await createFamily(deviceLabel(), turnstileToken);
     await addStarterTasks(createJarClient(token));
     await saveDevice({ token, activeKidId: null });
     firstLaunchDone();

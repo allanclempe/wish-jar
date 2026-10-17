@@ -11,6 +11,7 @@ import { liveApi } from './live';
 import { codePage, homePage, htmlResponse } from './pages';
 import { PhotoDrop } from './PhotoDrop';
 import { qrSvg } from './qr';
+import { checkTurnstile, TURNSTILE_HEADER, turnstilePage } from './turnstile';
 
 export { CallerLimits, EchoShowLink, FamilyJar, JoinAttempts, JoinCode, PhotoDrop };
 
@@ -51,6 +52,9 @@ export default {
     if (pathname === '/photos' || pathname.startsWith('/photos/')) {
       return photosApi(request, env, ctx, pathname);
     }
+    // The Turnstile check for starting a family (WJ-54), for the phone app's
+    // WebView: src/turnstile.ts.
+    if (method === 'GET' && pathname === '/turnstile') return turnstilePage(url);
     if (method === 'GET' && pathname === '/') return htmlResponse(homePage());
     // The form on / sends the typed code here.
     if (method === 'GET' && pathname === '/s') {
@@ -148,10 +152,11 @@ async function api(request: Request, env: Env, url: URL): Promise<Response> {
 }
 
 // The family jar (WJ-46), for Wish Jar on any device:
-//   POST /families   { label?, jar? }  → 201 { token, familyId }, 400, 413, 429
+//   POST /families   { label?, jar? }  → 201 { token, familyId }, 400, 403, 413, 429, 503
 //   POST /jar/call   { fn, args }      → 200 { result }, 400, 401, 413, 507
 // A device's token (Authorization: Bearer <familyId>.<secret>) opens its
-// family's jar; src/jar/api.ts lists the functions and their arguments.
+// family's jar; src/jar/api.ts lists the functions and their arguments. A new
+// family needs a Turnstile token (WJ-54) in the Turnstile-Token header.
 async function familyApi(request: Request, env: Env, pathname: string): Promise<Response> {
   const reply = corsReply(request, env);
   if (!reply) return text('Origin not allowed', 403);
@@ -159,13 +164,18 @@ async function familyApi(request: Request, env: Env, pathname: string): Promise<
   if (request.method === 'OPTIONS') {
     return reply(null, 204, {
       'Access-Control-Allow-Methods': 'POST',
-      'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+      'Access-Control-Allow-Headers': `Authorization, Content-Type, ${TURNSTILE_HEADER}`,
       'Access-Control-Max-Age': '600',
     });
   }
   if (request.method !== 'POST') return reply('Use POST', 405, { Allow: 'POST, OPTIONS' });
   if (pathname !== '/families') return callJar(request, env, reply);
-  // Before the body is read: a new family may bring a 20 MB jar.
+  // Before the body is read: a new family may bring a 20 MB jar. And before
+  // the caller's limit, so a script without a token doesn't use it up or wake
+  // its Durable Object.
+  const check = await checkTurnstile(request, env);
+  if (check === 'unavailable') return reply("Couldn't check that a person is starting this jar: try again", 503);
+  if (check === 'failed') return reply('Starting a family jar needs the Turnstile check', 403);
   const wait = await takeLimit(request, env, 'families');
   if (wait != null) {
     return reply('Too many new family jars from here today: try again tomorrow', 429, waitHeaders(wait));

@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --local-upstream localhost:8787",
+    "dev": "TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY:-1x0000000000000000000000000000000AA} wrangler dev --local-upstream localhost:8787",
     "deploy": "wrangler deploy",
     "test": "vitest run",
     "typecheck": "wrangler types && tsc --noEmit"

@@ -133,3 +133,85 @@ Deleting a family removes all of its rows and photos. Its sockets close with
 and a link that was missed answers 404 on rejoin and is dropped then. A join
 code still open (10 minutes at most) answers 410. A photo already in a data
 centre's edge cache can still be served from there for up to a day.
+
+## Starting a family needs a Turnstile check (WJ-54)
+
+`POST /families` is the only way to get a device token without having one, so
+a script that can start families can use their tokens to flood `/jar/call`.
+Starting a family needs a [Turnstile](https://developers.cloudflare.com/turnstile/)
+token in the `Turnstile-Token` header. The Worker checks it with Cloudflare's
+siteverify and its secret key (`src/turnstile.ts`), before the per-caller
+limit:
+
+- **403** without a token, or with one Cloudflare turns down. A token works
+  once, for 5 minutes. The app goes back to its choices for a new check.
+- **503** when siteverify can't be reached or has trouble of its own. The app
+  tries again by itself.
+
+Every device can start a family, so every one of them does the check:
+
+- **The site, the frame and the Echo Show** are web pages. They render the
+  widget themselves (`src/family/TurnstileCheck.web.tsx` in the app).
+- **The phone app** shows the relay's `GET /turnstile?sitekey=…` page in a
+  WebView (`src/family/TurnstileCheck.tsx`). The page sends the token back
+  through `window.ReactNativeWebView`.
+
+Joining with a code and the Echo Show's rejoin don't need the check.
+
+### Making the widget (set up by hand in the dashboard)
+
+1. In the dashboard, go to **Turnstile → Add widget**, and fill it in like
+   this:
+
+   | Setting | Value |
+   | --- | --- |
+   | Widget name | `Wish Jar: start a family` |
+   | Hostnames | `wish-jar.blastin.dev` (the site and the Echo Show), `wish-jar.expo.app` (the site's earlier EAS Hosting address, until every device has moved), `wish-jar-api.blastin.dev` (the relay's page for the phone app), `appassets.androidplatform.net` (the frame's pages, frame/README.md), `localhost` (dev builds) |
+   | Widget mode | Managed |
+   | Pre-clearance | No |
+
+   A hostname lets in its subdomains too, but not its siblings: the site's
+   `wish-jar.blastin.dev` doesn't cover the relay's `wish-jar-api.blastin.dev`,
+   so both are listed. The phone app opens the page at `JAR_URL`
+   (`src/db/jar.ts`), the relay's own address: the site doesn't pass
+   `/turnstile` on to the relay (`run_worker_first` in the root
+   `wrangler.jsonc`).
+
+2. Put the **site key** in `TURNSTILE_SITE_KEY` in `src/family/turnstile.ts`
+   in the app, in place of Cloudflare's test key. It isn't a secret. The
+   relay's page takes it from the app, so it's only set there.
+3. Give the Worker the **secret key**:
+
+   ```bash
+   cd relay
+   pnpm exec wrangler secret put TURNSTILE_SECRET_KEY
+   ```
+
+   Do this before the change is merged. `wrangler.jsonc` lists the secret as
+   required, so a deploy fails while it isn't set.
+
+Once the relay has the real secret, only the real site key passes. Builds of
+the app from before the check can't start a family any more (403); joining
+still works. The phone app needs a new build for `react-native-webview` (Expo
+Go has it already), and the frame app a new build so its WebView keeps
+Turnstile's cookies.
+
+### In development and tests
+
+`pnpm dev` gives the Worker Cloudflare's test secret,
+`1x0000000000000000000000000000000AA`, unless `TURNSTILE_SECRET_KEY` is set in
+the environment. It passes only the dummy token that Cloudflare's test site
+keys hand out. Point a dev build of the app at it with the test site key:
+
+```bash
+EXPO_PUBLIC_JAR_URL=http://localhost:8787 \
+EXPO_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA pnpm start
+```
+
+`2x00000000000000000000AB` is the test site key that always fails, and
+`2x0000000000000000000000000000000AA` the test secret that turns every token
+down. A dev build on the real relay uses the real site key, which works on
+`localhost`.
+
+The tests use the test secret too (`vitest.config.ts`). `test/setup.ts`
+answers for siteverify, so they need no network.

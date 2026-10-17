@@ -214,7 +214,9 @@ export type JarImport = {
 // one no device came back to in the week after it was made (FamilyJar.alarm);
 // its devices' tokens then open nothing (401, and 4401 on the socket).
 
-// POST /families → 201 CreateFamilyReply, 400, 413, 429
+// POST /families → 201 CreateFamilyReply, 400, 403, 413, 429, 503
+// It needs a Turnstile token in the Turnstile-Token header (WJ-54): 403
+// without a good one (a token works once), 503 when Cloudflare couldn't check.
 export type CreateFamilyRequest = { label?: string | null; jar?: JarImport };
 export type CreateFamilyReply = { token: string; familyId: string };
 
