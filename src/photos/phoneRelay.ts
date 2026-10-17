@@ -2,10 +2,8 @@
 // parent's phone to this device: Wish Jar asks it for a short-lived code, shows
 // the code as a QR code, and collects the photo once the phone sends it.
 //
-// PLACEHOLDER: set to the Worker's address once it's deployed on Allan's
-// Cloudflare account (`pnpm run deploy` in relay/ prints it). Until then asking
-// for a code fails, and the phone sheet says it can't reach the relay.
-export const PHOTO_RELAY_URL = 'https://wish-jar-photo-relay.<subdomain>.workers.dev';
+// Deployed on Allan's Cloudflare account by .github/workflows/relay.yml.
+export const PHOTO_RELAY_URL = 'https://wish-jar-photo-relay.allan-clempe.workers.dev';
 
 export type RelayCode = {
   // Short, for typing on the phone: 6 letters and digits.
