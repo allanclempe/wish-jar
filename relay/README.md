@@ -18,7 +18,7 @@ pnpm test               # workerd locally, no Cloudflare account needed
 Every family shares one Free account: 100,000 requests a day, 100,000 rows
 written a day and 5 GB of storage. Some endpoints need no token, and anyone can
 get a token by starting a family. Without limits, one script could take the
-relay down for everyone until 00:00 UTC, or fill its storage. There are four
+relay down for everyone until 00:00 UTC, or fill its storage. There are five
 guards.
 
 ### 1. The edge rule (set by hand in the dashboard)
@@ -98,7 +98,7 @@ minutes).
 
 - **Storage or memory.** Counts kept in storage survive the object being put
   to sleep. They're used for the rare actions that a slow script could still
-  pile up: a new family a few minutes apart can bring a 20 MB jar each time.
+  pile up: a new family a few minutes apart can bring a 10 MB jar each time.
   Each request counted writes one row, and the alarm removes the count when
   its window ends. Live sockets are frequent, so their count stays in memory
   and writes nothing. A caller fast enough to matter keeps the object awake
@@ -124,14 +124,16 @@ answered.
 | What | Counts | Per family | Kept in |
 | --- | --- | --- | --- |
 | Rows written | Writes and removes on `POST /jar/call`, `POST /photos` | 5,000 a day | memory, and storage every 20 rows |
-| Photo bytes | `POST /photos`, and `POST /jar/call` bringing `data:` URIs | 50 MB a day | memory, and storage every 1 MB |
+| Photo bytes | `POST /photos`, and `POST /jar/call` bringing `data:` URIs | 10 MB a day | memory, and storage every 1 MB |
 
 - **The numbers.** Rows are counted as the Free plan counts them: each
   statement's `rowsWritten`, indexes included. A tick is 3 rows. Several kids
   ticking all of their tasks, and a parent setting the jar up on its first
   day, are a few hundred to a thousand rows. 5,000 is 5% of the account's
-  day. 50 MB is a whole jar
-  (`MAX_JAR_BYTES`) a day; a photo is 100 to 300 KB.
+  day. 10 MB is a whole jar (`MAX_JAR_BYTES`, guard 5) a day, so a family
+  can fill its jar on its first day; a photo is 100 to 300 KB. What a jar
+  keeps is capped by its size; the bytes budget caps a family putting photos
+  up and deleting them again.
 - **The call that reaches the budget** goes through, whatever it brings: one
   call is a few rows, and its photos are capped by `MAX_CALL_BYTES`.
 - **Memory, and storage in steps.** The jar is awake for the call anyway, so
@@ -168,6 +170,44 @@ Deleting a family removes all of its rows and photos. Its sockets close with
 and a link that was missed answers 404 on rejoin and is dropped then. A join
 code still open (10 minutes at most) answers 410. A photo already in a data
 centre's edge cache can still be served from there for up to a day.
+
+### 5. Storage that fits in the Free plan's 5 GB (WJ-57)
+
+Every family's jar comes out of the same 5 GB. Two numbers keep what a script
+can store well under it:
+
+| What | Where | Limit |
+| --- | --- | --- |
+| A family's jar, photos included | `MAX_JAR_BYTES` in `src/jar/limits.ts` | 10 MB |
+| New families, every caller together | `FAMILIES_PER_DAY` in `src/FamilyStarts.ts` | 25 a UTC day |
+
+- **The jar.** Past 10 MB a jar takes no more writes or photos (**507**,
+  "The jar is full") until something is deleted. Reads and removes are always
+  answered. A jar brought along to start a family must fit too, or the family
+  isn't started (**507**, nothing kept). A photo is a JPEG up to 1024 px at
+  0.8 (`src/photos/shrink.ts` in the app), 100 to 300 KB, and the 7 starter
+  photos are 250 KB in all. Three kids, ten tasks of their own and twenty
+  wishes, all with photos, are about 5 MB at a typical 150 KB a photo: half
+  the cap. 10 MB is 50 to 100 photos.
+- **Jars from before.** A jar already past 10 MB (the cap was 50 MB) keeps
+  being read, photos too, but takes nothing more. Once the family deletes
+  enough to be back under, it takes writes again.
+- **New families.** `FamilyStarts` is one Durable Object counting the families
+  started in the UTC day. It's checked last, after Turnstile and the
+  per-caller limit, so only families that would start count. Past 25, `POST
+  /families` gets **429** with `Retry-After` until 00:00 UTC, and the app says
+  how long to wait. Families already started are never touched, and joining
+  with a code still works.
+- **The sum.** A family nobody comes back to is deleted after 7 days (guard
+  4), and holds at most a full jar until then. The families alive at any
+  moment were made in the last 7 days, which touch 8 UTC days:
+  8 × 25 × 10 MB = 2 GB (2.1 GB in 10⁹ bytes), well under half of the 5 GB,
+  leaving the rest for the families in use.
+- **What it doesn't bound.** A script that comes back to its families keeps
+  them for 6 months, like a real family. It still needs a Turnstile check for
+  each one, and starts at most 25 a day between all callers (250 MB a day), so
+  filling the other 3 GB takes it about 12 days of solving checks.
+  Cloudflare's dashboard shows storage growing long before that.
 
 ## Starting a family needs a Turnstile check (WJ-54)
 

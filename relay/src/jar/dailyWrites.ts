@@ -1,3 +1,4 @@
+import { MAX_JAR_BYTES } from './limits';
 import { first, run, type Db } from './sql';
 
 // What one family may write in a day (WJ-56), as every family shares the one
@@ -6,16 +7,19 @@ import { first, run, type Db } from './sql';
 //
 // A real family is nowhere near these: a tick is 3 rows, so several kids
 // ticking all their tasks, a parent setting up the jar on its first day and
-// the photos going up with it are a few hundred to a thousand rows and 10 to
-// 20 MB.
+// the photos going up with it are a few hundred to a thousand rows and a few
+// MB.
 export const DAILY_WRITES = {
   // Rows the family's writes, removes and uploads write, as the Free plan
   // counts them (each statement's rowsWritten, indexes included). 5% of
   // the account's day.
   rows: 5_000,
   // Bytes of photos going up: POST /photos, and calls bringing data: URIs.
-  // A whole jar's worth (MAX_JAR_BYTES) a day; photos are 100 to 300 KB.
-  bytes: 50 * 1024 * 1024,
+  // A whole jar's worth (MAX_JAR_BYTES, 10 MB) a day, so a family can fill
+  // its jar on its first day; photos are 100 to 300 KB. What a jar keeps is
+  // capped by its size; this caps a family putting photos up and deleting
+  // them again.
+  bytes: MAX_JAR_BYTES,
 } as const;
 
 // How far ahead of the count the kept one is. The count lives in memory: a

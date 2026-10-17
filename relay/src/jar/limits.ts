@@ -1,9 +1,15 @@
 // What the family jar takes. Plain constants, so the app can match them.
 
-// Past this, a family's jar takes no more writes (507) until something is
-// deleted. The Free plan's 5 GB is shared by every family; one object may hold
-// 1 GB.
-export const MAX_JAR_BYTES = 50 * 1024 * 1024;
+// Past this, a family's jar takes no more writes or photos (507) until
+// something is deleted, and a jar brought along to start a family must fit
+// (WJ-57). The Free plan's 5 GB is shared by every family; src/FamilyStarts.ts
+// has what that adds up to. A photo is a JPEG up to 1024 px at 0.8
+// (src/photos/shrink.ts in the app), 100 to 300 KB, and the 7 starter photos
+// are 250 KB in all: three kids, ten tasks of their own and twenty wishes,
+// all with photos, are about 5 MB at a typical 150 KB. A jar already bigger
+// (the cap was 50 MB) keeps being read, and takes writes again once it's
+// back under.
+export const MAX_JAR_BYTES = 10 * 1024 * 1024;
 
 // The app's fields allow 40 (kids) and 60 (the rest) characters.
 export const MAX_NAME_LENGTH = 100;

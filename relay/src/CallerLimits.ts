@@ -10,7 +10,7 @@ import { DurableObject } from 'cloudflare:workers';
 //
 // `kept` says where the count lives. 'storage' outlives the object being put
 // to sleep, for the rare things a slow script could still pile up (a new
-// family a few minutes apart is 20 MB a time); each one counted is a row
+// family a few minutes apart is 10 MB a time); each one counted is a row
 // written. 'memory' costs no writes, for the frequent ones: a caller fast
 // enough to matter keeps the object awake.
 export const CALLER_LIMITS = {

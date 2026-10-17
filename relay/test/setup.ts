@@ -1,5 +1,8 @@
+import { runInDurableObject } from 'cloudflare:test';
+import { env } from 'cloudflare:workers';
 import { afterEach, beforeEach, vi } from 'vitest';
 
+import { FAMILY_STARTS_NAME } from '../src/FamilyStarts';
 import { DUMMY_TOKEN, TEST_SECRET_KEY } from './turnstileKeys';
 
 const SITEVERIFY = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
@@ -27,7 +30,10 @@ async function siteverify(form: FormData): Promise<Response> {
   return reply({ success: true, hostname: 'example.com', 'error-codes': [] });
 }
 
-beforeEach(() => {
+beforeEach(async () => {
+  // Every test starts the day with no families started (WJ-57), so the cap
+  // for everyone only meets the tests about it.
+  await runInDurableObject(env.FAMILY_STARTS.getByName(FAMILY_STARTS_NAME), (_, state) => state.storage.deleteAll());
   siteverifyCalls.length = 0;
   const realFetch = globalThis.fetch;
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {

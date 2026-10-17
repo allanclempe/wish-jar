@@ -26,7 +26,8 @@
       { "name": "JOIN_CODES", "class_name": "JoinCode" },
       { "name": "JOIN_ATTEMPTS", "class_name": "JoinAttempts" },
       { "name": "ECHO_SHOW_LINKS", "class_name": "EchoShowLink" },
-      { "name": "CALLER_LIMITS", "class_name": "CallerLimits" }
+      { "name": "CALLER_LIMITS", "class_name": "CallerLimits" },
+      { "name": "FAMILY_STARTS", "class_name": "FamilyStarts" }
     ]
   },
   // SQLite-backed, the only Durable Objects the Free plan has.
@@ -35,7 +36,8 @@
     { "tag": "v2", "new_sqlite_classes": ["FamilyJar"] },
     { "tag": "v3", "new_sqlite_classes": ["JoinCode", "JoinAttempts"] },
     { "tag": "v4", "new_sqlite_classes": ["EchoShowLink"] },
-    { "tag": "v5", "new_sqlite_classes": ["CallerLimits"] }
+    { "tag": "v5", "new_sqlite_classes": ["CallerLimits"] },
+    { "tag": "v6", "new_sqlite_classes": ["FamilyStarts"] }
   ],
   "vars": {
     // Pages allowed to use codes and the family jar (CORS), comma-separated:

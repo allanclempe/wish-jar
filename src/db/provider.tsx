@@ -58,11 +58,12 @@ export function FamilyJarProvider({ children }: PropsWithChildren) {
       },
       (error: unknown) => {
         if (cancelled) return;
-        // Too many new jars from this internet connection (WJ-51): back to
-        // the choices, saying so, as joining the family's jar still works.
+        // Too many new jars from this internet connection (WJ-51), or from
+        // everyone today (WJ-57): back to the choices, saying so, as joining
+        // the family's jar still works.
         if (starting && error instanceof JarCallError && error.tooMany) {
           setStartRefused(
-            `Lots of new jars have been started from this internet connection today. Try again in ${waitWords(error)}, or join a family jar with a code.`,
+            `Lots of new jars have been started today. Try again in ${waitWords(error)}, or join a family jar with a code.`,
           );
           setStarting(null);
           return;

@@ -390,3 +390,98 @@ describe('photos from before the jar kept them', () => {
     expect(await status(before)).toBe(404);
   });
 });
+
+// A data: URI of a big photo, in chunks: spreading a few hundred KB into
+// String.fromCharCode would overflow the stack.
+function bigDataUri(bytes: Uint8Array): string {
+  let binary = '';
+  for (let start = 0; start < bytes.byteLength; start += 8192) {
+    binary += String.fromCharCode(...bytes.subarray(start, start + 8192));
+  }
+  return `data:image/jpeg;base64,${btoa(binary)}`;
+}
+
+// A jar a device brings along, with `photos` different photos of `size` bytes.
+function jarWithPhotos(photos: number, size: number): JarImport {
+  return {
+    tasks: Array.from({ length: photos }, (_, index) => ({
+      id: index + 1,
+      name: `Task ${index + 1}`,
+      period: 'morning',
+      coin_amount: 1,
+      icon_emoji: null,
+      icon_photo_uri: bigDataUri(jpeg(size)),
+      created_at: index + 1,
+    })),
+  };
+}
+
+describe('the size of a jar (WJ-57)', () => {
+  // As big as a photo's data: URI may be (MAX_PHOTO_URI_LENGTH).
+  const PHOTO = 760 * 1024;
+
+  it('starts a family from a jar that fits', async () => {
+    const photos = Math.floor((MAX_JAR_BYTES * 0.9) / PHOTO);
+    const { familyId } = await newFamily({ jar: jarWithPhotos(photos, PHOTO) });
+    expect(await photoCount(familyId)).toBe(photos);
+  });
+
+  it("doesn't start a family from a jar bigger than a jar may grow", async () => {
+    const response = await relay('/families', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jar: jarWithPhotos(Math.ceil(MAX_JAR_BYTES / PHOTO) + 1, PHOTO) }),
+    });
+    expect(response.status).toBe(507);
+    expect(await response.text()).toMatch(/too big to bring online/);
+  });
+
+  it('keeps a jar from before the cap came down working, and lets it grow once back under', async () => {
+    const { token, familyId, call } = await newJar();
+    const photoUri = await uploaded(token);
+    const ava = await call('insertKid', { name: 'Ava', photoUri });
+    const ben = await call('insertKid', { name: 'Ben', photoUri: null });
+    const taskId = await call('insertTask', { name: 'Make bed', period: 'morning', coinAmount: 1, icon: NO_ICON });
+    // Ben's wishes put up photos past MAX_JAR_BYTES while it was bigger.
+    await runInDurableObject(env.FAMILY_JARS.getByName(familyId), (_, state) => {
+      const photos = Math.ceil(MAX_JAR_BYTES / (1024 * 1024)) + 1;
+      for (let index = 0; index < photos; index++) {
+        const id = btoa(String.fromCharCode(...crypto.getRandomValues(new Uint8Array(32))))
+          .replace(/\+/g, '-')
+          .replace(/\//g, '_')
+          .replace(/=+$/, '');
+        state.storage.sql.exec(
+          "INSERT INTO photos (id, type, data) VALUES (?, 'image/jpeg', randomblob(1024 * 1024))",
+          id,
+        );
+        state.storage.sql.exec(
+          'INSERT INTO wishes (kid_id, name, coin_amount, icon_photo_uri) VALUES (?, ?, 10, ?)',
+          ben,
+          `Wish ${index}`,
+          `${BASE}/photos/${familyId}/${id}.jpg`,
+        );
+      }
+      expect(state.storage.sql.databaseSize).toBeGreaterThan(MAX_JAR_BYTES);
+    });
+
+    // Everything still reads, photos too.
+    expect(await call('listKids')).toHaveLength(2);
+    expect(await call('listWishes')).toHaveLength(Math.ceil(MAX_JAR_BYTES / (1024 * 1024)) + 1);
+    expect(await status(photoUri)).toBe(200);
+    // Nothing more goes in.
+    const tick = { kidId: ava, taskId, dayKey: '2026-10-17', coinAmount: 1, completed: true };
+    const refused = await relay('/jar/call', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ fn: 'setTaskCompletion', args: [tick] }),
+    });
+    expect(refused.status).toBe(507);
+    expect((await upload(token, jpeg())).status).toBe(507);
+
+    // Removing is let through, and takes the photos with it.
+    await call('deleteKid', ben);
+    expect(await photoCount(familyId)).toBe(1);
+    await call('setTaskCompletion', tick);
+    expect((await upload(token, jpeg())).status).toBe(201);
+  });
+});

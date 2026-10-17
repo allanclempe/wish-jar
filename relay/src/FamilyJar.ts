@@ -37,6 +37,10 @@ const NOT_A_DEVICE: JarOutcome = { ok: false, status: 401, error: 'Not a device 
 // Past the family's daily budget (src/jar/dailyWrites.ts).
 const TOO_MANY_WRITES = 'Too many changes today: the jar takes more at 00:00 UTC';
 
+// A family's jar holds MAX_JAR_BYTES at most.
+const JAR_FULL = 'The jar is full: delete something first';
+const JAR_TOO_BIG = 'That jar is too big to bring online: delete some photos first';
+
 // A device's last_seen_at is only written this often, so a device that reads
 // the jar all day doesn't spend the Free plan's daily writes on it.
 const SEEN_EVERY_MS = 10 * 60_000;
@@ -148,6 +152,9 @@ export class FamilyJar extends DurableObject<Env> {
         if (body.jar === undefined) storage.sql.exec(STARTER_CONSEQUENCE_TYPES);
         else importJar(storage, body.jar);
         moveDataPhotos(storage, this.photoUrls(photoBase));
+        // Rolled back, so nothing is kept: a family starts no bigger than a
+        // jar may grow (WJ-57).
+        if (storage.sql.databaseSize > MAX_JAR_BYTES) throw new JarError(507, JAR_TOO_BIG);
         run(storage, "INSERT INTO jar_meta (key, value) VALUES (?, '1'), (?, '1')", PHOTOS_MOVED, PHOTOS_SIGNED);
         return insert(storage, 'INSERT INTO devices (secret_hash, label) VALUES (?, ?)', hash, device);
       }),
@@ -190,7 +197,7 @@ export class FamilyJar extends DurableObject<Env> {
         if (sent.includes('"data:')) photoBytes = sent.length;
       }
       if (found.call.kind === 'write' && storage.sql.databaseSize >= MAX_JAR_BYTES) {
-        throw new JarError(507, 'The jar is full: delete something first');
+        throw new JarError(507, JAR_FULL);
       }
       return storage.transactionSync(() => {
         const result = found.call.run(counted.db, found.args);
@@ -219,7 +226,7 @@ export class FamilyJar extends DurableObject<Env> {
     const dropped = sweepPhotos(counted.db, now);
     if (storage.sql.databaseSize + data.byteLength >= MAX_JAR_BYTES) {
       this.writes.add(now, counted.written(), 0);
-      return { ok: false, status: 507, error: 'The jar is full: delete something first' };
+      return { ok: false, status: 507, error: JAR_FULL };
     }
     const url = this.photoUrls(photoBase)(addPhoto(counted.db, new Uint8Array(data)));
     this.writes.add(now, counted.written(), data.byteLength);
