@@ -213,6 +213,8 @@
   // from the SQLite worker, and fetches, with a status line every 2 s.
   var traceBox = document.createElement('div');
   var traceLines = [];
+  // Every line, for reading the full trace with remote debugging.
+  var traceAll = window.alexaCheckTrace = [];
   var started = 0;
   var pendingWorker = {};
   var pendingFetches = {};
@@ -224,6 +226,7 @@
   }
   function trace(text) {
     traceLines.push(seconds() + ' ' + text);
+    traceAll.push(seconds() + ' ' + text);
     if (traceLines.length > 40) traceLines.shift();
     renderTrace('');
   }
@@ -238,10 +241,63 @@
     return text;
   }
 
+  // Runs inside the app's SQLite worker, before its bundle, and posts
+  // { __trace } messages for every fetch, WebAssembly call, OPFS call and
+  // unhandled rejection. The bundle loads from a blob: URL here, so relative
+  // fetches are resolved against the page's origin.
+  function workerTraceSource(bundleUrl) {
+    return [
+      '(function () {',
+      '  var origin = ' + JSON.stringify(location.origin) + ';',
+      '  var t0 = Date.now();',
+      '  function tr(s) { postMessage({ __trace: ((Date.now() - t0) / 1000).toFixed(1) + "s " + s }); }',
+      '  function describe(e) { return (e && e.name ? e.name + ": " : "") + (e && e.message || e); }',
+      '  function watch(label, promise) {',
+      '    tr(label + " ...");',
+      '    return Promise.resolve(promise).then(function (v) { tr(label + " ok"); return v; },',
+      '      function (e) { tr(label + " FAILED " + describe(e)); throw e; });',
+      '  }',
+      '  var nativeFetch = self.fetch;',
+      '  self.fetch = function (input, init) {',
+      '    if (typeof input === "string") input = new URL(input, origin).href;',
+      '    return watch("fetch " + String(input.url || input).split("/").pop().slice(0, 40), nativeFetch.call(self, input, init));',
+      '  };',
+      '  ["instantiateStreaming", "instantiate", "compile", "compileStreaming"].forEach(function (name) {',
+      '    var original = WebAssembly[name];',
+      '    if (original) WebAssembly[name] = function () { return watch("WebAssembly." + name, original.apply(WebAssembly, arguments)); };',
+      '  });',
+      '  if (self.navigator.storage) {',
+      '    var getDirectory = navigator.storage.getDirectory.bind(navigator.storage);',
+      '    navigator.storage.getDirectory = function () { return watch("getDirectory", getDirectory()); };',
+      '  }',
+      '  if (self.FileSystemDirectoryHandle) ["getDirectoryHandle", "getFileHandle", "removeEntry"].forEach(function (name) {',
+      '    var original = FileSystemDirectoryHandle.prototype[name];',
+      '    FileSystemDirectoryHandle.prototype[name] = function (entry) { return watch(name + " " + entry, original.apply(this, arguments)); };',
+      '  });',
+      '  if (self.FileSystemFileHandle && FileSystemFileHandle.prototype.createSyncAccessHandle) {',
+      '    var createSync = FileSystemFileHandle.prototype.createSyncAccessHandle;',
+      '    FileSystemFileHandle.prototype.createSyncAccessHandle = function () { return watch("createSyncAccessHandle " + this.name, createSync.apply(this, arguments)); };',
+      '  }',
+      '  self.addEventListener("unhandledrejection", function (e) { tr("UNHANDLED REJECTION " + (e.reason && (e.reason.stack || e.reason.message) || e.reason)); });',
+      '  self.addEventListener("error", function (e) { tr("ERROR " + e.message + " (" + String(e.filename).split("/").pop() + ":" + e.lineno + ")"); });',
+      '  self.addEventListener("message", function (e) { tr("worker got " + (e.data && e.data.type) + " #" + (e.data && e.data.id)); });',
+      '  tr("loading bundle");',
+      '})();',
+      'importScripts(' + JSON.stringify(bundleUrl) + ');',
+      'postMessage({ __trace: "bundle loaded" });'
+    ].join('\n');
+  }
+
   function instrument() {
     var NativeWorker = window.Worker;
     window.Worker = function (url, options) {
-      var worker = new NativeWorker(url, options);
+      var absolute = new URL(String(url), location.href).href;
+      var worker = /\/worker-[0-9a-f]+\.js/.test(absolute)
+        ? new NativeWorker(URL.createObjectURL(new Blob([workerTraceSource(absolute)], { type: 'text/javascript' })), options)
+        : new NativeWorker(url, options);
+      worker.addEventListener('message', function (e) {
+        if (e.data && e.data.__trace) trace('[w] ' + e.data.__trace);
+      });
       trace('worker created: ' + String(url).split('/').pop());
       var post = worker.postMessage;
       worker.postMessage = function (data) {
@@ -250,6 +306,7 @@
         return post.apply(worker, arguments);
       };
       worker.addEventListener('message', function (e) {
+        if (e.data && e.data.__trace) return;
         if (e.data && e.data.id != null) delete pendingWorker[e.data.id];
         trace('<- worker ' + describeMessage(e.data));
       });
