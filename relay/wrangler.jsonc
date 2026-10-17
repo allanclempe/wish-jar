@@ -8,6 +8,10 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
   "observability": { "enabled": true },
+  // The address parents see and type on their phone. The workers.dev address
+  // stays on too, for devices still holding it.
+  "routes": [{ "pattern": "wish-jar.blastin.dev", "custom_domain": true }],
+  "workers_dev": true,
   "durable_objects": {
     "bindings": [{ "name": "PHOTO_DROPS", "class_name": "PhotoDrop" }]
   },
