@@ -1,0 +1,17 @@
+// The web site: the static export (`expo export -p web`, into dist/) served
+// by a Cloudflare Worker with static assets, on the Workers Free plan (WJ-63).
+// public/_headers has its response headers. Merges to main deploy it
+// (.github/workflows/site.yml).
+{
+  "$schema": "./relay/node_modules/wrangler/config-schema.json",
+  "name": "wish-jar-app",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    // Every route has its own page. An address with no page gets index.html,
+    // and Expo Router shows its not-found screen.
+    "not_found_handling": "single-page-application"
+  },
+  "routes": [{ "pattern": "wish-jar-app.blastin.dev", "custom_domain": true }],
+  "workers_dev": false
+}

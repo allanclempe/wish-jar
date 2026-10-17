@@ -63,8 +63,9 @@ Why these paths and this rate:
   each device opens its socket once, with retries backing off from 1 second.
   Six devices on one home connection still stay under 10 in 10 seconds.
 - Without a host in the expression, the rule matches these paths on every
-  hostname of the zone, not only `wish-jar.blastin.dev`. Check that nothing
-  else on blastin.dev uses them.
+  hostname of the zone, not only the relay's. Check that nothing else on
+  blastin.dev uses them. The site at `wish-jar-app.blastin.dev` has no page
+  at any of them.
 - The rule doesn't cover the `workers.dev` address (`workers_dev: true` in
   `wrangler.jsonc`), which isn't part of the zone. The Worker's own limits
   below apply there too.

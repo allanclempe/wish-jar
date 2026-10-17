@@ -1,0 +1,7 @@
+# Headers for the site on Cloudflare (wrangler.jsonc). Cloudflare reads this
+# file and doesn't serve it. expo-sqlite needs the page cross-origin isolated
+# on web; the expo-router plugin in app.json sets the same pair for the dev
+# server and EAS Hosting.
+/*
+  Cross-Origin-Embedder-Policy: credentialless
+  Cross-Origin-Opener-Policy: same-origin

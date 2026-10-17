@@ -8,7 +8,7 @@ import type { CreateFamilyReply, JoinCode, PhotoUpload } from '../src/jar/api';
 import { fromSomewhere } from './caller';
 
 const BASE = 'https://relay.example';
-const APP = 'https://wish-jar.expo.app';
+const APP = 'https://wish-jar-app.blastin.dev';
 const DAY_MS = 24 * 60 * 60_000;
 
 function relay(path: string, init?: RequestInit) {

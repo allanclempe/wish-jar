@@ -22,7 +22,7 @@ const sameTypes: [
 void sameTypes;
 
 const BASE = 'https://relay.example';
-const APP = 'https://wish-jar.expo.app';
+const APP = 'https://wish-jar-app.blastin.dev';
 const DAY = '2026-10-17';
 const NO_ICON: Icon = { emoji: null, photoUri: null };
 
