@@ -1,5 +1,7 @@
 // The photo relay: lets a parent send a photo from their phone to Wish Jar on
-// a device that can't pick one itself (WJ-41). Runs on the Workers Free plan.
+// a device that can't pick one itself (WJ-41). It also hosts each family's
+// online jar, shared by the family's devices (WJ-46). Runs on the Workers Free
+// plan.
 // Merges to main that touch relay/ deploy it (.github/workflows/relay.yml);
 // its address is PHOTO_RELAY_URL in src/photos/phoneRelay.ts.
 {
@@ -13,12 +15,18 @@
   "routes": [{ "pattern": "wish-jar.blastin.dev", "custom_domain": true }],
   "workers_dev": true,
   "durable_objects": {
-    "bindings": [{ "name": "PHOTO_DROPS", "class_name": "PhotoDrop" }]
+    "bindings": [
+      { "name": "PHOTO_DROPS", "class_name": "PhotoDrop" },
+      { "name": "FAMILY_JARS", "class_name": "FamilyJar" }
+    ]
   },
   // SQLite-backed, the only Durable Objects the Free plan has.
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["PhotoDrop"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["PhotoDrop"] },
+    { "tag": "v2", "new_sqlite_classes": ["FamilyJar"] }
+  ],
   "vars": {
-    // Pages allowed to ask for codes and collect photos (CORS), comma-separated.
+    // Pages allowed to use codes and the family jar (CORS), comma-separated.
     "ALLOWED_ORIGINS": "https://wish-jar.expo.app,http://localhost:8081"
   }
 }

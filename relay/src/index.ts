@@ -1,9 +1,12 @@
 import { CODE_TTL_MS, MAX_PHOTO_BYTES, normaliseCode, randomCode, randomToken } from './codes';
+import { callJar, createFamily } from './families';
+import { FamilyJar } from './FamilyJar';
+import { corsReply, readCapped } from './http';
 import { codePage, homePage, htmlResponse } from './pages';
 import { PhotoDrop } from './PhotoDrop';
 import { qrSvg } from './qr';
 
-export { PhotoDrop };
+export { FamilyJar, PhotoDrop };
 
 // Wish Jar (the device) asks for a code and collects the photo through /codes,
 // with CORS; the phone gets its page, sends the photo and the QR code is drawn
@@ -16,6 +19,9 @@ export default {
 
     if (pathname === '/codes' || pathname.startsWith('/codes/')) {
       return api(request, env, url);
+    }
+    if (pathname === '/families' || pathname === '/jar/call') {
+      return familyApi(request, env, pathname);
     }
     if (method === 'GET' && pathname === '/') return htmlResponse(homePage());
     // The form on / sends the typed code here.
@@ -60,17 +66,8 @@ export default {
 //   DELETE /codes/:code        → 204, 403, 410
 // The token (Authorization: Bearer) is what proves it's the device that asked.
 async function api(request: Request, env: Env, url: URL): Promise<Response> {
-  const origin = request.headers.get('Origin');
-  const allowed = env.ALLOWED_ORIGINS.split(',').map((entry) => entry.trim());
-  if (origin && !allowed.includes(origin)) return text('Origin not allowed', 403);
-
-  const cors = new Headers({ 'Cache-Control': 'no-store', Vary: 'Origin' });
-  if (origin) cors.set('Access-Control-Allow-Origin', origin);
-  const reply = (body: BodyInit | null, status: number, headers: HeadersInit = {}) => {
-    const all = new Headers(cors);
-    new Headers(headers).forEach((value, name) => all.set(name, value));
-    return new Response(body, { status, headers: all });
-  };
+  const reply = corsReply(request, env);
+  if (!reply) return text('Origin not allowed', 403);
 
   if (request.method === 'OPTIONS') {
     return reply(null, 204, {
@@ -116,6 +113,26 @@ async function api(request: Request, env: Env, url: URL): Promise<Response> {
   return reply('Not found', 404);
 }
 
+// The family jar (WJ-46), for Wish Jar on any device:
+//   POST /families   { label?, jar? }  → 201 { token, familyId }, 400, 413
+//   POST /jar/call   { fn, args }      → 200 { result }, 400, 401, 413, 507
+// A device's token (Authorization: Bearer <familyId>.<secret>) opens its
+// family's jar; src/jar/api.ts lists the functions and their arguments.
+async function familyApi(request: Request, env: Env, pathname: string): Promise<Response> {
+  const reply = corsReply(request, env);
+  if (!reply) return text('Origin not allowed', 403);
+
+  if (request.method === 'OPTIONS') {
+    return reply(null, 204, {
+      'Access-Control-Allow-Methods': 'POST',
+      'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+      'Access-Control-Max-Age': '600',
+    });
+  }
+  if (request.method !== 'POST') return reply('Use POST', 405, { Allow: 'POST, OPTIONS' });
+  return pathname === '/families' ? createFamily(request, env, reply) : callJar(request, env, reply);
+}
+
 // The phone's photo, already cropped and shrunk by its page (src/pages.ts).
 async function receivePhoto(request: Request, env: Env, rawCode: string): Promise<Response> {
   const code = normaliseCode(rawCode);
@@ -133,32 +150,6 @@ async function receivePhoto(request: Request, env: Env, rawCode: string): Promis
   if (before === 'gone') return text('Code has run out', 410);
   if (before === 'sent') return text('A photo was already sent', 409);
   return text('Sent', 201);
-}
-
-// The body, or null past `max` bytes, without reading a huge upload to the end.
-async function readCapped(request: Request, max: number): Promise<ArrayBuffer | null> {
-  if (Number(request.headers.get('Content-Length')) > max) return null;
-  if (!request.body) return new ArrayBuffer(0);
-  const reader = request.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.byteLength;
-    if (size > max) {
-      await reader.cancel();
-      return null;
-    }
-    chunks.push(value);
-  }
-  const body = new Uint8Array(size);
-  let offset = 0;
-  for (const chunk of chunks) {
-    body.set(chunk, offset);
-    offset += chunk.byteLength;
-  }
-  return body.buffer;
 }
 
 function drop(env: Env, code: string) {
