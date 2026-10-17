@@ -108,7 +108,8 @@ export const radius = {
 //
 // On web, `System` follows so emoji and symbols the fonts don't have (✓ ✕ ☆ ⌫)
 // come from the platform stack, where the frame registers Twemoji as
-// "Segoe UI" (frame/web/frame.css).
+// "Segoe UI" (frame/web/frame.css), and so does emojiFallback.web.ts on other
+// devices that can't draw newer emoji.
 function family(name: string) {
   return Platform.select({ web: `${name}, System`, default: name });
 }
