@@ -1,12 +1,14 @@
 import { CODE_TTL_MS, MAX_PHOTO_BYTES, normaliseCode, randomCode, randomToken } from './codes';
+import { devicesApi } from './devices';
 import { callJar, createFamily } from './families';
 import { FamilyJar } from './FamilyJar';
 import { corsReply, readCapped } from './http';
+import { JoinAttempts, JoinCode } from './JoinCode';
 import { codePage, homePage, htmlResponse } from './pages';
 import { PhotoDrop } from './PhotoDrop';
 import { qrSvg } from './qr';
 
-export { FamilyJar, PhotoDrop };
+export { FamilyJar, JoinAttempts, JoinCode, PhotoDrop };
 
 // Wish Jar (the device) asks for a code and collects the photo through /codes,
 // with CORS; the phone gets its page, sends the photo and the QR code is drawn
@@ -22,6 +24,20 @@ export default {
     }
     if (pathname === '/families' || pathname === '/jar/call') {
       return familyApi(request, env, pathname);
+    }
+    // A family's devices and their join codes (WJ-48), for Wish Jar on any
+    // device: src/devices.ts.
+    if (pathname === '/devices' || pathname.startsWith('/devices/')) {
+      const reply = corsReply(request, env);
+      if (!reply) return text('Origin not allowed', 403);
+      if (method === 'OPTIONS') {
+        return reply(null, 204, {
+          'Access-Control-Allow-Methods': 'GET, POST, DELETE',
+          'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+          'Access-Control-Max-Age': '600',
+        });
+      }
+      return devicesApi(request, env, url, reply);
     }
     if (method === 'GET' && pathname === '/') return htmlResponse(homePage());
     // The form on / sends the typed code here.
@@ -42,11 +58,15 @@ export default {
     const upload = pathname.match(/^\/s\/([^/]+)\/photo$/);
     if (method === 'POST' && upload) return receivePhoto(request, env, upload[1]);
 
-    const qr = pathname.match(/^\/qr\/([^/]+)\.svg$/);
+    // A photo code opens the relay's page; a join code (WJ-48) opens Wish Jar
+    // itself with the code filled in, to join the family from the phone's
+    // browser.
+    const qr = pathname.match(/^\/qr\/(join\/)?([^/]+)\.svg$/);
     if (method === 'GET' && qr) {
-      const code = normaliseCode(qr[1]);
+      const code = normaliseCode(qr[2]);
       if (!code) return text('No such code', 404);
-      return new Response(qrSvg(`${url.origin}/s/${code}`), {
+      const link = qr[1] ? `${env.APP_URL}/?join=${code}` : `${url.origin}/s/${code}`;
+      return new Response(qrSvg(link), {
         headers: {
           'Content-Type': 'image/svg+xml',
           'Cache-Control': 'public, max-age=86400',

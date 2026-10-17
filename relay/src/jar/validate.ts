@@ -9,9 +9,11 @@ import {
 
 // Any device holding a token can send anything, so every argument is checked
 // before it gets near the jar. The message goes back with the 400.
+export type JarErrorStatus = 400 | 401 | 404 | 409 | 410 | 507;
+
 export class JarError extends Error {
   constructor(
-    readonly status: 400 | 401 | 409 | 507,
+    readonly status: JarErrorStatus,
     message: string,
   ) {
     super(message);

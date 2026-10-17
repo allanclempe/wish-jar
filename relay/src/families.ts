@@ -52,14 +52,14 @@ export async function callJar(request: Request, env: Env, reply: Reply): Promise
   return reply(JSON.stringify({ result: outcome.result }), 200, { 'Content-Type': 'application/json' });
 }
 
-function refuse(outcome: Extract<JarOutcome, { ok: false }>, reply: Reply): Response {
+export function refuse(outcome: Extract<JarOutcome, { ok: false }>, reply: Reply): Response {
   const headers: HeadersInit = outcome.status === 401 ? { 'WWW-Authenticate': 'Bearer' } : {};
   return reply(outcome.error, outcome.status, headers);
 }
 
 // The JSON body, or the reply turning it away. An empty body is {} when
 // `optional`, as POST /families may come without one.
-async function readJson(
+export async function readJson(
   request: Request,
   max: number,
   reply: Reply,

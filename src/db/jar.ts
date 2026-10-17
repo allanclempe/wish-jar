@@ -4,6 +4,7 @@ import type {
   JarApi,
   JarFn,
   JarImport,
+  JoinRequest,
 } from '../../relay/src/jar/api';
 import { PHOTO_RELAY_URL } from '../photos/phoneRelay';
 
@@ -37,17 +38,23 @@ export class JarCallError extends Error {
     return this.status === null || this.status === 429 || this.status >= 500;
   }
 
-  // The relay doesn't know this device's token. There's no recovery (WJ-47):
-  // the jar is gone for this device.
+  // The relay doesn't know this device's token: it was removed from its
+  // family (WJ-48), or the family is gone. There's no recovery (WJ-47), only
+  // joining a family again.
   get unknownDevice(): boolean {
     return this.status === 401;
   }
 }
 
+type Method = 'GET' | 'POST' | 'DELETE';
+
 // The handle every src/db function takes first, in place of the SQLite
 // database it used to.
 export type FamilyJar = {
   call<F extends JarFn>(fn: F, ...args: JarApi[F]['args']): Promise<JarApi[F]['result']>;
+  // The relay's other endpoints for a device of the family, such as its
+  // devices (devices.ts). GET reads; the rest wait their turn like writes.
+  send<T>(method: Method, path: string): Promise<T>;
 };
 
 // What went wrong on a call, so the app can show the reconnecting screen.
@@ -66,42 +73,62 @@ export function createJarClient(token: string, onProblem?: (problem: JarProblem)
   // for the writes before it, to see them.
   let writes: Promise<unknown> = Promise.resolve();
 
+  function queued<T>(read: boolean, send: () => Promise<T>): Promise<T> {
+    const reply = writes.then(send);
+    if (!read) writes = reply.catch(() => {});
+    return reply.catch((error: unknown) => {
+      const failure = error instanceof JarCallError ? error : new JarCallError(String(error), null);
+      if (failure.lost || failure.unknownDevice) onProblem?.({ error: failure, write: !read });
+      throw failure;
+    });
+  }
+
   return {
     call(fn, ...args) {
-      const send = () => post<{ result: never }>('/jar/call', { fn, args }, CALL_TIMEOUT_MS, token);
-      const reply = writes.then(send);
-      if (!isRead(fn)) writes = reply.catch(() => {});
-      return reply.then(
-        (body) => body.result,
-        (error: unknown) => {
-          const failure = error instanceof JarCallError ? error : new JarCallError(String(error), null);
-          if (failure.lost || failure.unknownDevice) onProblem?.({ error: failure, write: !isRead(fn) });
-          throw failure;
-        },
-      );
+      return queued(isRead(fn), () =>
+        request<{ result: never }>('POST', '/jar/call', { fn, args }, CALL_TIMEOUT_MS, token),
+      ).then((body) => body.result);
+    },
+    send(method, path) {
+      return queued(method === 'GET', () => request(method, path, undefined, CALL_TIMEOUT_MS, token));
     },
   };
 }
 
 // A new family, with this device as its first. With `jar`, the family starts
-// from this device's existing jar instead of an empty one.
-export function createFamily(jar?: JarImport): Promise<CreateFamilyReply> {
-  const request: CreateFamilyRequest = jar ? { jar } : {};
-  return post('/families', request, CREATE_TIMEOUT_MS);
+// from this device's existing jar instead of an empty one. `label` is how the
+// family's list of devices shows this one.
+export function createFamily(label: string, jar?: JarImport): Promise<CreateFamilyReply> {
+  const body: CreateFamilyRequest = jar ? { label, jar } : { label };
+  return request('POST', '/families', body, CREATE_TIMEOUT_MS);
 }
 
-async function post<T>(path: string, body: unknown, timeoutMs: number, token?: string): Promise<T> {
+// A token of this device's own to the family whose join code was typed
+// (WJ-48). The code works once.
+export function joinFamily(code: string, label: string): Promise<CreateFamilyReply> {
+  const body: JoinRequest = { code, label };
+  return request('POST', '/devices/join', body, CALL_TIMEOUT_MS);
+}
+
+// Replies with no content (204) come back as null.
+async function request<T>(
+  method: Method,
+  path: string,
+  body: unknown,
+  timeoutMs: number,
+  token?: string,
+): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   let response: Response;
   try {
     response = await fetch(`${JAR_URL}${path}`, {
-      method: 'POST',
+      method,
       headers: {
-        'Content-Type': 'application/json',
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
-      body: JSON.stringify(body),
+      body: body === undefined ? undefined : JSON.stringify(body),
       signal: controller.signal,
     });
   } catch (error) {
@@ -114,6 +141,7 @@ async function post<T>(path: string, body: unknown, timeoutMs: number, token?: s
     const reason = await response.text().catch(() => '');
     throw new JarCallError(reason || `Family jar: HTTP ${response.status}`, response.status);
   }
+  if (response.status === 204) return null as T;
   try {
     return (await response.json()) as T;
   } catch (error) {

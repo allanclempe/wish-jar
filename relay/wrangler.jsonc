@@ -17,17 +17,24 @@
   "durable_objects": {
     "bindings": [
       { "name": "PHOTO_DROPS", "class_name": "PhotoDrop" },
-      { "name": "FAMILY_JARS", "class_name": "FamilyJar" }
+      { "name": "FAMILY_JARS", "class_name": "FamilyJar" },
+      { "name": "JOIN_CODES", "class_name": "JoinCode" },
+      { "name": "JOIN_ATTEMPTS", "class_name": "JoinAttempts" }
     ]
   },
   // SQLite-backed, the only Durable Objects the Free plan has.
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["PhotoDrop"] },
-    { "tag": "v2", "new_sqlite_classes": ["FamilyJar"] }
+    { "tag": "v2", "new_sqlite_classes": ["FamilyJar"] },
+    { "tag": "v3", "new_sqlite_classes": ["JoinCode", "JoinAttempts"] }
   ],
   "vars": {
     // Pages allowed to use codes and the family jar (CORS), comma-separated:
     // the site, the dev server, and the frame app's own pages (frame/README.md).
-    "ALLOWED_ORIGINS": "https://wish-jar.expo.app,http://localhost:8081,https://appassets.androidplatform.net"
+    "ALLOWED_ORIGINS": "https://wish-jar.expo.app,http://localhost:8081,https://appassets.androidplatform.net",
+    // Where a join code's QR code sends a phone: Wish Jar with the code
+    // filled in (WJ-48). `pnpm dev --var APP_URL:http://localhost:8081` for
+    // the dev server.
+    "APP_URL": "https://wish-jar.expo.app"
   }
 }

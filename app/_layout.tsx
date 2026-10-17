@@ -121,6 +121,9 @@ function RootStack() {
         <Stack.Screen name="edit-consequence-type" options={modal('Edit a consequence')} />
         <Stack.Screen name="add-consequence" options={modal('Pick a consequence')} />
         <Stack.Screen name="bonus-coins" options={modal('Bonus coins')} />
+        <Stack.Screen name="devices" options={page('Devices')} />
+        <Stack.Screen name="add-device" options={modal('Add a device')} />
+        <Stack.Screen name="join-family" options={modal('Join a family jar')} />
       </Stack.Protected>
     </Stack>
   );

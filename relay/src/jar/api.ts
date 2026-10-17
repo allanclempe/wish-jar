@@ -202,3 +202,33 @@ export type JarImport = {
 // POST /families
 export type CreateFamilyRequest = { label?: string | null; jar?: JarImport };
 export type CreateFamilyReply = { token: string; familyId: string };
+
+// A family's devices (WJ-48). Each holds its own token; a parent adds one with
+// a one-time code shown on a device already in the family, and can remove one.
+//   POST   /devices/codes        → 201 JoinCode, 401
+//   DELETE /devices/codes/:code  → 204, 401, 403 (another family's), 410
+//   POST   /devices/join  JoinRequest → 201 CreateFamilyReply, 400, 410, 429
+//   GET    /devices              → 200 DeviceList, 401
+//   DELETE /devices/:id          → 204, 401, 404, 409 (the device asking)
+export type JoinCode = {
+  // 6 letters and digits, typed on the new device.
+  code: string;
+  expiresAt: number;
+  // Wish Jar with the code filled in: what the QR code holds.
+  url: string;
+};
+
+export type JoinRequest = { code: string; label?: string | null };
+
+export type Device = {
+  id: number;
+  // What the device called itself when it joined ("Frameo frame"), if anything.
+  label: string | null;
+  addedAt: number;
+  // Written at most every 10 minutes.
+  lastSeenAt: number;
+  // The device asking.
+  thisDevice: boolean;
+};
+
+export type DeviceList = { devices: Device[] };
