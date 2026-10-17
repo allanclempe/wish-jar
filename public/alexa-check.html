@@ -25,6 +25,9 @@
 <table id="results"></table>
 <button id="run-app">Run the app here</button>
 <button id="rerun">Check again</button>
+<button id="db-steps">Test database steps</button>
+<button id="db-clear">Clear database files</button>
+<pre id="steps" style="font-size:16px;white-space:pre-wrap"></pre>
 <div id="errors"></div>
 <script>
 (function () {
@@ -342,6 +345,107 @@
     xhr.onerror = function () { showError('Could not fetch / (' + xhr.status + ')'); };
     xhr.send();
   }
+
+  // Repeats, step by step and each with a timeout, what expo-sqlite's worker
+  // does on `open`: load the wa-sqlite wasm, then open a sync access handle on
+  // every file in OPFS /expo-sqlite (AccessHandlePoolVFS). The worker runs
+  // modern JS: this button only matters once the checks above showed a
+  // modern engine.
+  var stepsBox = document.getElementById('steps');
+  function step(text) { stepsBox.textContent += text + '\n'; }
+  function findWasmUrl() {
+    function get(url) {
+      return fetch(url).then(function (r) {
+        if (!r.ok) throw new Error(url + ' -> ' + r.status);
+        return r.text();
+      });
+    }
+    return get('/').then(function (html) {
+      var entry = /\/_expo\/static\/js\/web\/entry-[0-9a-f]+\.js/.exec(html);
+      if (!entry) throw new Error('entry script not found in /');
+      return get(entry[0]);
+    }).then(function (js) {
+      var worker = /worker-[0-9a-f]+\.js/.exec(js);
+      if (!worker) throw new Error('worker script not found in entry bundle');
+      step('worker: ' + worker[0]);
+      return get('/_expo/static/js/web/' + worker[0]);
+    }).then(function (js) {
+      var wasm = /\/assets\/[^"']*wa-sqlite[^"']*\.wasm/.exec(js);
+      if (!wasm) throw new Error('wasm path not found in worker');
+      // Absolute, since a blob worker can't resolve a relative URL.
+      return location.origin + wasm[0];
+    });
+  }
+  var dbWorkerSource = [
+    'function withTimeout(promise, ms, label) {',
+    '  return Promise.race([promise, new Promise(function (_, reject) {',
+    '    setTimeout(function () { reject(new Error("TIMEOUT after " + ms / 1000 + " s: " + label)); }, ms);',
+    '  })]);',
+    '}',
+    'function say(text) { postMessage(text); }',
+    'function describe(e) { return (e && e.name ? e.name + ": " : "") + (e && e.message || e); }',
+    'self.onmessage = async function (event) {',
+    '  var mode = event.data.mode;',
+    '  try {',
+    '    var root = await withTimeout(navigator.storage.getDirectory(), 10000, "getDirectory");',
+    '    if (mode === "clear") {',
+    '      await withTimeout(root.removeEntry("expo-sqlite", { recursive: true }), 10000, "removeEntry expo-sqlite");',
+    '      say("cleared OPFS /expo-sqlite"); say("DONE"); return;',
+    '    }',
+    '    var t = Date.now();',
+    '    var response = await withTimeout(fetch(event.data.wasmUrl), 20000, "fetch wasm");',
+    '    var bytes = await withTimeout(response.arrayBuffer(), 20000, "read wasm");',
+    '    say("wasm fetched: " + response.status + ", " + Math.round(bytes.byteLength / 1024) + " KB in " + (Date.now() - t) + " ms");',
+    '    t = Date.now();',
+    '    await withTimeout(WebAssembly.compile(bytes), 20000, "compile wasm");',
+    '    say("wasm compiled in " + (Date.now() - t) + " ms");',
+    '    var dir = await withTimeout(root.getDirectoryHandle("expo-sqlite", { create: true }), 10000, "getDirectoryHandle");',
+    '    var files = [];',
+    '    var iterate = (async function () { for await (var entry of dir.entries()) files.push(entry); })();',
+    '    await withTimeout(iterate, 10000, "list directory");',
+    '    say("files in /expo-sqlite: " + files.length);',
+    '    for (var i = 0; i < files.length; i++) {',
+    '      var name = files[i][0], handle = files[i][1];',
+    '      if (handle.kind !== "file") { say("  " + name + ": " + handle.kind); continue; }',
+    '      try {',
+    '        var size = (await withTimeout(handle.getFile(), 5000, "getFile " + name)).size;',
+    '        t = Date.now();',
+    '        var access = await withTimeout(handle.createSyncAccessHandle(), 5000, "createSyncAccessHandle " + name);',
+    '        access.close();',
+    '        say("  " + name + " (" + size + " B): handle ok in " + (Date.now() - t) + " ms");',
+    '      } catch (e) { say("  " + name + ": " + describe(e)); }',
+    '    }',
+    '    t = Date.now();',
+    '    var opened = await withTimeout(Promise.all(files.filter(function (f) { return f[1].kind === "file"; })',
+    '      .map(function (f) { return f[1].createSyncAccessHandle(); })), 10000, "all handles at once");',
+    '    opened.forEach(function (h) { h.close(); });',
+    '    say("all " + opened.length + " handles at once: ok in " + (Date.now() - t) + " ms");',
+    '  } catch (e) { say("FAILED: " + describe(e)); }',
+    '  say("DONE");',
+    '};'
+  ].join('\n');
+  function runDbWorker(data) {
+    var worker = new Worker(URL.createObjectURL(new Blob([dbWorkerSource], { type: 'text/javascript' })));
+    worker.onmessage = function (e) {
+      step(e.data);
+      if (e.data === 'DONE') worker.terminate();
+    };
+    worker.onerror = function (e) { step('worker error: ' + (e.message || 'unknown')); };
+    worker.postMessage(data);
+  }
+  document.getElementById('db-steps').onclick = function () {
+    stepsBox.textContent = '';
+    step('Testing database steps...');
+    findWasmUrl().then(function (wasmUrl) {
+      step('wasm: ' + wasmUrl.split('/').pop());
+      runDbWorker({ mode: 'test', wasmUrl: wasmUrl });
+    }).catch(function (e) { step('FAILED: ' + message(e)); });
+  };
+  document.getElementById('db-clear').onclick = function () {
+    stepsBox.textContent = '';
+    step('Clearing database files...');
+    runDbWorker({ mode: 'clear' });
+  };
 
   document.getElementById('rerun').onclick = runChecks;
   document.getElementById('run-app').onclick = runApp;
