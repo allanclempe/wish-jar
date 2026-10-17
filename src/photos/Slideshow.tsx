@@ -32,6 +32,10 @@ const SWIPE_PX = 60;
 const TAP_PX = 20;
 // The second tap of a double tap comes within this long of the first.
 const DOUBLE_TAP_MS = 400;
+// The slideshow stays up this long after the double tap. The second tap's click
+// comes after its pointerup, and without the slideshow there to catch it, it
+// would land on whatever is behind, like ticking a task.
+const CLOSE_DELAY_MS = 350;
 // Anything that counts as someone using Wish Jar.
 const ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'wheel'] as const;
 
@@ -160,6 +164,8 @@ function Slides({ photos, onClose }: { photos: FrameoPhoto[]; onClose: () => voi
   // the web turn a short swipe into a press.
   const down = useRef<{ x: number; y: number } | null>(null);
   const lastTap = useRef(0);
+  const closing = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => clearTimeout(closing.current ?? undefined), []);
 
   function onPointerDown(event: PointerEvent) {
     down.current = { x: event.nativeEvent.clientX, y: event.nativeEvent.clientY };
@@ -168,7 +174,7 @@ function Slides({ photos, onClose }: { photos: FrameoPhoto[]; onClose: () => voi
   function onPointerUp(event: PointerEvent) {
     const start = down.current;
     down.current = null;
-    if (!start) return;
+    if (!start || closing.current) return;
     const dx = event.nativeEvent.clientX - start.x;
     const dy = event.nativeEvent.clientY - start.y;
     if (Math.abs(dx) >= SWIPE_PX && Math.abs(dx) > Math.abs(dy)) {
@@ -176,7 +182,7 @@ function Slides({ photos, onClose }: { photos: FrameoPhoto[]; onClose: () => voi
       swipe(dx < 0 ? 1 : -1);
     } else if (Math.abs(dx) < TAP_PX && Math.abs(dy) < TAP_PX) {
       const now = Date.now();
-      if (now - lastTap.current < DOUBLE_TAP_MS) onClose();
+      if (now - lastTap.current < DOUBLE_TAP_MS) closing.current = setTimeout(onClose, CLOSE_DELAY_MS);
       else lastTap.current = now;
     }
   }
