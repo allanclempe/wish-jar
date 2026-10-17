@@ -1,6 +1,7 @@
 import type {
   CreateFamilyReply,
   CreateFamilyRequest,
+  EchoShowRequest,
   JarApi,
   JarFn,
   JarImport,
@@ -108,6 +109,26 @@ export function createFamily(label: string, jar?: JarImport): Promise<CreateFami
 export function joinFamily(code: string, label: string): Promise<CreateFamilyReply> {
   const body: JoinRequest = { code, label };
   return request('POST', '/devices/join', body, CALL_TIMEOUT_MS);
+}
+
+// A new token for this Echo Show's place in its family (WJ-45), or null when
+// the relay doesn't have the Show in one: it never linked, or a parent removed
+// it. Only a relay that can't be reached throws.
+export async function rejoinEchoShow(alexaDeviceId: string): Promise<CreateFamilyReply | null> {
+  const body: EchoShowRequest = { alexaDeviceId };
+  try {
+    return await request<CreateFamilyReply>('POST', '/devices/echo-show', body, CALL_TIMEOUT_MS);
+  } catch (error) {
+    if (error instanceof JarCallError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+// Lets this Echo Show, now a device of the family `token` opens, rejoin it at
+// its next launches.
+export async function linkEchoShow(token: string, alexaDeviceId: string): Promise<void> {
+  const body: EchoShowRequest = { alexaDeviceId };
+  await request('POST', '/devices/echo-show/link', body, CALL_TIMEOUT_MS, token);
 }
 
 // Replies with no content (204) come back as null.

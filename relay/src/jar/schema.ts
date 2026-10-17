@@ -7,7 +7,7 @@
 // kept in jar_meta. Foreign keys are always on there, so ON DELETE CASCADE
 // works as it does in the app.
 
-export const JAR_VERSION = 1;
+export const JAR_VERSION = 2;
 
 const MIGRATIONS: Record<number, string> = {
   1: `
@@ -90,6 +90,14 @@ const MIGRATIONS: Record<number, string> = {
       created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000),
       last_seen_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
     );
+  `,
+  // An Echo Show's device row keeps the hash of its Alexa device id (WJ-45),
+  // so the Show can get a new token for the same row at every skill launch.
+  // Removing the row ends that, as it does for any device.
+  2: `
+    ALTER TABLE devices ADD COLUMN echo_show_hash TEXT;
+    CREATE UNIQUE INDEX IF NOT EXISTS devices_echo_show_hash
+      ON devices (echo_show_hash) WHERE echo_show_hash IS NOT NULL;
   `,
 };
 

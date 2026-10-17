@@ -232,3 +232,12 @@ export type Device = {
 };
 
 export type DeviceList = { devices: Device[] };
+
+// The Echo Show (WJ-45), whose storage is wiped at the end of every Alexa
+// skill session. Once in a family, it links its Alexa device id (32 to 512
+// characters; only a hash is kept); at every launch after that it gets a new
+// token for the same device row. Removing the device ends it.
+//   POST /devices/echo-show/link  EchoShowRequest (device token) → 204, 400, 401
+//   POST /devices/echo-show       EchoShowRequest → 200 CreateFamilyReply, 400,
+//                                 404 (not linked, or removed from its family)
+export type EchoShowRequest = { alexaDeviceId: string };

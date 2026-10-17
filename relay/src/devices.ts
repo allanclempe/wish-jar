@@ -1,5 +1,6 @@
 import { CODE_TTL_MS, normaliseCode, randomCode, randomToken } from './codes';
 import { parseDeviceToken, readJson, refuse } from './families';
+import { echoShowApi } from './echoShow';
 import type { JarOutcome } from './FamilyJar';
 import type { Reply } from './http';
 import type { CreateFamilyReply, Device, DeviceList, JoinCode } from './jar/api';
@@ -12,12 +13,16 @@ import { JarError, label } from './jar/validate';
 const MAX_JOIN_BYTES = 1024;
 
 // The family's devices (WJ-48); src/jar/api.ts lists the endpoints. Every one
-// but /devices/join needs a device of the family (Authorization: Bearer).
+// but /devices/join and the Echo Show's rejoin (echoShow.ts) needs a device of
+// the family (Authorization: Bearer).
 export async function devicesApi(request: Request, env: Env, url: URL, reply: Reply): Promise<Response> {
   const { pathname } = url;
   const method = request.method;
   if (pathname === '/devices/join') {
     return method === 'POST' ? joinFamily(request, env, reply) : useMethod('POST', reply);
+  }
+  if (pathname === '/devices/echo-show' || pathname === '/devices/echo-show/link') {
+    return echoShowApi(request, env, pathname, reply);
   }
 
   const device = parseDeviceToken(request.headers.get('Authorization'));

@@ -82,6 +82,51 @@ export class FamilyJar extends DurableObject<Env> {
     });
   }
 
+  // Marks the device holding `secret` as the Echo Show whose Alexa device id
+  // hashes to `echoShowHash` (WJ-45), so it can rejoin at its next launch. A
+  // row that had it before (the Show's earlier place in this family) lets go.
+  async linkEchoShow(secret: string, echoShowHash: string): Promise<JarOutcome> {
+    const hash = await hashSecret(secret);
+    const storage = this.ctx.storage;
+    const self = isJar(storage) ? this.seen(hash) : null;
+    if (self == null) return NOT_A_DEVICE;
+    storage.transactionSync(() => {
+      run(
+        storage,
+        'UPDATE devices SET echo_show_hash = NULL WHERE echo_show_hash = ? AND id != ?',
+        echoShowHash,
+        self,
+      );
+      run(storage, 'UPDATE devices SET echo_show_hash = ? WHERE id = ?', echoShowHash, self);
+    });
+    return { ok: true, result: null };
+  }
+
+  // A new token for the Echo Show's device row, at the start of a skill
+  // session: `secret` replaces the one it had, so last session's token opens
+  // nothing now. 404 when no row has the Show (a parent removed it, or the
+  // family is gone).
+  async rejoinEchoShow(echoShowHash: string, secret: string): Promise<JarOutcome> {
+    const hash = await hashSecret(secret);
+    const storage = this.ctx.storage;
+    const notHere: JarOutcome = { ok: false, status: 404, error: 'This Echo Show is not in the family' };
+    if (!isJar(storage)) return notHere;
+    const row = first<{ id: number }>(
+      storage,
+      'SELECT id FROM devices WHERE echo_show_hash = ?',
+      echoShowHash,
+    );
+    if (!row) return notHere;
+    run(
+      storage,
+      'UPDATE devices SET secret_hash = ?, last_seen_at = ? WHERE id = ?',
+      hash,
+      Date.now(),
+      row.id,
+    );
+    return { ok: true, result: null };
+  }
+
   // Every device of the family, oldest first, for a device of the family.
   async listDevices(secret: string): Promise<JarOutcome> {
     const hash = await hashSecret(secret);
