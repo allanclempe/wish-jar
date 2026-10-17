@@ -13,7 +13,7 @@ import {
 
 import { IconBadge } from '../components/Icons';
 import { ProgressBar } from '../components/ProgressBar';
-import { getKidSavings, listWishes, useDatabase, type Kid } from '../db';
+import { getKidSavings, listWishes, useFamilyJar, type Kid } from '../db';
 import { useActiveKid } from '../kids/ActiveKidProvider';
 import { colors, fonts, offsetShadow, radius, spacing, typography } from '../theme';
 import { orderWishes, type WishProgress } from '../wishes/order';
@@ -218,13 +218,13 @@ type KidProgress = {
 
 // Read once as the slideshow opens: nobody earns coins while it's showing.
 function KidsStrip() {
-  const db = useDatabase();
+  const jar = useFamilyJar();
   const { kids } = useActiveKid();
   const [progress, setProgress] = useState<KidProgress[]>([]);
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([listWishes(db), Promise.all(kids.map((kid) => getKidSavings(db, kid.id)))]).then(
+    Promise.all([listWishes(jar), Promise.all(kids.map((kid) => getKidSavings(jar, kid.id)))]).then(
       ([wishes, savings]) => {
         if (cancelled) return;
         setProgress(
@@ -239,7 +239,7 @@ function KidsStrip() {
     return () => {
       cancelled = true;
     };
-  }, [db, kids]);
+  }, [jar, kids]);
 
   if (progress.length === 0) return null;
 

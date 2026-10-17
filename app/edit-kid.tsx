@@ -5,14 +5,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DeleteButton } from '../src/components/DeleteButton';
 import { ScrollScreen } from '../src/components/ScrollScreen';
-import { deleteKid, getKid, updateKid, useDatabase } from '../src/db';
+import { deleteKid, getKid, updateKid, useFamilyJar } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { PhotoSourceButtons, usePickPhoto } from '../src/photos/PhotoPicker';
 import { removePhoto, storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
 export default function EditKidScreen() {
-  const db = useDatabase();
+  const jar = useFamilyJar();
   const { id } = useLocalSearchParams<{ id: string }>();
   const kidId = Number(id);
   const { refreshKids } = useActiveKid();
@@ -27,7 +27,7 @@ export default function EditKidScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    getKid(db, kidId).then((kid) => {
+    getKid(jar, kidId).then((kid) => {
       if (cancelled) return;
       if (!kid) {
         Alert.alert('Kid not found', 'This kid may have been removed.');
@@ -42,7 +42,7 @@ export default function EditKidScreen() {
     return () => {
       cancelled = true;
     };
-  }, [db, kidId]);
+  }, [jar, kidId]);
 
   async function choosePhoto() {
     const uri = await pickPhoto();
@@ -57,7 +57,7 @@ export default function EditKidScreen() {
       if (photoUri && photoUri !== originalPhotoUri) {
         savedPhotoUri = await storePhoto(photoUri);
       }
-      const previousPhotoUri = await updateKid(db, kidId, { name, photoUri: savedPhotoUri });
+      const previousPhotoUri = await updateKid(jar, kidId, { name, photoUri: savedPhotoUri });
       if (previousPhotoUri !== savedPhotoUri) {
         removePhoto(previousPhotoUri);
       }
@@ -76,7 +76,7 @@ export default function EditKidScreen() {
     if (saving) return;
     setSaving(true);
     try {
-      (await deleteKid(db, kidId)).forEach(removePhoto);
+      (await deleteKid(jar, kidId)).forEach(removePhoto);
       await refreshKids();
       router.back();
     } catch {

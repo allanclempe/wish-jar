@@ -11,7 +11,7 @@ import {
 
 import { ScrollScreen } from '../src/components/ScrollScreen';
 import { IconPicker } from '../src/components/Icons';
-import { insertWish, useDatabase, type Icon } from '../src/db';
+import { insertWish, useFamilyJar, type Icon } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { removePhoto, storePhoto } from '../src/photos/photos';
 import { colors, fonts, radius, spacing, typography } from '../src/theme';
@@ -19,7 +19,7 @@ import { colors, fonts, radius, spacing, typography } from '../src/theme';
 type Errors = { name?: string; coinAmount?: string; kidId?: string };
 
 export default function AddWishScreen() {
-  const db = useDatabase();
+  const jar = useFamilyJar();
   const { kids } = useActiveKid();
   const [name, setName] = useState('');
   const [coinAmount, setCoinAmount] = useState('');
@@ -54,7 +54,7 @@ export default function AddWishScreen() {
     let storedPhotoUri: string | null = null;
     try {
       storedPhotoUri = icon.photoUri ? await storePhoto(icon.photoUri) : null;
-      await insertWish(db, {
+      await insertWish(jar, {
         kidId,
         name,
         coinAmount: Number(coinAmount.trim()),

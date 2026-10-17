@@ -6,7 +6,7 @@ import {
   getKidSavings,
   listKids,
   setActiveKidId,
-  useDatabase,
+  useFamilyJar,
   type Kid,
 } from '../db';
 import { savingsAfterTask } from './savings';
@@ -27,7 +27,7 @@ const ActiveKidContext = createContext<ActiveKidContextValue | null>(null);
 const SavingsContext = createContext<Record<number, number> | null>(null);
 
 export function ActiveKidProvider({ children }: PropsWithChildren) {
-  const db = useDatabase();
+  const jar = useFamilyJar();
   const [ready, setReady] = useState(false);
   const [kids, setKids] = useState<Kid[]>([]);
   const [activeKidId, setActiveKidIdState] = useState<number | null>(null);
@@ -48,20 +48,20 @@ export function ActiveKidProvider({ children }: PropsWithChildren) {
   }, []);
 
   const refreshKids = useCallback(async () => {
-    const [loadedKids, savedId] = await Promise.all([listKids(db), getActiveKidId(db)]);
+    const [loadedKids, savedId] = await Promise.all([listKids(jar), getActiveKidId()]);
     let nextId = savedId;
     // The playing kid was deleted, so the first kid left takes over.
     if (savedId != null && !loadedKids.some((kid) => kid.id === savedId) && loadedKids.length > 0) {
       nextId = loadedKids[0].id;
-      await setActiveKidId(db, nextId);
+      await setActiveKidId(nextId);
     }
     setKids(loadedKids);
     setActiveKidIdState(nextId);
-  }, [db]);
+  }, [jar]);
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([listKids(db), getActiveKidId(db)]).then(([loadedKids, savedId]) => {
+    Promise.all([listKids(jar), getActiveKidId()]).then(([loadedKids, savedId]) => {
       if (cancelled) return;
       setKids(loadedKids);
       setActiveKidIdState(savedId);
@@ -70,26 +70,26 @@ export function ActiveKidProvider({ children }: PropsWithChildren) {
     return () => {
       cancelled = true;
     };
-  }, [db]);
+  }, [jar]);
 
   useEffect(() => {
     if (activeKidId == null) return;
     let cancelled = false;
-    getKidSavings(db, activeKidId).then((amount) => {
+    getKidSavings(jar, activeKidId).then((amount) => {
       if (cancelled) return;
       setSavings((previous) => ({ ...previous, [activeKidId]: amount }));
     });
     return () => {
       cancelled = true;
     };
-  }, [db, activeKidId]);
+  }, [jar, activeKidId]);
 
   const selectKid = useCallback(
     async (kidId: number) => {
-      await setActiveKidId(db, kidId);
+      await setActiveKidId(kidId);
       setActiveKidIdState(kidId);
     },
-    [db],
+    [],
   );
 
   const value = useMemo<ActiveKidContextValue>(

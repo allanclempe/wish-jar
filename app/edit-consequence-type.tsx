@@ -10,7 +10,7 @@ import {
   deleteConsequenceType,
   getConsequenceType,
   updateConsequenceType,
-  useDatabase,
+  useFamilyJar,
   type Icon,
 } from '../src/db';
 import { removePhoto, storePhoto } from '../src/photos/photos';
@@ -19,7 +19,7 @@ import { colors, radius, spacing, typography } from '../src/theme';
 type Errors = { name?: string; coinAmount?: string };
 
 export default function EditConsequenceTypeScreen() {
-  const db = useDatabase();
+  const jar = useFamilyJar();
   const { id } = useLocalSearchParams<{ id: string }>();
   const consequenceTypeId = Number(id);
   const [loaded, setLoaded] = useState(false);
@@ -32,7 +32,7 @@ export default function EditConsequenceTypeScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    getConsequenceType(db, consequenceTypeId).then((type) => {
+    getConsequenceType(jar, consequenceTypeId).then((type) => {
       if (cancelled) return;
       if (!type) {
         Alert.alert('Consequence not found', 'This consequence may have been removed.');
@@ -48,7 +48,7 @@ export default function EditConsequenceTypeScreen() {
     return () => {
       cancelled = true;
     };
-  }, [db, consequenceTypeId]);
+  }, [jar, consequenceTypeId]);
 
   function validate(): Errors {
     const next: Errors = {};
@@ -73,7 +73,7 @@ export default function EditConsequenceTypeScreen() {
       if (icon.photoUri && icon.photoUri !== originalPhotoUri) {
         savedPhotoUri = await storePhoto(icon.photoUri);
       }
-      const previousPhotoUri = await updateConsequenceType(db, consequenceTypeId, {
+      const previousPhotoUri = await updateConsequenceType(jar, consequenceTypeId, {
         name,
         coinAmount: Number(coinAmount.trim()),
         icon: { emoji: icon.emoji, photoUri: savedPhotoUri },
@@ -95,7 +95,7 @@ export default function EditConsequenceTypeScreen() {
     if (saving) return;
     setSaving(true);
     try {
-      removePhoto(await deleteConsequenceType(db, consequenceTypeId));
+      removePhoto(await deleteConsequenceType(jar, consequenceTypeId));
       router.back();
     } catch {
       Alert.alert('Could not delete', 'Something went wrong while deleting. Please try again.');

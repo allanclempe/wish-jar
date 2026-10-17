@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { DeleteButton } from '../src/components/DeleteButton';
 import { ScrollScreen } from '../src/components/ScrollScreen';
 import { IconPicker } from '../src/components/Icons';
-import { deleteWish, getWish, updateWish, useDatabase, type Icon } from '../src/db';
+import { deleteWish, getWish, updateWish, useFamilyJar, type Icon } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { removePhoto, storePhoto } from '../src/photos/photos';
 import { colors, fonts, radius, spacing, typography } from '../src/theme';
@@ -14,7 +14,7 @@ import { colors, fonts, radius, spacing, typography } from '../src/theme';
 type Errors = { name?: string; coinAmount?: string; kidId?: string };
 
 export default function EditWishScreen() {
-  const db = useDatabase();
+  const jar = useFamilyJar();
   const { kids } = useActiveKid();
   const { id } = useLocalSearchParams<{ id: string }>();
   const wishId = Number(id);
@@ -29,7 +29,7 @@ export default function EditWishScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    getWish(db, wishId).then((wish) => {
+    getWish(jar, wishId).then((wish) => {
       if (cancelled) return;
       if (!wish) {
         Alert.alert('Wish not found', 'This wish may have been removed.');
@@ -46,7 +46,7 @@ export default function EditWishScreen() {
     return () => {
       cancelled = true;
     };
-  }, [db, wishId]);
+  }, [jar, wishId]);
 
   function validate(): Errors {
     const next: Errors = {};
@@ -76,7 +76,7 @@ export default function EditWishScreen() {
       if (icon.photoUri && icon.photoUri !== originalPhotoUri) {
         savedPhotoUri = await storePhoto(icon.photoUri);
       }
-      const previousPhotoUri = await updateWish(db, wishId, {
+      const previousPhotoUri = await updateWish(jar, wishId, {
         kidId,
         name,
         coinAmount: Number(coinAmount.trim()),
@@ -99,7 +99,7 @@ export default function EditWishScreen() {
     if (saving) return;
     setSaving(true);
     try {
-      removePhoto(await deleteWish(db, wishId));
+      removePhoto(await deleteWish(jar, wishId));
       router.back();
     } catch {
       Alert.alert('Could not delete', 'Something went wrong while deleting. Please try again.');

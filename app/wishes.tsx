@@ -4,26 +4,26 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IconBadge } from '../src/components/Icons';
-import { listWishes, useDatabase, type Wish } from '../src/db';
+import { listWishes, useFamilyJar, type Wish } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { EmptyState } from '../src/components/EmptyState';
 import { colors, contentMaxWidth, fonts, primaryShadow, radius, spacing, typography } from '../src/theme';
 
 export default function WishesScreen() {
-  const db = useDatabase();
+  const jar = useFamilyJar();
   const { kids } = useActiveKid();
   const [wishes, setWishes] = useState<Wish[]>([]);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      listWishes(db).then((loaded) => {
+      listWishes(jar).then((loaded) => {
         if (!cancelled) setWishes(loaded);
       });
       return () => {
         cancelled = true;
       };
-    }, [db]),
+    }, [jar]),
   );
 
   return (

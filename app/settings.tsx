@@ -3,7 +3,7 @@ import { useCallback, useState } from 'react';
 import { Pressable, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { ScrollScreen } from '../src/components/ScrollScreen';
-import { listConsequenceTypes, listTasks, listWishes, useDatabase } from '../src/db';
+import { listConsequenceTypes, listTasks, listWishes, useFamilyJar } from '../src/db';
 import { currentTimeZone, onFrame, timeZoneName } from '../src/device/frame';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { useSound } from '../src/sound/SoundProvider';
@@ -70,7 +70,7 @@ function plural(count: number, one: string, many: string) {
 }
 
 export default function SettingsScreen() {
-  const db = useDatabase();
+  const jar = useFamilyJar();
   const { kids } = useActiveKid();
   const { soundOn, setSoundOn } = useSound();
   const [taskCount, setTaskCount] = useState(0);
@@ -82,7 +82,7 @@ export default function SettingsScreen() {
     useCallback(() => {
       let cancelled = false;
       setTimeZone(currentTimeZone());
-      Promise.all([listTasks(db), listWishes(db), listConsequenceTypes(db)]).then(
+      Promise.all([listTasks(jar), listWishes(jar), listConsequenceTypes(jar)]).then(
         ([tasks, wishes, consequenceTypes]) => {
           if (cancelled) return;
           setTaskCount(tasks.length);
@@ -93,7 +93,7 @@ export default function SettingsScreen() {
       return () => {
         cancelled = true;
       };
-    }, [db]),
+    }, [jar]),
   );
 
   return (

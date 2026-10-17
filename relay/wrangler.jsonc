@@ -26,7 +26,8 @@
     { "tag": "v2", "new_sqlite_classes": ["FamilyJar"] }
   ],
   "vars": {
-    // Pages allowed to use codes and the family jar (CORS), comma-separated.
-    "ALLOWED_ORIGINS": "https://wish-jar.expo.app,http://localhost:8081"
+    // Pages allowed to use codes and the family jar (CORS), comma-separated:
+    // the site, the dev server, and the frame app's own pages (frame/README.md).
+    "ALLOWED_ORIGINS": "https://wish-jar.expo.app,http://localhost:8081,https://appassets.androidplatform.net"
   }
 }

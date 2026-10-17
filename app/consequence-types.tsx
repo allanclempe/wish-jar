@@ -4,24 +4,24 @@ import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { IconBadge } from '../src/components/Icons';
-import { listConsequenceTypes, useDatabase, type ConsequenceType } from '../src/db';
+import { listConsequenceTypes, useFamilyJar, type ConsequenceType } from '../src/db';
 import { EmptyState } from '../src/components/EmptyState';
 import { colors, contentMaxWidth, fonts, primaryShadow, radius, spacing, typography } from '../src/theme';
 
 export default function ConsequencesSettingsScreen() {
-  const db = useDatabase();
+  const jar = useFamilyJar();
   const [types, setTypes] = useState<ConsequenceType[]>([]);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      listConsequenceTypes(db).then((loaded) => {
+      listConsequenceTypes(jar).then((loaded) => {
         if (!cancelled) setTypes(loaded);
       });
       return () => {
         cancelled = true;
       };
-    }, [db]),
+    }, [jar]),
   );
 
   return (

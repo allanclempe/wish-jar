@@ -7,14 +7,14 @@ import { DeleteButton } from '../src/components/DeleteButton';
 import { ScrollScreen } from '../src/components/ScrollScreen';
 import { IconPicker } from '../src/components/Icons';
 import { PeriodPicker } from '../src/components/PeriodPicker';
-import { deleteTask, getTask, updateTask, useDatabase, type Icon, type Period } from '../src/db';
+import { deleteTask, getTask, updateTask, useFamilyJar, type Icon, type Period } from '../src/db';
 import { removePhoto, storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
 type Errors = { name?: string; coinAmount?: string };
 
 export default function EditTaskScreen() {
-  const db = useDatabase();
+  const jar = useFamilyJar();
   const { id } = useLocalSearchParams<{ id: string }>();
   const taskId = Number(id);
   const [loaded, setLoaded] = useState(false);
@@ -28,7 +28,7 @@ export default function EditTaskScreen() {
 
   useEffect(() => {
     let cancelled = false;
-    getTask(db, taskId).then((task) => {
+    getTask(jar, taskId).then((task) => {
       if (cancelled) return;
       if (!task) {
         Alert.alert('Task not found', 'This task may have been removed.');
@@ -45,7 +45,7 @@ export default function EditTaskScreen() {
     return () => {
       cancelled = true;
     };
-  }, [db, taskId]);
+  }, [jar, taskId]);
 
   function validate(): Errors {
     const next: Errors = {};
@@ -70,7 +70,7 @@ export default function EditTaskScreen() {
       if (icon.photoUri && icon.photoUri !== originalPhotoUri) {
         savedPhotoUri = await storePhoto(icon.photoUri);
       }
-      const previousPhotoUri = await updateTask(db, taskId, {
+      const previousPhotoUri = await updateTask(jar, taskId, {
         name,
         period,
         coinAmount: Number(coinAmount.trim()),
@@ -93,7 +93,7 @@ export default function EditTaskScreen() {
     if (saving) return;
     setSaving(true);
     try {
-      removePhoto(await deleteTask(db, taskId));
+      removePhoto(await deleteTask(jar, taskId));
       router.back();
     } catch {
       Alert.alert('Could not delete', 'Something went wrong while deleting. Please try again.');

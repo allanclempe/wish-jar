@@ -5,14 +5,14 @@ import { Alert, Pressable, StyleSheet, Text, TextInput } from 'react-native';
 import { ScrollScreen } from '../src/components/ScrollScreen';
 import { IconPicker } from '../src/components/Icons';
 import { PeriodPicker } from '../src/components/PeriodPicker';
-import { insertTask, useDatabase, type Icon, type Period } from '../src/db';
+import { insertTask, useFamilyJar, type Icon, type Period } from '../src/db';
 import { removePhoto, storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
 type Errors = { name?: string; coinAmount?: string };
 
 export default function AddTaskScreen() {
-  const db = useDatabase();
+  const jar = useFamilyJar();
   const [name, setName] = useState('');
   const [period, setPeriod] = useState<Period>('morning');
   const [coinAmount, setCoinAmount] = useState('');
@@ -41,7 +41,7 @@ export default function AddTaskScreen() {
     let storedPhotoUri: string | null = null;
     try {
       storedPhotoUri = icon.photoUri ? await storePhoto(icon.photoUri) : null;
-      await insertTask(db, {
+      await insertTask(jar, {
         name,
         period,
         coinAmount: Number(coinAmount.trim()),

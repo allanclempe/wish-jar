@@ -1,12 +1,18 @@
 import { useFocusEffect } from 'expo-router';
 import { memo, useCallback, useState } from 'react';
-import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { EmptyState } from '../../src/components/EmptyState';
 import { HiddenWhenBlurred } from '../../src/components/HiddenWhenBlurred';
 import { IconBadge } from '../../src/components/Icons';
-import { listConsequences, removeConsequence, useDatabase, type Consequence } from '../../src/db';
+import {
+  listConsequences,
+  removeConsequence,
+  useFamilyJar,
+  type Consequence,
+  type ConsequenceChange,
+} from '../../src/db';
 import { useActiveKid } from '../../src/kids/ActiveKidProvider';
 import { useParentLock } from '../../src/parent/ParentLockProvider';
 import { dayKey } from '../../src/tasks/day';
@@ -24,7 +30,7 @@ export default function ConsequencesTab() {
 // Memoized: expo-router re-renders the tab's route on every tab switch, and
 // on the frame redrawing a whole screen for that was most of the switch.
 const ConsequencesScreen = memo(function ConsequencesScreen() {
-  const db = useDatabase();
+  const jar = useFamilyJar();
   const { activeKid, recordSavingsChange } = useActiveKid();
   const large = useLargeScreen();
   const columns = large ? 2 : 1;
@@ -44,27 +50,33 @@ const ConsequencesScreen = memo(function ConsequencesScreen() {
       let cancelled = false;
       const today = dayKey();
       setDay(today);
-      listConsequences(db, kidId, today).then((loaded) => {
+      listConsequences(jar, kidId, today).then((loaded) => {
         if (!cancelled) setConsequences(loaded);
       });
       return () => {
         cancelled = true;
       };
-    }, [db, kidId]),
+    }, [jar, kidId]),
   );
 
   // Kids can see their consequences, but only a grown-up with the PIN can take one back.
   async function remove(consequence: Consequence) {
     if (kidId == null || !(await requestPin())) return;
-    const change = await removeConsequence(db, {
-      consequenceId: consequence.id,
-      kidId,
-      dayKey: day,
-    });
+    let change: ConsequenceChange;
+    try {
+      change = await removeConsequence(jar, {
+        consequenceId: consequence.id,
+        kidId,
+        dayKey: day,
+      });
+    } catch {
+      Alert.alert('Could not save', 'Something went wrong while saving. Please try again.');
+      return;
+    }
     if (change.changed) {
       recordSavingsChange(kidId, change.coins);
     }
-    setConsequences(await listConsequences(db, kidId, day));
+    setConsequences(await listConsequences(jar, kidId, day));
   }
 
   return (

@@ -1,14 +1,14 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { StyleSheet, Text } from 'react-native';
+import { Alert, StyleSheet, Text } from 'react-native';
 
 import { ScrollScreen } from '../src/components/ScrollScreen';
-import { PIN_LENGTH, setParentPin, useDatabase } from '../src/db';
+import { PIN_LENGTH, setParentPin, useFamilyJar } from '../src/db';
 import { PinPad } from '../src/parent/PinPad';
 import { colors, spacing, typography } from '../src/theme';
 
 export default function ChangePinScreen() {
-  const db = useDatabase();
+  const jar = useFamilyJar();
   const [first, setFirst] = useState<string | null>(null);
   const [value, setValue] = useState('');
   const [shake, setShake] = useState(0);
@@ -30,7 +30,14 @@ export default function ChangePinScreen() {
       setShake((count) => count + 1);
       return;
     }
-    await setParentPin(db, next);
+    try {
+      await setParentPin(jar, next);
+    } catch {
+      setFirst(null);
+      setValue('');
+      Alert.alert('Could not save', 'Something went wrong while saving. Please try again.');
+      return;
+    }
     router.back();
   }
 

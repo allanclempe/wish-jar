@@ -1,6 +1,6 @@
 import { Asset } from 'expo-asset';
-import type { SQLiteDatabase } from 'expo-sqlite';
 
+import type { FamilyJar } from '../db/jar';
 import { insertTask } from '../db/tasks';
 import type { Period } from '../db/types';
 import { storePhoto } from '../photos/photos';
@@ -35,21 +35,20 @@ async function storeStarterPhoto(photo: number): Promise<string | null> {
   }
 }
 
-// Runs every time the app opens: a family with no tasks gets the starter list,
-// so the kids have something to tick off straight away.
-export async function addStarterTasks(db: SQLiteDatabase): Promise<void> {
-  const row = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) AS count FROM tasks');
-  if ((row?.count ?? 0) > 0) return;
-
+// A new family gets the starter list, so the kids have something to tick off
+// straight away. Only once, as the family is made (src/db/open.ts): a family
+// that deleted them all doesn't get them back. The photos are kept as this
+// device keeps photos (files on phones, data URIs on the web) until they move
+// online (WJ-49).
+export async function addStarterTasks(jar: FamilyJar): Promise<void> {
   const photos = await Promise.all(STARTER_TASKS.map((task) => storeStarterPhoto(task.photo)));
-  await db.withTransactionAsync(async () => {
-    for (const [index, task] of STARTER_TASKS.entries()) {
-      await insertTask(db, {
-        name: task.name,
-        period: task.period,
-        coinAmount: task.coinAmount,
-        icon: { emoji: photos[index] ? null : task.emoji, photoUri: photos[index] },
-      });
-    }
-  });
+  // One at a time, so they keep the list's order.
+  for (const [index, task] of STARTER_TASKS.entries()) {
+    await insertTask(jar, {
+      name: task.name,
+      period: task.period,
+      coinAmount: task.coinAmount,
+      icon: { emoji: photos[index] ? null : task.emoji, photoUri: photos[index] },
+    });
+  }
 }
