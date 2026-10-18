@@ -7,8 +7,8 @@
 // wish-jar-api.blastin.dev, and on the paths the site passes on to the relay
 // at wish-jar.blastin.dev (SITE_FORWARDED_PATHS), so a route added to
 // src/index.ts must be added here too: the Worker turns away any path not
-// listed (servedPath), and test/routes.test.ts checks that README.md has this
-// list's rule.
+// listed (servedPath). The rule is made from this list (blockExpression) and
+// deployed with the relay (scripts/waf.ts, WJ-70).
 //
 // A path is exact, or a WAF wildcard: `*` is any run of characters, `/`
 // included, and the match ignores case (the `wildcard` operator; the Free plan
@@ -89,6 +89,26 @@ export function isWorkersDev(url: URL): boolean {
 export function servedPath(url: URL): boolean {
   const paths = isWorkersDev(url) ? WORKERS_DEV_PATHS : ROUTES.map((route) => route.path);
   return paths.some((path) => wildcardMatch(path, url.pathname));
+}
+
+// The endpoints the WAF rate limiting rule counts (README.md, "The rate
+// limiting rule"): the ones that need no token, and the live socket, which
+// wakes a family's jar. Matched exactly, so a device polling
+// /codes/:code/photo isn't counted. The Free plan's rule counts by IP only,
+// over 10 seconds, and blocks for 10.
+export const RATE_LIMITED_PATHS: readonly string[] = [
+  '/families',
+  '/codes',
+  '/devices/codes',
+  '/devices/join',
+  '/devices/echo-show',
+  '/jar/live',
+];
+export const RATE_LIMIT = { requests: 10, periodSeconds: 10, blockSeconds: 10 } as const;
+
+// The rate limiting rule's expression. The Free plan's can only use the path.
+export function rateLimitExpression(): string {
+  return `(http.request.uri.path in {${RATE_LIMITED_PATHS.map((path) => `"${path}"`).join(' ')}})`;
 }
 
 // The `wildcard` operator: the whole value, ignoring case.

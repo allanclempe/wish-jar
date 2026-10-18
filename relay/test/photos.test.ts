@@ -1,9 +1,12 @@
 import { runInDurableObject } from 'cloudflare:test';
 import { env, exports } from 'cloudflare:workers';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { fromSomewhere } from './caller';
+import { purgeAnswer, purgeCalls } from './setup';
 
+import { PURGE_BATCH, purgeUrls } from '../src/cachePurge';
+import { PHOTO_ORIGINS } from '../src/familyPhotos';
 import type { CreateFamilyReply, Icon, JarApi, JarFn, JarImport, PhotoUpload } from '../src/jar/api';
 import { MAX_JAR_BYTES, MAX_JAR_PHOTO_BYTES } from '../src/jar/limits';
 import { FORGOTTEN_AFTER_MS } from '../src/jar/photos';
@@ -105,7 +108,7 @@ describe('uploading a photo', () => {
     expect(shown.status).toBe(200);
     expect(new Uint8Array(await shown.arrayBuffer())).toEqual(bytes);
     expect(shown.headers.get('Content-Type')).toBe('image/jpeg');
-    expect(shown.headers.get('Cache-Control')).toBe('public, max-age=31536000, immutable');
+    expect(shown.headers.get('Cache-Control')).toBe('private, max-age=86400');
     expect(shown.headers.get('Cross-Origin-Resource-Policy')).toBe('cross-origin');
     expect(shown.headers.get('Access-Control-Allow-Origin')).toBe('*');
     expect(await photoCount(familyId)).toBe(1);
@@ -298,6 +301,93 @@ describe('photos nothing shows any more', () => {
     expect(await status(forgotten)).toBe(404);
     expect(await status(kept)).toBe(200);
     expect(await status(fresh)).toBe(200);
+  });
+});
+
+// A photo's URL as the edge cache keeps it: without the signature.
+function cacheKey(url: string): string {
+  const { origin, pathname } = new URL(url);
+  return `${origin}${pathname}`;
+}
+
+// Every URL the edge cache may keep a photo under: at the address the device
+// called, and at the relay's and the site's (WJ-63).
+function edgeKeys(url: string): string[] {
+  const { pathname } = new URL(url);
+  return [cacheKey(url), ...PHOTO_ORIGINS.map((origin) => `${origin}${pathname}`)];
+}
+
+describe('deleted photos at the edge (WJ-59)', () => {
+  it('purges a deleted photo everywhere, by the URL the edge keeps it under', async () => {
+    const { token } = await newJar();
+    const url = await uploaded(token);
+    expect(await status(url)).toBe(200);
+    expect((await removePhoto(token, url)).status).toBe(204);
+    await vi.waitFor(() => expect(purgeCalls).toEqual([edgeKeys(url)]));
+    expect(await status(url)).toBe(404);
+  });
+
+  it("forgets a photo at the site's address too, where the site passes old URLs on", async () => {
+    const { token } = await newJar();
+    const url = await uploaded(token);
+    const { pathname, search } = new URL(url);
+    // Shown through the site (site/worker.js), and so cached under its host.
+    const atSite = `${PHOTO_ORIGINS[1]}${pathname}${search}`;
+    expect(await status(atSite)).toBe(200);
+    expect((await removePhoto(token, url)).status).toBe(204);
+    expect(await status(atSite)).toBe(404);
+  });
+
+  it('purges the photos a save or a sweep left behind', async () => {
+    const { token, familyId, call } = await newJar();
+    const first = await uploaded(token);
+    const kidId = await call('insertKid', { name: 'Ava', photoUri: first });
+    const second = await uploaded(token);
+    await call('updateKid', kidId, { name: 'Ava', photoUri: second });
+    await vi.waitFor(() => expect(purgeCalls).toEqual([edgeKeys(first)]));
+
+    const forgotten = await uploaded(token);
+    await runInDurableObject(env.FAMILY_JARS.getByName(familyId), (_, state) => {
+      state.storage.sql.exec('UPDATE photos SET created_at = ?', Date.now() - FORGOTTEN_AFTER_MS - 1000);
+    });
+    await uploaded(token);
+    await vi.waitFor(() => expect(purgeCalls.at(-1)).toEqual(edgeKeys(forgotten)));
+  });
+
+  it('purges nothing when nothing was deleted', async () => {
+    const { token, call } = await newJar();
+    const url = await uploaded(token);
+    await call('insertKid', { name: 'Ava', photoUri: url });
+    expect((await removePhoto(token, url)).status).toBe(409);
+    expect(purgeCalls).toEqual([]);
+  });
+
+  it('still deletes the photo when the purge fails', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => {});
+    for (const answer of ['refused', 'down'] as const) {
+      purgeAnswer.now = answer;
+      const { token } = await newJar();
+      const url = await uploaded(token);
+      expect(await status(url)).toBe(200);
+      expect((await removePhoto(token, url)).status).toBe(204);
+      expect(await status(url)).toBe(404);
+    }
+    await vi.waitFor(() => expect(logged).toHaveBeenCalledTimes(2));
+    expect(logged.mock.calls[0]).toContain(429);
+    logged.mockRestore();
+  });
+
+  it('purges up to 100 URLs a request', async () => {
+    const urls = Array.from({ length: 2 * PURGE_BATCH + 50 }, (_, i) => `${BASE}/photos/f/${i}.jpg`);
+    await purgeUrls(env, urls);
+    expect(purgeCalls.map((files) => files.length)).toEqual([100, 100, 50]);
+    expect(purgeCalls.flat()).toEqual(urls);
+  });
+
+  it("purges nothing without the token or the zone, as in pnpm dev", async () => {
+    await purgeUrls({ ...env, CACHE_PURGE_TOKEN: '' } as Env, [`${BASE}/photos/f/p.jpg`]);
+    await purgeUrls({ ...env, CACHE_PURGE_ZONE_ID: undefined } as Env, [`${BASE}/photos/f/p.jpg`]);
+    expect(purgeCalls).toEqual([]);
   });
 });
 

@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { fromSomewhere } from './caller';
 
-import { echoShowHash } from '../src/echoShow';
+import { echoShowHash, echoShowSecretHash } from '../src/echoShow';
 import type { CreateFamilyReply, DeviceList, JoinCode } from '../src/jar/api';
 import { JAR_VERSION, jarVersion, migrateJar } from '../src/jar/schema';
 
@@ -53,16 +53,29 @@ async function joinWithCode(parentToken: string, label: string): Promise<CreateF
   return response.json();
 }
 
-function link(token: string, alexaDeviceId: unknown) {
-  return postJson('/devices/echo-show/link', { alexaDeviceId }, auth(token));
+// What the Alexa skill keeps for each Show (WJ-60).
+function newShowSecret(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
-function rejoin(alexaDeviceId: unknown) {
-  return postJson('/devices/echo-show', { alexaDeviceId });
+// The secret each test's Show sends when the test names none.
+const secrets = new Map<unknown, string>();
+function secretOf(alexaDeviceId: unknown): string {
+  if (!secrets.has(alexaDeviceId)) secrets.set(alexaDeviceId, newShowSecret());
+  return secrets.get(alexaDeviceId)!;
 }
 
-async function rejoined(alexaDeviceId: string): Promise<CreateFamilyReply> {
-  const response = await rejoin(alexaDeviceId);
+function link(token: string, alexaDeviceId: unknown, showSecret: unknown = secretOf(alexaDeviceId)) {
+  return postJson('/devices/echo-show/link', { alexaDeviceId, showSecret }, auth(token));
+}
+
+function rejoin(alexaDeviceId: unknown, showSecret: unknown = secretOf(alexaDeviceId)) {
+  return postJson('/devices/echo-show', { alexaDeviceId, showSecret });
+}
+
+async function rejoined(alexaDeviceId: string, showSecret = secretOf(alexaDeviceId)): Promise<CreateFamilyReply> {
+  const response = await rejoin(alexaDeviceId, showSecret);
   expect(response.status, await response.clone().text()).toBe(200);
   return response.json();
 }
@@ -195,7 +208,7 @@ describe('the Echo Show', () => {
       state.storage.list(),
     );
     expect(JSON.stringify([...stored])).not.toContain(alexaId);
-    expect([...stored.values()]).toEqual([familyId]);
+    expect(stored.get('familyId')).toBe(familyId);
   });
 
   it('brings a jar from before the Echo Show up to date', async () => {
@@ -213,5 +226,118 @@ describe('the Echo Show', () => {
     const alexaId = newAlexaId();
     expect((await link(token, alexaId)).status).toBe(204);
     expect((await rejoined(alexaId)).familyId).toBe(familyId);
+  });
+});
+
+describe("the Echo Show's secret", () => {
+  it('rejoins only with the secret it linked with', async () => {
+    const alexaId = newAlexaId();
+    const showSecret = newShowSecret();
+    const show = await newFamily('Echo Show');
+    expect((await link(show.token, alexaId, showSecret)).status).toBe(204);
+
+    const { token } = await rejoined(alexaId, showSecret);
+    expect((await postJson('/devices/echo-show', { alexaDeviceId: alexaId })).status).toBe(400);
+    expect((await rejoin(alexaId, newShowSecret())).status).toBe(404);
+    // Turned away before the jar: the real Show's token still opens it.
+    expect((await call(token, 'listKids')).status).toBe(200);
+    expect((await rejoined(alexaId, showSecret)).familyId).toBe(show.familyId);
+  });
+
+  it("doesn't rejoin when linked without one, and a rejoin never gives it one", async () => {
+    const alexaId = newAlexaId();
+    const show = await newFamily('Echo Show');
+    expect((await link(show.token, alexaId)).status).toBe(204);
+    // As every Show linked before WJ-60.
+    const showLink = env.ECHO_SHOW_LINKS.getByName(await echoShowHash(alexaId));
+    await runInDurableObject(showLink, (_, state) => state.storage.delete('secretHash'));
+
+    expect((await rejoin(alexaId, newShowSecret())).status).toBe(404);
+    expect((await rejoin(alexaId)).status).toBe(404);
+    const stored = await runInDurableObject(showLink, (_, state) => state.storage.list());
+    expect([...stored.keys()]).toEqual(['familyId']);
+
+    // The Show joins with a code, and its link keeps its secret.
+    const again = await joinWithCode(show.token, 'Echo Show');
+    expect((await link(again.token, alexaId)).status).toBe(204);
+    expect((await rejoined(alexaId)).familyId).toBe(show.familyId);
+  });
+
+  it('needs a secret to link', async () => {
+    const { token } = await newFamily('Echo Show');
+    const linked = await postJson('/devices/echo-show/link', { alexaDeviceId: newAlexaId() }, auth(token));
+    expect(linked.status).toBe(400);
+  });
+
+  it("can't be moved to another family without its secret", async () => {
+    const alexaId = newAlexaId();
+    const showSecret = newShowSecret();
+    const home = await newFamily('Echo Show');
+    await link(home.token, alexaId, showSecret);
+
+    const stranger = await newFamily();
+    expect((await link(stranger.token, alexaId, newShowSecret())).status).toBe(403);
+    expect((await rejoined(alexaId, showSecret)).familyId).toBe(home.familyId);
+    const marked = await runInDurableObject(env.FAMILY_JARS.getByName(stranger.familyId), (_, state) =>
+      state.storage.sql.exec('SELECT id FROM devices WHERE echo_show_hash IS NOT NULL').toArray(),
+    );
+    expect(marked).toEqual([]);
+
+    // The Show itself, joining another family with a code, has its secret.
+    const other = await newFamily();
+    const show = await joinWithCode(other.token, 'Echo Show');
+    expect((await link(show.token, alexaId, showSecret)).status).toBe(204);
+    expect((await rejoined(alexaId, showSecret)).familyId).toBe(other.familyId);
+  });
+
+  it('is linked again in its own family with a new secret, after the skill lost it', async () => {
+    const alexaId = newAlexaId();
+    const parent = await newFamily();
+    const show = await joinWithCode(parent.token, 'Echo Show');
+    await link(show.token, alexaId, newShowSecret());
+
+    const newSecret = newShowSecret();
+    expect((await rejoin(alexaId, newSecret)).status).toBe(404);
+    const again = await joinWithCode(parent.token, 'Echo Show');
+    expect((await link(again.token, alexaId, newSecret)).status).toBe(204);
+    expect((await rejoined(alexaId, newSecret)).familyId).toBe(parent.familyId);
+  });
+
+  it('is free to join any family once a parent removes it', async () => {
+    const alexaId = newAlexaId();
+    const parent = await newFamily();
+    const show = await joinWithCode(parent.token, 'Echo Show');
+    await link(show.token, alexaId, newShowSecret());
+    const showRow = (await devices(parent.token)).find((device) => device.label === 'Echo Show');
+    await relay(`/devices/${showRow?.id}`, { method: 'DELETE', headers: auth(parent.token) });
+    // Even when the skill lost the secret, so no rejoin finds the row gone
+    // and drops the link.
+    expect((await rejoin(alexaId, newShowSecret())).status).toBe(404);
+
+    const other = await newFamily('Echo Show');
+    const newSecret = newShowSecret();
+    expect((await link(other.token, alexaId, newSecret)).status).toBe(204);
+    expect((await rejoined(alexaId, newSecret)).familyId).toBe(other.familyId);
+  });
+
+  it('is turned away when the secret is not one the skill could have made', async () => {
+    const alexaId = newAlexaId();
+    const { token } = await newFamily('Echo Show');
+    expect((await link(token, alexaId, 'short')).status).toBe(400);
+    expect((await link(token, alexaId, 42)).status).toBe(400);
+    expect((await rejoin(alexaId, 'A'.repeat(513))).status).toBe(400);
+    expect((await rejoin(alexaId, null)).status).toBe(400);
+  });
+
+  it('keeps only a hash of the secret', async () => {
+    const alexaId = newAlexaId();
+    const showSecret = newShowSecret();
+    const { token, familyId } = await newFamily('Echo Show');
+    await link(token, alexaId, showSecret);
+    const showLink = env.ECHO_SHOW_LINKS.getByName(await echoShowHash(alexaId));
+    const stored = await runInDurableObject(showLink, (_, state) => state.storage.list());
+    expect(JSON.stringify([...stored])).not.toContain(showSecret);
+    const secretHash = await echoShowSecretHash(showSecret);
+    expect(Object.fromEntries(stored)).toEqual({ familyId, secretHash });
   });
 });

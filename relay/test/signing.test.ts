@@ -184,13 +184,13 @@ describe('device tokens are signed (WJ-55)', () => {
     const link = await relay('/devices/echo-show/link', {
       method: 'POST',
       headers: bearer(joined.token),
-      body: JSON.stringify({ alexaDeviceId }),
+      body: JSON.stringify({ alexaDeviceId, showSecret: 'S'.repeat(64) }),
     });
     expect(link.status).toBe(204);
     const rejoinReply = await relay('/devices/echo-show', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ alexaDeviceId }),
+      body: JSON.stringify({ alexaDeviceId, showSecret: 'S'.repeat(64) }),
     });
     const rejoined = (await rejoinReply.json()) as CreateFamilyReply;
     // The same device row, with a new secret.

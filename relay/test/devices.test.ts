@@ -210,8 +210,45 @@ describe('joining', () => {
     await joined(code);
 
     // The misses are forgotten when the window ends.
+    await runInDurableObject(env.JOIN_ATTEMPTS.getByName(ip), async (_, state) => {
+      const misses = state.storage.kv.get<{ until: number }>('misses');
+      state.storage.kv.put('misses', { ...misses, until: Date.now() - 1 });
+    });
     expect(await runDurableObjectAlarm(env.JOIN_ATTEMPTS.getByName(ip))).toBe(true);
+    await runInDurableObject(env.JOIN_ATTEMPTS.getByName(ip), async (_, state) => {
+      expect(state.storage.kv.get('misses')).toBeUndefined();
+    });
     expect((await join({ code: wrong }, ip)).status).toBe(410);
+  });
+
+  it("doesn't let wrong codes sent at once past the limit", async () => {
+    const { token } = await newFamily();
+    const { code } = await newCode(token);
+    const ip = nextIp();
+    const wrong = code === 'ZZZZZZ' ? 'YYYYYY' : 'ZZZZZZ';
+    // Twice the limit, all in flight together: only MAX_JOIN_MISSES get as
+    // far as the code check (a 410); the rest are made to wait.
+    const replies = await Promise.all(Array.from({ length: 2 * MAX_JOIN_MISSES }, () => join({ code: wrong }, ip)));
+    const statuses = replies.map((reply) => reply.status);
+    expect(statuses.filter((status) => status === 410)).toHaveLength(MAX_JOIN_MISSES);
+    expect(statuses.filter((status) => status === 429)).toHaveLength(MAX_JOIN_MISSES);
+    for (const reply of replies.filter((reply) => reply.status === 429)) {
+      expect(reply.headers.get('Retry-After')).toBe('900');
+    }
+  });
+
+  it("doesn't count a right code as a miss", async () => {
+    const { token } = await newFamily();
+    const ip = nextIp();
+    const { code } = await newCode(token);
+    const wrong = code === 'ZZZZZZ' ? 'YYYYYY' : 'ZZZZZZ';
+    for (let miss = 0; miss < MAX_JOIN_MISSES - 1; miss++) {
+      expect((await join({ code: wrong }, ip)).status).toBe(410);
+    }
+    expect((await join({ code }, ip)).status).toBe(201);
+    // One miss left, then the caller waits.
+    expect((await join({ code: wrong }, ip)).status).toBe(410);
+    expect((await join({ code: wrong }, ip)).status).toBe(429);
   });
 
   it('only takes POST', async () => {

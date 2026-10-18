@@ -35,7 +35,7 @@ export default {
       return api(request, env, url);
     }
     if (pathname === '/families' || pathname === '/jar/call') {
-      return familyApi(request, env, pathname);
+      return familyApi(request, env, ctx, pathname);
     }
     // Each device's WebSocket to its family's jar, to hear of changes from
     // the others (WJ-50): src/live.ts.
@@ -164,7 +164,12 @@ async function api(request: Request, env: Env, url: URL): Promise<Response> {
 // A device's token (Authorization: Bearer, signed: src/families.ts) opens its
 // family's jar; src/jar/api.ts lists the functions and their arguments. A new
 // family needs a Turnstile token (WJ-54) in the Turnstile-Token header.
-async function familyApi(request: Request, env: Env, pathname: string): Promise<Response> {
+async function familyApi(
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext,
+  pathname: string,
+): Promise<Response> {
   const reply = corsReply(request, env);
   if (!reply) return text('Origin not allowed', 403);
 
@@ -176,7 +181,7 @@ async function familyApi(request: Request, env: Env, pathname: string): Promise<
     });
   }
   if (request.method !== 'POST') return reply('Use POST', 405, { Allow: 'POST, OPTIONS' });
-  if (pathname !== '/families') return callJar(request, env, reply);
+  if (pathname !== '/families') return callJar(request, env, ctx, reply);
   // Before the body is read: a new family may bring a 20 MB jar. And before
   // the caller's limit, so a script without a token doesn't use it up or wake
   // its Durable Object.
@@ -215,11 +220,11 @@ async function photosApi(
     });
   }
   if (pathname === '/photos') {
-    return method === 'POST' ? uploadPhoto(request, env, reply) : reply('Use POST', 405, { Allow: 'POST, OPTIONS' });
+    return method === 'POST' ? uploadPhoto(request, env, ctx, reply) : reply('Use POST', 405, { Allow: 'POST, OPTIONS' });
   }
   if (!photo) return reply('No such photo', 404);
   if (method !== 'DELETE') return reply('Use GET or DELETE', 405, { Allow: 'GET, DELETE, OPTIONS' });
-  return deletePhoto(request, env, reply, photo.familyId, photo.photoId);
+  return deletePhoto(request, env, ctx, reply, photo.familyId, photo.photoId);
 }
 
 // The phone's photo, already cropped and shrunk by its page (src/pages.ts).

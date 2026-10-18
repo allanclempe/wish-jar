@@ -21,7 +21,7 @@ get a token by starting a family. Without limits, one script could take the
 relay down for everyone until 00:00 UTC, or fill its storage. There are five
 guards.
 
-### 1. The edge rules (set by hand in the dashboard)
+### 1. The edge rules (deployed with the relay)
 
 Two WAF rules on the blastin.dev zone turn requests away before they reach the
 Worker, so they don't count toward the 100,000 requests: a rate limiting rule
@@ -31,38 +31,38 @@ serve. They cover the relay's `wish-jar-api.blastin.dev`, and its paths on
 `workers.dev` address answers only the old builds' photo-code paths
 ([below](#the-workersdev-address-wj-58)).
 
+Both are built from `src/routes.ts` by `scripts/waf.ts` (WJ-70), and every
+relay deploy writes them (`pnpm run waf`, before the Worker, in
+`.github/workflows/relay.yml`), so a change to the routes reaches the edge with
+the code. Each phase's rules belong to the whole zone, so the script writes
+only Wish Jar's rule, found by its `ref` (`wish-jar-relay-open-endpoints`,
+`wish-jar-relay-routes`), or the first time by its name, and leaves every other
+rule on blastin.dev alone. It needs, in the "production" environment, the
+`CLOUDFLARE_ZONE_ID` variable (blastin.dev's zone id) and **Zone WAF: Edit**
+on the zone for `CLOUDFLARE_API_TOKEN`. Don't edit these two rules in the
+dashboard: the next deploy puts them back as the code has them.
+
 #### The rate limiting rule
 
 The Free plan has one rate limiting rule, counts by IP only, and its period
 and duration are fixed at 10 seconds. Its expression can only use the URI path
 (no host, no method).
 
-In the dashboard, go to **blastin.dev → Security → WAF → Rate limiting rules →
-Create rule** and fill it in like this:
+The rule (`RATE_LIMITED_PATHS` and `RATE_LIMIT` in `src/routes.ts`):
 
 | Setting | Value |
 | --- | --- |
 | Rule name | `Wish Jar relay: open endpoints` |
-| If incoming requests match | Field **URI Path**, operator **is in**, values `/families`, `/codes`, `/devices/codes`, `/devices/join`, `/devices/echo-show`, `/jar/live` |
-| With the same characteristics | IP (the only choice on Free) |
-| When rate exceeds | **10** requests per **10 seconds** |
-| Then take action | **Block** (Cloudflare answers 429) |
-| For duration | **10 seconds** |
-
-The same rule as an expression (**Edit expression**):
-
-```
-(http.request.uri.path in {"/families" "/codes" "/devices/codes" "/devices/join" "/devices/echo-show" "/jar/live"})
-```
-
-If the builder has no **is in**, use one **equals** line per path, joined with
-**Or**.
+| Matches | URI path is one of `/families`, `/codes`, `/devices/codes`, `/devices/join`, `/devices/echo-show`, `/jar/live` |
+| Counted by | IP (the only choice on Free) |
+| Rate | **10** requests per **10 seconds** |
+| Action | **Block** (Cloudflare answers 429) for **10 seconds** |
 
 Why these paths and this rate:
 
-- They're the endpoints a script would loop on: starting families, asking for
-  codes, joining, the Echo Show's rejoin (none needs a token), and opening the
-  live socket, which wakes a family's jar.
+- They're the endpoints that need no token (starting families, asking for
+  codes, joining, the Echo Show's rejoin), and opening the live socket, which
+  wakes a family's jar.
 - `/codes` is matched exactly, so the device polling `/codes/:code/photo`
   every 2 seconds isn't counted. `/photos` isn't in the rule: a new family
   uploads its 7 starter photos at once.
@@ -91,10 +91,9 @@ included, ignoring case).
 
 The routes are `ROUTES` in `src/routes.ts`, with `OPTIONS` wherever Wish Jar's
 pages send a CORS preflight. The Worker answers 404 to any path not in the
-list, and `test/routes.test.ts` checks that the expression below is the one
-`ROUTES` makes. So a route added to the Worker but not to the list fails its
-own tests, and one added to the list but not here fails that test. When it
-fails, the test prints the new expression: put it here and in the dashboard.
+list, so a route added to the Worker but not to the list fails its own tests;
+the rule's expression is made from the list (`blockExpression`), and
+`test/routes.test.ts` checks what it lets through.
 
 The relay is reached at two hosts, and the rule covers each in its own way:
 
@@ -113,18 +112,8 @@ doesn't serve with a 404. Without the rule each of those costs a request of
 the site's Worker and wakes the relay; with it, they're blocked at the edge
 like the same requests at the relay's own address.
 
-In the dashboard, go to **blastin.dev → Security → WAF → Custom rules →
-Create rule** and fill it in like this:
-
-| Setting | Value |
-| --- | --- |
-| Rule name | `Wish Jar relay: paths and methods it doesn't serve` |
-| If incoming requests match | **Edit expression**, and paste the expression below (the builder can't make its parentheses) |
-| Then take action | **Block** (Cloudflare answers 403) |
-
-```
-(http.host in {"wish-jar-api.blastin.dev" "wish-jar.blastin.dev"} and (http.host eq "wish-jar-api.blastin.dev" or http.request.uri.path wildcard "/codes" or http.request.uri.path wildcard "/codes/*" or http.request.uri.path wildcard "/families" or http.request.uri.path wildcard "/jar/*" or http.request.uri.path wildcard "/devices" or http.request.uri.path wildcard "/devices/*" or http.request.uri.path wildcard "/photos" or http.request.uri.path wildcard "/photos/*" or http.request.uri.path wildcard "/s" or http.request.uri.path wildcard "/s/*" or http.request.uri.path wildcard "/qr/*") and not ((http.request.uri.path eq "/" and http.request.method in {"GET"}) or (http.request.uri.path eq "/s" and http.request.method in {"GET"}) or (http.request.uri.path wildcard "/s/*" and http.request.method in {"GET" "POST"}) or (http.request.uri.path wildcard "/qr/*.svg" and http.request.method in {"GET"}) or (http.request.uri.path eq "/codes" and http.request.method in {"POST" "OPTIONS"}) or (http.request.uri.path wildcard "/codes/*" and http.request.method in {"GET" "DELETE" "OPTIONS"}) or (http.request.uri.path eq "/turnstile" and http.request.method in {"GET"}) or (http.request.uri.path eq "/families" and http.request.method in {"POST" "OPTIONS"}) or (http.request.uri.path eq "/jar/call" and http.request.method in {"POST" "OPTIONS"}) or (http.request.uri.path eq "/jar/live" and http.request.method in {"GET"}) or (http.request.uri.path eq "/devices" and http.request.method in {"GET" "OPTIONS"}) or (http.request.uri.path wildcard "/devices/*" and http.request.method in {"POST" "DELETE" "OPTIONS"}) or (http.request.uri.path eq "/photos" and http.request.method in {"POST" "OPTIONS"}) or (http.request.uri.path wildcard "/photos/*/*.jpg" and http.request.method in {"GET" "HEAD" "DELETE" "OPTIONS"})))
-```
+The rule is named `Wish Jar relay: paths and methods it doesn't serve`, and
+its action is **Block** (Cloudflare answers 403).
 
 Why this rule and this action:
 
@@ -204,7 +193,8 @@ app says how long to wait. The request that is turned away isn't counted.
 | Live socket | `GET /jar/live` | 120 per 10 minutes | memory |
 
 Wrong join codes still have their own tighter limit (`JoinAttempts`: 10 per 15
-minutes).
+minutes). Each try is counted before the code is checked and given back when
+the code was right, so wrong codes sent all at once can't get past it.
 
 - **Storage or memory.** Counts kept in storage survive the object being put
   to sleep. They're used for the rare actions that a slow script could still
@@ -278,8 +268,9 @@ next time their jar is opened.
 Deleting a family removes all of its rows and photos. Its sockets close with
 4401, so its devices see that they're out. Its Echo Shows' links are dropped,
 and a link that was missed answers 404 on rejoin and is dropped then. A join
-code still open (10 minutes at most) answers 410. A photo already in a data
-centre's edge cache can still be served from there for up to a day.
+code still open (10 minutes at most) answers 410. Its photos are purged from
+the edge cache everywhere
+([below](#deleted-photos-stop-being-served-everywhere-wj-59)).
 
 ### 5. Storage that fits in the Free plan's 5 GB (WJ-57)
 
@@ -418,8 +409,10 @@ So the Worker signs what it hands out and checks the signature first
   over the family id and the photo id. A made-up one gets **404** without
   waking the jar. The edge cache keeps a photo by its path only, so a made-up
   query (`?x=1`) is served from the cache like the photo itself. A photo the
-  jar doesn't have is cached as a 404 for a minute. The signature doesn't
-  cover the address: a URL kept from when the relay was
+  jar doesn't have is cached as a 404 for a minute. A deleted photo is purged
+  from it everywhere
+  ([below](#deleted-photos-stop-being-served-everywhere-wj-59)). The
+  signature doesn't cover the address: a URL kept from when the relay was
   `wish-jar.blastin.dev` still works there, where the site passes it on to
   the relay unchanged (`site/worker.js`), and keeps its address when the jar
   signs it.
@@ -460,3 +453,215 @@ old one, and every device would have to join its family again.
 
 `pnpm dev` signs with `wish-jar-dev-signing-key` unless `SIGNING_KEY` is set in
 the environment, and the tests with the fixed key in `test/signingKey.ts`.
+
+## Deleted photos stop being served everywhere (WJ-59)
+
+A photo's URL is all it takes to see it, so a deleted photo (an upload nobody
+saved, the photo a save replaced, a deleted kid's, a deleted family's) should
+stop answering everywhere, not only in the jar:
+
+- **The edge cache.** The Worker keeps a copy of each photo it shows in
+  Cloudflare's edge cache for a day (the Cache API, by the URL's path without
+  the signature), so the family's devices don't each wake the jar.
+  `cache.delete` only reaches the data centre the Worker runs in, so after
+  deleting, the Worker also asks Cloudflare's
+  [purge-by-URL API](https://developers.cloudflare.com/api/resources/cache/methods/purge/)
+  to purge the photo's URL from every data centre (`src/cachePurge.ts`), after
+  the reply. A deleted family's photos are purged by its jar's cleanup. Up to
+  100 URLs go in a request; the Free plan takes 800 URLs a second.
+- **Both addresses.** Photos are served at `https://wish-jar-api.blastin.dev`,
+  the relay's, and at `https://wish-jar.blastin.dev`, where the site passes the
+  relay's paths on to it unchanged (`site/worker.js`, WJ-63) for the photo
+  URLs kept from when the relay was there. The edge keeps a copy under the
+  host each request came to, so a deleted photo is forgotten and purged at
+  both (`PHOTO_ORIGINS` in `src/familyPhotos.ts`), whichever address its URL
+  or the delete used. That's two URLs a photo toward the purge limits.
+  `workers.dev` serves no photos (WJ-58).
+- **Devices.** A photo is `Cache-Control: private, max-age=86400`: a day in
+  the device's own cache, and none in a shared one. It used to be a year and
+  `immutable`. Each load after a day is a request toward the 100,000 a day,
+  answered from the edge copy without waking the jar.
+
+A purge that fails (Cloudflare down, rate limited, a bad token) is logged in
+the Worker's logs and the delete goes ahead: the photo is out of the jar, and
+the data centres that have it serve it until their copy runs out, a day at
+most.
+
+The Cache API keeps a photo under its plain URL, with no custom cache key, so
+purging that URL reaches it. Cloudflare's docs only promise purge everything,
+by tag, by host and by prefix for Cache API entries, so it's worth checking
+once after the token is set. Open a photo's URL on a phone on mobile data,
+so it's cached in that data centre; delete the photo on a device on another
+network (wifi), which may well reach another data centre; then open the URL on
+the phone again, in a private tab so the phone's own copy isn't used: it
+should be **404**. Do it once with the photo's URL at
+`wish-jar-api.blastin.dev` and once with the same path and `?sig=` at
+`wish-jar.blastin.dev` (the site's): Cloudflare's docs don't say which
+zone's cache the Cache API uses behind a service binding, and both hosts are
+on blastin.dev, the zone the token purges. The Worker's logs show any purge
+Cloudflare refused.
+
+### Setting the purge token
+
+The purge needs an API token of its own, apart from the deploy job's
+`CLOUDFLARE_API_TOKEN`, that can do nothing but purge the zone's cache:
+
+1. In the dashboard, go to **My Profile → API Tokens → Create Token → Create
+   Custom Token**, and fill it in like this:
+
+   | Setting | Value |
+   | --- | --- |
+   | Token name | `Wish Jar relay: purge photos` |
+   | Permissions | Zone → Cache Purge → Purge |
+   | Zone Resources | Include → Specific zone → `blastin.dev` |
+
+2. Copy the **Zone ID** from the blastin.dev zone's **Overview** page (API
+   section).
+3. Give the Worker both, as secrets:
+
+   ```bash
+   cd relay
+   pnpm exec wrangler secret put CACHE_PURGE_TOKEN
+   pnpm exec wrangler secret put CACHE_PURGE_ZONE_ID
+   ```
+
+Both are optional: `wrangler.jsonc` doesn't list them as required, so a
+deploy goes ahead without them. Until they're set, a deleted photo is only
+forgotten in the data centre that deleted it, and served from the others for
+up to a day. `pnpm dev` purges nothing; the tests use a made-up token and zone (`test/purgeKeys.ts`), and
+`test/setup.ts` answers for the purge API.
+
+## The Echo Show proves it is that Show (WJ-60)
+
+The Echo Show can't keep a token (Amazon wipes its storage when the skill
+closes), so at every launch it asks `POST /devices/echo-show` for a new one
+(WJ-45), with its Alexa device id and a secret:
+
+- **The Show has a secret.** The Alexa skill keeps a random secret for each
+  Show and hands it to the page at launch with the device id, as
+  `data: { deviceId, secret }` (`src/device/alexa.ts`). The app sends it as
+  `showSecret`.
+- **Rejoining needs it.** The Show's `EchoShowLink` keeps a hash of the
+  secret (never the secret), kept when a device of the family links the Show,
+  never on a rejoin. A rejoin with no secret, or another one, gets
+  **404**, as for a Show that isn't linked: the Show asks to join with a code.
+  The family's jar isn't asked, so the real Show's token and its socket are
+  left alone.
+- **Moving it to another family needs it.** `POST /devices/echo-show/link`
+  from a device of another family gets **403** unless it sends the Show's
+  secret. Its own family can
+  link it again with a new secret (how the Show gets back in when the skill
+  lost its secret: join with a code), and once the family it's in no longer
+  has it (a parent removed it), any family can.
+
+### Shows linked before this, and skills that send no secret
+
+A Show linked before WJ-60 has no secret stored, so it doesn't rejoin: at its
+next launch it asks to join with a code once, and the link it makes then keeps
+its secret. A skill that sends no secret can't link the Show at all (400), and
+the app says the skill needs an update: update it as below before this is
+deployed.
+
+### The skill change (made by hand in the Alexa developer console)
+
+The skill isn't in this repo. In the skill's **Code** tab (an Alexa-hosted
+Node.js skill), the secret is kept with the ASK SDK's persistent attributes
+in the DynamoDB table every Alexa-hosted skill gets, which Amazon now
+recommends over S3 for persistence
+([Use Persistent Attributes in an Alexa-hosted Skill](https://developer.amazon.com/en-US/docs/alexa/hosted-skills/alexa-hosted-skills-session-persistence.html)).
+Persistent attributes are keyed by the user id by default; the secret has to
+be one per Show, so the adapter is keyed by the device id
+(`PartitionKeyGenerators.deviceId`).
+
+1. Add to `lambda/package.json`'s `dependencies`:
+
+   ```json
+   "ask-sdk-dynamodb-persistence-adapter": "^2.14.0",
+   "aws-sdk": "^2.1692.0"
+   ```
+
+2. Replace the `LaunchRequestHandler` in `lambda/index.js`, and add the
+   persistence adapter to the skill builder at the bottom:
+
+   ```js
+   const Alexa = require('ask-sdk-core');
+   const AWS = require('aws-sdk');
+   const crypto = require('crypto');
+   const ddbAdapter = require('ask-sdk-dynamodb-persistence-adapter');
+
+   // This Show's Wish Jar secret: made once, then kept in the skill's table
+   // (keyed by device id, below) and handed to Wish Jar at every launch, so
+   // its relay knows it's this Show. Null when the table can't be reached:
+   // Wish Jar then asks for a join code rather than rejoining.
+   async function wishJarSecret(attributesManager) {
+     try {
+       const attributes = await attributesManager.getPersistentAttributes();
+       if (typeof attributes.wishJarSecret !== 'string') {
+         attributes.wishJarSecret = crypto.randomBytes(32).toString('hex');
+         attributesManager.setPersistentAttributes(attributes);
+         await attributesManager.savePersistentAttributes();
+       }
+       return attributes.wishJarSecret;
+     } catch (error) {
+       console.log(`Wish Jar secret: ${error}`);
+       return null;
+     }
+   }
+
+   const LaunchRequestHandler = {
+     canHandle(handlerInput) {
+       return Alexa.getRequestType(handlerInput.requestEnvelope) === 'LaunchRequest';
+     },
+     async handle(handlerInput) {
+       const interfaces = Alexa.getSupportedInterfaces(handlerInput.requestEnvelope);
+       if (!interfaces['Alexa.Presentation.HTML']) {
+         return handlerInput.responseBuilder.speak("Sorry, this device can't show Wish Jar.").getResponse();
+       }
+       const deviceId = Alexa.getDeviceId(handlerInput.requestEnvelope);
+       const secret = await wishJarSecret(handlerInput.attributesManager);
+       return handlerInput.responseBuilder
+         .speak('Opening Wish Jar.')
+         .addDirective({
+           type: 'Alexa.Presentation.HTML.Start',
+           data: secret ? { deviceId, secret } : { deviceId },
+           request: { uri: 'https://wish-jar.blastin.dev/?host=alexa', method: 'GET' },
+           configuration: { timeoutInSeconds: 300 },
+         })
+         .getResponse();
+     },
+   };
+
+   // ...the skill's other handlers, unchanged...
+
+   exports.handler = Alexa.SkillBuilders.custom()
+     .addRequestHandlers(
+       LaunchRequestHandler,
+       // ...the other handlers already listed here...
+     )
+     .addErrorHandlers(ErrorHandler)
+     .withPersistenceAdapter(
+       new ddbAdapter.DynamoDbPersistenceAdapter({
+         tableName: process.env.DYNAMODB_PERSISTENCE_TABLE_NAME,
+         createTable: false,
+         partitionKeyGenerator: ddbAdapter.PartitionKeyGenerators.deviceId,
+         dynamoDBClient: new AWS.DynamoDB({
+           apiVersion: 'latest',
+           region: process.env.DYNAMODB_PERSISTENCE_REGION,
+         }),
+       }),
+     )
+     .lambda();
+   ```
+
+3. **Save**, then **Deploy**.
+
+The `uri` is the site's address, `https://wish-jar.blastin.dev/`
+(`src/device/host.ts`). Keep
+`?host=alexa`: it's how the page knows it's on the Show.
+
+A skill that keeps its persistent attributes in S3 instead
+(`ask-sdk-s3-persistence-adapter`, bucket `process.env.S3_PERSISTENCE_BUCKET`)
+does the same with `objectKeyGenerator: ObjectKeyGenerators.deviceId` in place
+of `partitionKeyGenerator`. Keep the secret out of the skill's logs, and don't
+reset the table: a Show whose secret is lost asks for a join code once, and
+is linked again in its family with a new secret.

@@ -181,7 +181,7 @@ describe('per-caller limits', () => {
       relay('/devices/echo-show', {
         method: 'POST',
         headers: from(ip, { 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ alexaDeviceId: `amzn1.ask.device.${'X'.repeat(40)}` }),
+        body: JSON.stringify({ alexaDeviceId: `amzn1.ask.device.${'X'.repeat(40)}`, showSecret: 'S'.repeat(64) }),
       });
     await reachLimit(CALLER_LIMITS.echoShows.max, rejoin, (status) => status === 404);
   });

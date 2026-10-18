@@ -12,7 +12,7 @@ import type {
 } from '../../relay/src/jar/api';
 import { PHOTO_RELAY_URL } from '../photos/phoneRelay';
 
-export type { JarImport };
+export type { EchoShowRequest, JarImport };
 
 // The family's jar lives in the relay (relay/src/FamilyJar.ts), shared by the
 // family's devices. EXPO_PUBLIC_JAR_URL points a dev build at another relay,
@@ -155,10 +155,10 @@ export function joinFamily(code: string, label: string): Promise<CreateFamilyRep
 }
 
 // A new token for this Echo Show's place in its family (WJ-45), or null when
-// the relay doesn't have the Show in one: it never linked, or a parent removed
-// it. Only a relay that can't be reached throws.
-export async function rejoinEchoShow(alexaDeviceId: string): Promise<CreateFamilyReply | null> {
-  const body: EchoShowRequest = { alexaDeviceId };
+// the relay doesn't have the Show in one: it never linked, a parent removed
+// it, or its secret isn't the one the relay has for it (WJ-60). Only a relay
+// that can't be reached throws.
+export async function rejoinEchoShow(body: EchoShowRequest): Promise<CreateFamilyReply | null> {
   try {
     return await request<CreateFamilyReply>('POST', '/devices/echo-show', body, CALL_TIMEOUT_MS);
   } catch (error) {
@@ -175,9 +175,9 @@ export function signToken(token: string): Promise<CreateFamilyReply> {
 }
 
 // Lets this Echo Show, now a device of the family `token` opens, rejoin it at
-// its next launches.
-export async function linkEchoShow(token: string, alexaDeviceId: string): Promise<void> {
-  const body: EchoShowRequest = { alexaDeviceId };
+// its next launches. Refused (403) when the Show is in another family and the
+// skill gave no secret, or another one (WJ-60).
+export async function linkEchoShow(token: string, body: EchoShowRequest): Promise<void> {
   await request('POST', '/devices/echo-show/link', body, CALL_TIMEOUT_MS, token);
 }
 

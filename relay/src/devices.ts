@@ -128,14 +128,14 @@ async function joinFamily(request: Request, env: Env, reply: Reply): Promise<Res
   const wait = await takeLimit(request, env, 'joins');
   if (wait != null) return reply('Too many tries: wait a little', 429, waitHeaders(wait));
   const attempts = env.JOIN_ATTEMPTS.getByName(callerKey(request));
-  if (await attempts.blocked()) {
+  // Counted as a miss up front, and given back below if the code was right.
+  const window = await attempts.attempt();
+  if (window == null) {
     return reply('Too many wrong codes: wait a few minutes', 429, waitHeaders(15 * 60));
   }
   const familyId = await env.JOIN_CODES.getByName(code).claim();
-  if (!familyId) {
-    await attempts.missed();
-    return reply('That code has run out or was already used', 410);
-  }
+  if (!familyId) return reply('That code has run out or was already used', 410);
+  await attempts.right(window);
 
   const secret = randomToken();
   const outcome = (await env.FAMILY_JARS.getByName(familyId).addDevice(secret, deviceLabel)) as JarOutcome;

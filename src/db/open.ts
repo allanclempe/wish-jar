@@ -1,4 +1,4 @@
-import { getAlexaDeviceId } from '../device/alexa';
+import { getAlexaLaunch } from '../device/alexa';
 import { onEchoShow } from '../device/host';
 import { deviceLabel } from '../device/label';
 import { addStarterTasks } from '../tasks/starter';
@@ -7,6 +7,7 @@ import { firstLaunchDone, guardFirstLaunch } from './firstLaunch';
 import {
   createFamily,
   createJarClient,
+  type EchoShowRequest,
   JarCallError,
   joinFamily,
   linkEchoShow,
@@ -20,10 +21,11 @@ import { readLocalJar } from './localJar';
 // the person setting it up chooses.
 //
 // The Echo Show loses its token at the end of every skill session (WJ-45), so
-// with none it asks the relay for a new one with its Alexa device id. Null
-// when the relay doesn't have the Show in a family, or the skill didn't send
-// the id; a relay that can't be reached throws, for the reconnecting screen,
-// so the Show never starts a family of its own by mistake.
+// with none it asks the relay for a new one with its Alexa device id and the
+// secret the skill keeps for it (WJ-60). Null when the relay doesn't have the
+// Show in a family, or the skill didn't send the id; a relay that can't be
+// reached throws, for the reconnecting screen, so the Show never starts a
+// family of its own by mistake.
 export async function openFamilyJar(): Promise<string | null> {
   const device = await loadDevice();
   if (device.token) {
@@ -32,9 +34,9 @@ export async function openFamilyJar(): Promise<string | null> {
     void linkThisEchoShow(token);
     return token;
   }
-  const alexaDeviceId = await echoShowDeviceId();
-  if (!alexaDeviceId) return null;
-  const rejoined = await rejoinEchoShow(alexaDeviceId);
+  const show = await thisEchoShow();
+  if (!show) return null;
+  const rejoined = await rejoinEchoShow(show);
   if (!rejoined) return null;
   await saveDevice({ token: rejoined.token, activeKidId: null });
   markLinked(rejoined.token);
@@ -61,25 +63,31 @@ async function withSignature(device: DeviceState, token: string): Promise<string
 // openFamilyJar has looked for its family: whether it will find the family by
 // itself next time. Null on other devices.
 export function echoShowSetupNote(): string | null {
-  if (!onEchoShow || knownAlexaDeviceId === undefined) return null;
-  return knownAlexaDeviceId
+  if (!onEchoShow || knownEchoShow === undefined) return null;
+  return knownEchoShow
     ? 'Once this Echo Show is in a family jar, it finds it again by itself each time Wish Jar opens.'
     : "This Echo Show can't tell Wish Jar which device it is (the Alexa skill needs an update), so it forgets its family jar when the skill closes. Join the jar with a code each time.";
 }
 
 // undefined until asked; null when the skill sent no id or Alexa didn't
 // answer, which a retry in the same page wouldn't change.
-let knownAlexaDeviceId: string | null | undefined;
+let knownEchoShow: EchoShowRequest | null | undefined;
 
-async function echoShowDeviceId(): Promise<string | null> {
+// The relay turns away an id or a secret shorter than 32 characters, or
+// longer than 512 (relay/src/echoShow.ts). Without both the Show can't rejoin,
+// so it's treated as one that can't tell which device it is.
+function fits(value: string | null): value is string {
+  return value != null && value.length >= 32 && value.length <= 512;
+}
+
+async function thisEchoShow(): Promise<EchoShowRequest | null> {
   if (!onEchoShow) return null;
-  if (knownAlexaDeviceId === undefined) {
-    const id = await getAlexaDeviceId().catch(() => null);
-    // The relay turns away anything shorter than an Alexa id
-    // (relay/src/echoShow.ts).
-    knownAlexaDeviceId = id && id.length >= 32 ? id : null;
+  if (knownEchoShow === undefined) {
+    const launch = await getAlexaLaunch().catch(() => null);
+    if (!launch || !fits(launch.deviceId) || !fits(launch.secret)) knownEchoShow = null;
+    else knownEchoShow = { alexaDeviceId: launch.deviceId, showSecret: launch.secret };
   }
-  return knownAlexaDeviceId;
+  return knownEchoShow;
 }
 
 // The token whose device row the relay has linked to this Echo Show, kept for
@@ -108,11 +116,11 @@ function linkedToken(): string | null {
 // reached it keeps trying in the background, as an unlinked Show would come
 // back next time to the setup screen and a family of its own.
 async function linkThisEchoShow(token: string): Promise<void> {
-  const alexaDeviceId = await echoShowDeviceId();
-  if (!alexaDeviceId || linkedToken() === token) return;
+  const show = await thisEchoShow();
+  if (!show || linkedToken() === token) return;
   const attempt = async (): Promise<boolean> => {
     try {
-      await linkEchoShow(token, alexaDeviceId);
+      await linkEchoShow(token, show);
       markLinked(token);
       return true;
     } catch (error) {

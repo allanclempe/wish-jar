@@ -7,7 +7,8 @@
     "dev": "TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY:-1x0000000000000000000000000000000AA} SIGNING_KEY=${SIGNING_KEY:-wish-jar-dev-signing-key} wrangler dev --local-upstream localhost:8787",
     "deploy": "wrangler deploy",
     "test": "vitest run",
-    "typecheck": "wrangler types && tsc --noEmit"
+    "typecheck": "wrangler types && tsc --noEmit",
+    "waf": "tsx scripts/deploy-waf.ts"
   },
   "dependencies": {
     "qrcode-generator": "^2.0.4"
@@ -15,6 +16,7 @@
   "devDependencies": {
     "@cloudflare/vitest-plugin": "1.4.3",
     "@types/node": "^24.19.2",
+    "tsx": "^4.23.15",
     "typescript": "~6.0.3",
     "vitest": "^4.1.12",
     "wrangler": "4.151.0"
