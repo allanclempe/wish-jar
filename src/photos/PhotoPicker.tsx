@@ -9,8 +9,7 @@ import {
 } from 'react';
 import { Alert, Modal, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { onFrame } from '../device/frame';
-import { onEchoShow } from '../device/host';
+import { onEchoShow, onFrame } from '../device/host';
 import { useParentLock } from '../parent/ParentLockProvider';
 import { colors, fonts, radius, spacing, typography } from '../theme';
 import { PhonePhotoSheet } from './PhonePhotoSheet';

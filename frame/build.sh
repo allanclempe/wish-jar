@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Builds frame/build/wish-jar-frame.apk without Gradle: the web export wrapped in a kiosk WebView.
+# Builds frame/build/wish-jar-frame.apk without Gradle: a kiosk WebView that opens the online site
+# (MainActivity), so the app itself only needs building again when its Java code changes.
 # Needs JDK 17 and Android build-tools 34 + platform 34:
 #   sdkmanager --sdk_root=$ANDROID_HOME "build-tools;34.0.0" "platforms;android-34"
 set -euo pipefail
@@ -14,27 +15,7 @@ export PATH="${JAVA_BIN}${JAVA_BIN:+:}$PATH" # d8 and apksigner run java from PA
 KS="${KEYSTORE:-$HOME/.android/debug.keystore}"
 VERSION_CODE="${VERSION_CODE:-$(git rev-list --count HEAD)}"
 
-# The Turnstile widget's site key (src/family/turnstile.ts): without it the
-# frame couldn't start a family.
-: "${EXPO_PUBLIC_TURNSTILE_SITE_KEY:?Set EXPO_PUBLIC_TURNSTILE_SITE_KEY to the Turnstile site key}"
-
-rm -rf build && mkdir -p build/res/mipmap-xxxhdpi build/gen build/classes build/apk/assets
-
-(cd .. && npx expo export --platform web --output-dir frame/build/apk/assets/www)
-
-# Twemoji for the emoji Android 6 can't draw (see web/frame.css), pinned by SHA-256.
-TWEMOJI_URL=https://github.com/mozilla/twemoji-colr/releases/download/v0.7.0/Twemoji.Mozilla.ttf
-TWEMOJI_SHA256=6d90152ee0d29e82fe2a87793af5aa4b7ad13e6538360889e141e81ed299ee8e
-TWEMOJI=.cache/Twemoji.Mozilla.ttf
-if ! echo "$TWEMOJI_SHA256  $TWEMOJI" | sha256sum -c --status 2>/dev/null; then
-  mkdir -p .cache
-  curl -fsSL -o "$TWEMOJI" "$TWEMOJI_URL"
-  echo "$TWEMOJI_SHA256  $TWEMOJI" | sha256sum -c --quiet
-fi
-mkdir -p build/apk/assets/www/frame
-cp web/* "$TWEMOJI" build/apk/assets/www/frame/
-# Tells the page it runs on the frame (src/device/frame.ts), added to every page like frame.css.
-echo "window.wishJarFrame = {};" > build/apk/assets/www/frame/config.js
+rm -rf build && mkdir -p build/res/mipmap-xxxhdpi build/gen build/classes build/apk
 
 cp ../assets/icon.png build/res/mipmap-xxxhdpi/ic_launcher.png
 "$BT/aapt2" compile --dir build/res -o build/res.zip
@@ -46,8 +27,7 @@ cp ../assets/icon.png build/res/mipmap-xxxhdpi/ic_launcher.png
   src/com/wishjar/frame/*.java build/gen/com/wishjar/frame/R.java
 "$BT/d8" --min-api 23 --lib "$JAR" --output build/apk $(find build/classes -name '*.class')
 
-# Assets are zipped in directly: aapt2 would skip the export's _expo/ directory.
-"${JAVA_BIN}jar" --update --no-manifest --file build/base.apk -C build/apk classes.dex -C build/apk assets
+"${JAVA_BIN}jar" --update --no-manifest --file build/base.apk -C build/apk classes.dex
 "$BT/zipalign" -f 4 build/base.apk build/aligned.apk
 
 if [ ! -f "$KS" ]; then

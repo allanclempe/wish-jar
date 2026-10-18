@@ -1,11 +1,14 @@
 // Older Android web views have emoji fonts that stop before Unicode 14, so
-// newer emoji such as 🫙 🪥 🧹 are blank. The Echo Show (Android 9) is one.
-// On those, Twemoji is registered as "Segoe UI" for emoji code points only,
-// as the frame's own frame.css does: "Segoe UI" is in React Native Web's
-// System font stack, so emoji draw with Twemoji and other text keeps its font.
+// newer emoji such as 🫙 🪥 🧹 are blank. The Echo Show (Android 9) and the
+// Frameo frame (Android 6, whose font stops at Unicode 8) are two. On those,
+// Twemoji is registered as "Segoe UI" for emoji code points only: "Segoe UI"
+// is in React Native Web's System font stack, and neither device has a font
+// of that name, so emoji draw with Twemoji and other text keeps its font.
 // Devices that can already draw 🫙 skip the 1.4 MB font.
 // Twemoji graphics © Twitter, CC-BY 4.0; font build by Mozilla
 // (github.com/mozilla/twemoji-colr v0.7.0), served from public/fonts.
+
+import { onFrame } from '../device/host';
 
 const FONT_URL = '/fonts/Twemoji.Mozilla.ttf';
 const PROBE = '🫙';
@@ -37,16 +40,10 @@ function canDrawColourEmoji(): boolean {
   return false;
 }
 
-// The frame's kiosk adds its own "Segoe UI" Twemoji face before the app runs.
-function hasEmojiFace(): boolean {
-  for (const face of document.fonts) {
-    if (face.family.replace(/["']/g, '') === 'Segoe UI') return true;
-  }
-  return false;
-}
-
 export function installEmojiFallback(): void {
-  if (typeof document === 'undefined' || hasEmojiFace() || canDrawColourEmoji()) return;
+  if (typeof document === 'undefined') return;
+  // The frame is known not to draw them, so it doesn't wait on the probe.
+  if (!onFrame && canDrawColourEmoji()) return;
   const style = document.createElement('style');
   style.textContent = FONT_FACE;
   document.head.appendChild(style);

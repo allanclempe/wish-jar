@@ -1,8 +1,11 @@
 # Wish Jar on a Frameo photo frame
 
 This folder builds Wish Jar as a full-screen app for a Frameo photo frame. It
-is a small WebView app with the web export of Wish Jar bundled inside, so it
-runs offline and needs no server.
+is a small WebView app that opens the online site,
+`https://wish-jar.blastin.dev/?host=frameo`, as the Echo Show does. Each
+deploy of the site reaches the frame the next time the page loads, so the app
+only needs installing again when its own Java code changes (WJ-69). The frame
+needs Wi-Fi.
 
 It follows the approach in
 [wesbos/photo-frame-dashboard](https://github.com/wesbos/photo-frame-dashboard),
@@ -33,8 +36,14 @@ The native Expo build (SDK 57, React Native 0.86) needs Android 7 or newer, so
 it won't install on Android 6. The web export runs in the frame's WebView 106
 instead.
 
-The app serves the export from `https://appassets.androidplatform.net/`, the
-origin Android sets aside for an app's own files, so the page is HTTPS.
+`?host=frameo` tells the page it runs on the frame (`src/device/host.ts`), and
+sessionStorage keeps that for the WebView's session, so moving between screens
+(which drops the query) keeps it.
+
+Until WJ-69 the app bundled the web export and served it from
+`https://appassets.androidplatform.net/`. That origin is shared by every
+Android app's own pages, so it's no longer on the Turnstile widget or the
+relay's `ALLOWED_ORIGINS` (relay/README.md).
 
 ### Where the data is kept
 
@@ -54,15 +63,14 @@ keep the original storage.
 Android 6's emoji font stops at Unicode 8. On this frame, 17 of the 64 emoji
 the app uses were blank boxes, among them 🫙 🧹 🪥 🧸 and 🦷.
 
-The frame app bundles [Twemoji](https://github.com/mozilla/twemoji-colr)
-(Mozilla's color font build, v0.7.0, Unicode 14). It adds `web/frame.css` to
-every page it serves. That stylesheet registers Twemoji under the name
-"Segoe UI", for emoji code points only. "Segoe UI" is in React Native Web's
-system font stack, but this frame doesn't have it. So every emoji is drawn
-with Twemoji, and the rest of the text still uses Roboto.
+The site serves [Twemoji](https://github.com/mozilla/twemoji-colr)
+(Mozilla's color font build, v0.7.0, Unicode 14) from `public/fonts`, and on
+the frame the page always registers it under the name "Segoe UI", for emoji
+code points only (`src/theme/emojiFallback.web.ts`). "Segoe UI" is in React
+Native Web's system font stack, but this frame doesn't have it. So every emoji
+is drawn with Twemoji, and the rest of the text still uses Roboto.
 
-`build.sh` downloads the font, checks its SHA-256 and keeps it in
-`frame/.cache`. Twemoji graphics are © Twitter, Inc and other contributors,
+Twemoji graphics are © Twitter, Inc and other contributors,
 [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/). The font build is
 by Mozilla under the Apache License 2.0.
 
@@ -100,44 +108,36 @@ The photo list is read again after each round, so a photo added in the
 meantime joins the next one. With no photos yet, Wish Jar just stays on
 screen.
 
-The frame app adds `/frame/config.js`, which `frame/build.sh` writes, to every
-page: `window.wishJarFrame` tells the page it runs on the frame
-(`src/device/frame.ts`). The web bundle is the same for every build, so Wish
-Jar on phones and on the dev server picks photos the usual way. (An
-`EXPO_PUBLIC_` variable would be baked into the bundle, and Metro's cache
-would carry it over to the next build, whatever it's for.)
+The page knows it's on the frame from `?host=frameo` (`src/device/host.ts`).
+The web bundle is the same for every device, so Wish Jar on phones and on the
+dev server picks photos the usual way.
 
 ### The timezone
 
-Frameo frames come set to a factory timezone; this one was on
-`America/New_York`. Android only detects the timezone from a mobile network,
-which the frame doesn't have. The clock itself syncs over Wi-Fi, but each
-day's tasks start again at midnight in the frame's timezone
-(`src/tasks/day.ts`), so with the wrong one, the ticks reset in the middle of
-the kids' day.
+Each day's tasks start again at midnight in the frame's timezone
+(`src/tasks/day.ts`), and Frameo's sleep schedule follows the frame's clock
+too. Frameo frames come set to a factory timezone (this one was on
+`America/New_York`), and Android only detects the timezone from a mobile
+network, which the frame doesn't have. With the wrong one, the ticks reset and
+the screen goes to sleep in the middle of the kids' day.
 
-Until a timezone has been set, the frame app looks it up from the frame's IP
-address each time Wish Jar comes to the front, with
-[ipwho.is](https://ipwhois.io/) (free, no key), and sets it. That's the only
-reason it has Android's `INTERNET` permission. On the grown-ups' screens, the
-frame gets a **Timezone** row to pick another, for when the lookup guessed
-wrong (on a VPN, say). Once one is picked there, the lookup never runs again.
+Set it in Frameo, which keeps its own timezone and puts it back on every boot:
 
-Setting the timezone needs root: Android only lets system apps do it. The app
-runs `su 0 service call alarm 3 s16 <zone>`, which works because this frame's
-`su` lets any app use it and SELinux is permissive. To set it by hand:
+1. Hold two fingers still on Wish Jar for 1.5 seconds and choose *Open
+   Frameo*. (Or do this before starting Wish Jar the first time.)
+2. In Frameo, open **Settings → My frame → Time zone** and pick yours, for
+   example *Brisbane*.
+3. Check **Settings → My frame → Time** shows the right time. Frameo sets the
+   date and time itself over the internet.
+4. Bring Wish Jar back with `adb shell am start -n com.wishjar.frame/.MainActivity`,
+   or restart the frame.
 
-```bash
-adb shell su 0 service call alarm 3 s16 Australia/Brisbane
-```
+The page follows the frame's timezone the next time it loads, so after
+changing it, choose *Reload Wish Jar* from the two-finger menu.
 
-Frameo keeps a timezone of its own and sets it again about 5 seconds after
-every boot, so a timezone set like that, or any way but Frameo's settings, only
-lasts until the frame restarts. So the frame app keeps the zone it set, from
-the lookup or from Settings, and sets it again whenever Wish Jar comes to the
-front or the timezone changes under it, at most 3 times a boot. Frameo's sleep
-schedule follows the frame's clock, so it then sleeps at night in the right
-timezone. Frameo's own settings still show its zone.
+Until WJ-69 the frame app set the timezone itself, through root, and set it
+again after Frameo put its own back at boot. Frameo's own setting does the
+same without root, so that's gone.
 
 ## Step by step
 
@@ -194,13 +194,15 @@ Then, from the project root:
 JAVA_HOME=/path/to/jdk-17 ANDROID_HOME=/path/to/sdk frame/build.sh
 ```
 
-The script exports the web build into the APK and signs it with
+The script compiles the Java code into an APK and signs it with
 `~/.android/debug.keystore` (or `KEYSTORE`), creating that key if it's
-missing. The result is `frame/build/wish-jar-frame.apk`.
+missing. The result is `frame/build/wish-jar-frame.apk`. The site isn't in the
+APK, so no Turnstile site key or web export is needed.
 
 **Keep that keystore.** An update signed with a different key won't install
 over the old one. The app would have to be uninstalled first, and that
-deletes the kids, tasks and savings stored on the frame.
+deletes the frame's place in the family jar, so it has to join again with a
+code.
 
 ### 5. Install and start it
 
@@ -266,8 +268,18 @@ above after installing anyway.
 
 ### 8. Updating
 
-Run `frame/build.sh` again, then `adb install -r`. The data stays as long as
-you use the same keystore.
+Wish Jar itself updates with every deploy of the site: the frame checks the
+page each time it loads it (`public/_headers`), so it runs the new version
+after the next restart, or straight away with *Reload Wish Jar* from the
+two-finger menu.
+
+Only a change to this folder's Java code needs a new APK: run `frame/build.sh`
+again, then `adb install -r` and the `am start` above.
+
+A frame that had a build from before WJ-69 (which bundled the site) keeps its
+old data in the old origin's storage, but the online site doesn't see it.
+After installing this build, join the family jar once with a code from
+another device (*Settings → Devices* there).
 
 ## Things to know
 
@@ -276,13 +288,16 @@ you use the same keystore.
   shrinks the page to the space above the keyboard instead
   (`MainActivity.fitAboveKeyboard`), and WebView scrolls the field into view.
 - **No text selection.** WebView turns a long press into a text selection,
-  which would swallow the long press on the 🔒. `web/frame.css` turns
-  selection off everywhere except text fields.
+  which would swallow the long press on the 🔒. On the frame the page turns
+  selection off everywhere except text fields (`src/device/frame.ts`).
 
-- **The frame keeps its own data.** Wish Jar stores everything locally, so the
-  frame doesn't share kids, tasks or savings with the app on a phone.
-- **Don't uninstall the app** unless you mean to wipe its data. The same goes
-  for *Clear data* in Android settings.
+- **It needs the internet.** At boot, Wi-Fi often connects after Wish Jar has
+  opened. Until the site loads, the app shows *Wish Jar is waiting for the
+  internet…* and tries again when the network connects, and every 30 seconds
+  (`MainActivity.retryLoad`).
+- **Don't uninstall the app** unless you mean the frame to leave the family
+  jar. The same goes for *Clear data* in Android settings. Either way it can
+  join again with a code.
 - **Low-RAM mode.** This frame runs with `ro.config.low_ram=true`, so Android
   may kill Wish Jar when you switch to another app. Data is saved as you go,
   and the app reopens on the start screen.

@@ -5,3 +5,10 @@
 /*
   Cross-Origin-Embedder-Policy: credentialless
   Cross-Origin-Opener-Policy: same-origin
+
+# Pages keep Cloudflare's default, public, max-age=0, must-revalidate: a
+# device checks the page's ETag on every load, so the Frameo frame and the
+# Echo Show run a new deploy the next time they open it (WJ-69). The bundles
+# the pages load are named by their content, so they never need checking.
+/_expo/static/*
+  Cache-Control: public, max-age=31536000, immutable

@@ -2,8 +2,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.wishjar.frame">
 
-  <!-- To look the frame's timezone up from its IP address (FrameTimeZone). -->
+  <!-- Wish Jar is the online site (MainActivity). -->
   <uses-permission android:name="android.permission.INTERNET" />
+  <!-- To load it again when the network connects, as it does at boot (MainActivity.retryLoad). -->
+  <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
   <!-- To open Wish Jar after the frame restarts (BootReceiver). -->
   <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 

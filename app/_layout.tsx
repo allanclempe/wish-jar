@@ -12,7 +12,8 @@ import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { LargeHeader } from '../src/components/LargeHeader';
-import { onFrame } from '../src/device/frame';
+import { installFrameStyle } from '../src/device/frame';
+import { onFrame } from '../src/device/host';
 import { ActiveKidProvider } from '../src/kids/ActiveKidProvider';
 import { FamilyJarProvider } from '../src/db/provider';
 import { ParentLockProvider, useParentLock } from '../src/parent/ParentLockProvider';
@@ -28,6 +29,7 @@ SplashScreen.preventAutoHideAsync();
 
 // Before the first render, so newer emoji never draw as blank boxes.
 installEmojiFallback();
+installFrameStyle();
 
 const headerStyle = {
   headerShown: true,
@@ -106,7 +108,6 @@ function RootStack() {
       <Stack.Protected guard={unlocked}>
         <Stack.Screen name="settings" options={page('Grown-ups')} />
         <Stack.Screen name="change-pin" options={modal('Change PIN')} />
-        <Stack.Screen name="timezone" options={modal('Timezone')} />
         <Stack.Screen name="add-kid" options={modal('Add a kid')} />
         <Stack.Screen name="kids" options={page('Kids')} />
         <Stack.Screen name="edit-kid" options={modal('Edit a kid')} />

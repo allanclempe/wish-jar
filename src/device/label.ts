@@ -1,7 +1,6 @@
 import { Platform } from 'react-native';
 
-import { onFrame } from './frame';
-import { onEchoShow } from './host';
+import { onEchoShow, onFrame } from './host';
 
 // The browser's system by its user agent, first match wins. iPads ask for the
 // desktop site, so one reads as a Mac (see browserSystem).
