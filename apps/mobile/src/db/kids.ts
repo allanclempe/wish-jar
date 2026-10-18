@@ -11,7 +11,7 @@ export function getKid(jar: FamilyJar, kidId: number): Promise<Kid | null> {
 
 export function insertKid(
   jar: FamilyJar,
-  input: { name: string; photoUri: string | null },
+  input: { name: string; photoUri: string | null; emoji: string | null },
 ): Promise<number> {
   return jar.call('insertKid', input);
 }
@@ -21,7 +21,7 @@ export function insertKid(
 export function updateKid(
   jar: FamilyJar,
   kidId: number,
-  input: { name: string; photoUri: string | null },
+  input: { name: string; photoUri: string | null; emoji: string | null },
 ): Promise<string | null> {
   return jar.call('updateKid', kidId, input);
 }

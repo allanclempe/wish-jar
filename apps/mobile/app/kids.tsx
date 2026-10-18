@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { EmptyState } from '../src/components/EmptyState';
+import { DEFAULT_KID_EMOJI } from '../src/components/Icons';
 import { shownPhoto } from '../src/photos/photos';
 import { colors, contentMaxWidth, fonts, primaryShadow, radius, spacing, typography } from '../src/theme';
 
@@ -19,7 +20,7 @@ export default function KidsScreen() {
           contentContainerStyle={styles.list}
           ListEmptyComponent={
             <EmptyState
-              emoji="🙂"
+              emoji={DEFAULT_KID_EMOJI}
               text="No kids yet. Add one below to get started!"
             />
           }
@@ -36,7 +37,7 @@ export default function KidsScreen() {
                   <Image source={{ uri: photoUri }} style={styles.avatar} />
                 ) : (
                   <View style={[styles.avatar, styles.avatarEmpty]}>
-                    <Text style={styles.avatarEmoji}>🙂</Text>
+                    <Text style={styles.avatarEmoji}>{item.emoji ?? DEFAULT_KID_EMOJI}</Text>
                   </View>
                 )}
                 <Text style={styles.name}>{item.name}</Text>

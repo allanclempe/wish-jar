@@ -434,6 +434,7 @@ describe('photos from before the jar kept them', () => {
       // Back to version 2, as a jar made before this change is, with a web
       // photo in it.
       storage.sql.exec('DROP TABLE photos');
+      storage.sql.exec('ALTER TABLE kids DROP COLUMN emoji');
       storage.sql.exec("DELETE FROM jar_meta WHERE key = 'photos_moved'");
       storage.sql.exec("UPDATE jar_meta SET value = '2' WHERE key = 'version'");
       storage.sql.exec('UPDATE kids SET photo_uri = ?', photo);

@@ -45,6 +45,7 @@ import {
   boolean,
   coins,
   dayKey,
+  emoji,
   icon,
   id,
   integer,
@@ -89,7 +90,11 @@ function givenPhoto(value: unknown, what: string): string {
 
 const kidInput = (value: unknown): KidInput => {
   const input = record(value, 'kid');
-  return { name: name(input.name), photoUri: photoUri(input.photoUri) };
+  return {
+    name: name(input.name),
+    photoUri: photoUri(input.photoUri),
+    ...(input.emoji === undefined ? {} : { emoji: emoji(input.emoji, 'kid.emoji') }),
+  };
 };
 
 const taskInput = (value: unknown): TaskInput => {

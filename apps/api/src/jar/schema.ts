@@ -7,7 +7,7 @@
 // kept in jar_meta. Foreign keys are always on there, so ON DELETE CASCADE
 // works as it does in the app.
 
-export const JAR_VERSION = 3;
+export const JAR_VERSION = 4;
 
 const MIGRATIONS: Record<number, string> = {
   1: `
@@ -110,6 +110,10 @@ const MIGRATIONS: Record<number, string> = {
       data BLOB NOT NULL,
       created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
     );
+  `,
+  // A kid without a photo can show a boy or a girl instead of 🙂 (WJ-74).
+  4: `
+    ALTER TABLE kids ADD COLUMN emoji TEXT;
   `,
 };
 

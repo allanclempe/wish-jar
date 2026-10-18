@@ -6,6 +6,7 @@ import { fromSomewhere } from './caller';
 
 import type { CreateFamilyReply, Icon, JarApi, JarFn, JarImport } from '@wish-jar/jar';
 import { MAX_JAR_BYTES } from '../src/jar/limits';
+import { JAR_VERSION, jarVersion, migrateJar } from '../src/jar/schema';
 
 const BASE = 'https://api.example';
 const APP = 'https://wish-jar.blastin.dev';
@@ -231,6 +232,47 @@ describe('kids', () => {
       [ava, 'Ava Rose', null],
       [ben, 'Ben', 'data:image/jpeg;base64,AAAA'],
     ]);
+  });
+
+  it("keeps a kid's emoji, and leaves it as it is when an older app leaves it out", async () => {
+    const { call } = await newJar();
+    const ava = await call('insertKid', { name: 'Ava', photoUri: null, emoji: '👧' });
+    const ben = await call('insertKid', { name: 'Ben', photoUri: null });
+    expect(await call('getKid', ava)).toMatchObject({ emoji: '👧' });
+    expect(await call('getKid', ben)).toMatchObject({ emoji: null });
+
+    await call('updateKid', ava, { name: 'Ava Rose', photoUri: null });
+    expect(await call('getKid', ava)).toMatchObject({ name: 'Ava Rose', emoji: '👧' });
+    await call('updateKid', ben, { name: 'Ben', photoUri: null, emoji: '👦' });
+    await call('updateKid', ava, { name: 'Ava Rose', photoUri: null, emoji: null });
+    expect((await call('listKids')).map((k) => [k.name, k.emoji])).toEqual([
+      ['Ava Rose', null],
+      ['Ben', '👦'],
+    ]);
+  });
+
+  it('brings the kids of a jar from before emoji up to date', async () => {
+    const { call, familyId } = await newJar();
+    const ava = await call('insertKid', { name: 'Ava', photoUri: null });
+    await runInDurableObject(env.FAMILY_JARS.getByName(familyId), (_, state) => {
+      const storage = state.storage;
+      // Back to version 3, as a jar made before this change is.
+      storage.sql.exec('ALTER TABLE kids DROP COLUMN emoji');
+      storage.sql.exec("UPDATE jar_meta SET value = '3' WHERE key = 'version'");
+      migrateJar(storage);
+      expect(jarVersion(storage)).toBe(JAR_VERSION);
+    });
+    expect(await call('getKid', ava)).toMatchObject({ name: 'Ava', emoji: null });
+    await call('updateKid', ava, { name: 'Ava', photoUri: null, emoji: '👧' });
+    expect(await call('getKid', ava)).toMatchObject({ emoji: '👧' });
+  });
+
+  it('checks emoji', async () => {
+    const { token } = await newFamily();
+    for (const emoji of [5, 'x'.repeat(100)]) {
+      const response = await post(token, { fn: 'insertKid', args: [{ name: 'Ava', photoUri: null, emoji }] });
+      expect(response.status, String(emoji)).toBe(400);
+    }
   });
 
   it('checks names', async () => {
@@ -655,8 +697,8 @@ describe('importing a jar', () => {
     const { token } = await newFamily({ label: 'Phone', jar: existing });
     const call = jar(token);
     expect(await call('listKids')).toEqual([
-      { id: 3, name: 'Ava', photoUri: 'file:///ava.jpg', createdAt: 1_700_000_000_000 },
-      { id: 7, name: 'Ben', photoUri: null, createdAt: 1_700_000_000_001 },
+      { id: 3, name: 'Ava', photoUri: 'file:///ava.jpg', emoji: null, createdAt: 1_700_000_000_000 },
+      { id: 7, name: 'Ben', photoUri: null, emoji: null, createdAt: 1_700_000_000_001 },
     ]);
     expect(await call('listCompletedTaskIds', 3, DAY)).toEqual([11]);
     expect(await call('getKidSavings', 3)).toBe(41);

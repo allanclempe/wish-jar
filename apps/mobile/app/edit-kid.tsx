@@ -1,14 +1,22 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Alert, Image, Pressable, StyleSheet, Text, TextInput } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DeleteButton } from '../src/components/DeleteButton';
+import { DEFAULT_KID_EMOJI, IconPicker, KID_EMOJIS } from '../src/components/Icons';
 import { ScrollScreen } from '../src/components/ScrollScreen';
-import { deleteKid, discardPhoto, getKid, saveProblem, updateKid, useFamilyJar } from '../src/db';
+import {
+  deleteKid,
+  discardPhoto,
+  getKid,
+  saveProblem,
+  updateKid,
+  useFamilyJar,
+  type Icon,
+} from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
-import { PhotoSourceButtons, usePickPhoto } from '../src/photos/PhotoPicker';
-import { shownPhoto, storePhoto } from '../src/photos/photos';
+import { storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
 export default function EditKidScreen() {
@@ -18,10 +26,9 @@ export default function EditKidScreen() {
   const { refreshKids } = useActiveKid();
   const [loaded, setLoaded] = useState(false);
   const [name, setName] = useState('');
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [icon, setIcon] = useState<Icon>({ emoji: null, photoUri: null });
   const [originalPhotoUri, setOriginalPhotoUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const pickPhoto = usePickPhoto();
 
   const canSave = name.trim().length > 0 && !saving;
 
@@ -36,7 +43,7 @@ export default function EditKidScreen() {
           return;
         }
         setName(kid.name);
-        setPhotoUri(kid.photoUri);
+        setIcon({ emoji: kid.emoji ?? null, photoUri: kid.photoUri });
         setOriginalPhotoUri(kid.photoUri);
         setLoaded(true);
       },
@@ -48,24 +55,19 @@ export default function EditKidScreen() {
     };
   }, [jar, kidId]);
 
-  async function choosePhoto() {
-    const uri = await pickPhoto();
-    if (uri) setPhotoUri(uri);
-  }
-
   async function save() {
     if (!canSave) return;
     setSaving(true);
-    let savedPhotoUri = photoUri;
+    let savedPhotoUri = icon.photoUri;
     try {
-      if (photoUri && photoUri !== originalPhotoUri) {
-        savedPhotoUri = await storePhoto(jar, photoUri);
+      if (icon.photoUri && icon.photoUri !== originalPhotoUri) {
+        savedPhotoUri = await storePhoto(jar, icon.photoUri);
       }
-      await updateKid(jar, kidId, { name, photoUri: savedPhotoUri });
+      await updateKid(jar, kidId, { name, photoUri: savedPhotoUri, emoji: icon.emoji });
       await refreshKids();
       router.back();
     } catch (error) {
-      if (savedPhotoUri !== photoUri) {
+      if (savedPhotoUri !== icon.photoUri) {
         discardPhoto(jar, savedPhotoUri);
       }
       Alert.alert('Could not save', saveProblem(error));
@@ -86,23 +88,13 @@ export default function EditKidScreen() {
     }
   }
 
-  const shownPhotoUri = shownPhoto(photoUri);
-
   if (!loaded) {
     return <SafeAreaView style={styles.safe} />;
   }
 
   return (
     <ScrollScreen>
-      <Pressable style={styles.photo} onPress={choosePhoto} accessibilityRole="button">
-        {shownPhotoUri ? (
-          <Image source={{ uri: shownPhotoUri }} style={styles.photoImage} />
-        ) : (
-          <Text style={styles.photoPlaceholder}>📷</Text>
-        )}
-      </Pressable>
-      <Text style={styles.caption}>Tap to change the photo</Text>
-      <PhotoSourceButtons onPhoto={setPhotoUri} />
+      <IconPicker value={icon} fallbackEmoji={DEFAULT_KID_EMOJI} onChange={setIcon} emojis={KID_EMOJIS} />
 
       <Text style={styles.label}>Name</Text>
       <TextInput
@@ -137,25 +129,8 @@ export default function EditKidScreen() {
   );
 }
 
-const PHOTO_SIZE = 160;
-
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.background },
-  photo: {
-    alignSelf: 'center',
-    width: PHOTO_SIZE,
-    height: PHOTO_SIZE,
-    borderRadius: PHOTO_SIZE / 2,
-    borderWidth: 3,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  photoImage: { width: '100%', height: '100%' },
-  photoPlaceholder: { fontSize: 56 },
-  caption: { ...typography.caption, color: colors.textMuted, textAlign: 'center' },
   label: { ...typography.caption, color: colors.textMuted, marginTop: spacing.md },
   input: {
     ...typography.body,
