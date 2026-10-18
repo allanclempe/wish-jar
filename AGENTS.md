@@ -42,6 +42,15 @@ Run lint and typecheck before declaring any task done.
 - Import `Link`, `router`, and `useLocalSearchParams` from `expo-router`.
 - Docs: https://docs.expo.dev/router/introduction.md
 
+## Where it runs
+
+Not on EAS Hosting any more (`wish-jar.expo.app` is retired). Both run on Cloudflare Workers and deploy from GitHub Actions on merge to main:
+
+- **The app** (the web export, also loaded by the Echo Show): https://wish-jar.blastin.dev, from the root `wrangler.jsonc` (`.github/workflows/site.yml`).
+- **The relay** (family jars, photos, join codes): https://wish-jar-api.blastin.dev, from `relay/` (`.github/workflows/relay.yml`).
+
+Build-time values such as `EXPO_PUBLIC_TURNSTILE_SITE_KEY` come from GitHub Actions variables, not from EAS.
+
 ## Building with EAS
 
 Use EAS to build, sign, and submit the app in the cloud (`eas build`, `eas submit`) and to ship over-the-air updates (`eas update`) — no local Xcode or Android Studio required. Run EAS CLI as `bunx eas-cli <command>` in Bun projects, or `npx eas-cli@latest <command>` otherwise; substitute that for bare `eas` in docs examples.
@@ -52,6 +61,15 @@ Docs: https://docs.expo.dev/eas/index.md
 Create and track tasks in Clocktopus for this project, not in Linear: use the
 Clocktopus `create_task` tool, and the `clocktopus-start-work` skill for
 branching and linking sessions.
+
+## This is a public repository
+
+Everything committed here (code comments, READMEs, commit messages, PR descriptions) is public. Write it with that in mind:
+
+- Comments say what the code does and why. Don't write out how to get around a protection: no attack walkthroughs, no "this check doesn't stop X", no arithmetic for using up a shared limit.
+- Don't name account-specific details: personal subdomains (such as `*.workers.dev` addresses), account or zone ids, email addresses, device ids, IP addresses.
+- Never commit secrets, tokens or private keys. Public keys (like the Turnstile site key) come from build variables, not the source.
+- Known weaknesses and residual risks go in the Clocktopus task, not in files.
 
 ## Rules
 
