@@ -9,7 +9,7 @@ import type { CreateFamilyReply, DeviceList, JoinCode } from '../src/jar/api';
 import { MAX_JOIN_MISSES } from '../src/JoinCode';
 
 const BASE = 'https://relay.example';
-const APP = 'https://wish-jar.expo.app';
+const APP = 'https://wish-jar.blastin.dev';
 
 function relay(path: string, init?: RequestInit) {
   return exports.default.fetch(fromSomewhere(new Request(`${BASE}${path}`, init)));

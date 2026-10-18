@@ -1,0 +1,36 @@
+// The web site: the static export (`expo export -p web`, into dist/) served
+// by a Cloudflare Worker with static assets, on the Workers Free plan (WJ-63).
+// public/_headers has its response headers. Merges to main deploy it
+// (.github/workflows/site.yml).
+{
+  "$schema": "./relay/node_modules/wrangler/config-schema.json",
+  "name": "wish-jar-app",
+  "main": "site/worker.js",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./dist",
+    // Every route has its own page. An address with no page gets index.html,
+    // and Expo Router shows its not-found screen.
+    "not_found_handling": "single-page-application",
+    // The relay's paths (relay/src/index.ts) on this address go to the relay
+    // (site/worker.js). The site has no page at any of them.
+    "run_worker_first": [
+      "/codes",
+      "/codes/*",
+      "/families",
+      "/jar/*",
+      "/devices",
+      "/devices/*",
+      "/photos",
+      "/photos/*",
+      "/s",
+      "/s/*",
+      "/qr/*"
+    ]
+  },
+  "services": [{ "binding": "RELAY", "service": "wish-jar-photo-relay" }],
+  // This address was the relay's until WJ-63. Deploying from CI moves it
+  // over from the relay's Worker.
+  "routes": [{ "pattern": "wish-jar.blastin.dev", "custom_domain": true }],
+  "workers_dev": false
+}

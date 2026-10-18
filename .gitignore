@@ -43,3 +43,6 @@ yarn-error.*
 # Frameo kiosk build
 /frame/build
 /frame/.cache
+
+# Cloudflare (wrangler dev)
+.wrangler/

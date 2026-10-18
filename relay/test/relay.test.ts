@@ -7,7 +7,7 @@ import { fromSomewhere } from './caller';
 import { CODE_LETTERS, MAX_PHOTO_BYTES } from '../src/codes';
 
 const BASE = 'https://relay.example';
-const APP = 'https://wish-jar.expo.app';
+const APP = 'https://wish-jar.blastin.dev';
 
 type Code = { code: string; token: string; expiresAt: number; url: string };
 
@@ -177,6 +177,13 @@ describe('CORS', () => {
     const response = await relay('/codes', { method: 'POST', headers: { Origin: APP } });
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe(APP);
     expect(response.headers.get('Vary')).toBe('Origin');
+
+    // The site's earlier address, for devices that haven't moved yet (WJ-63).
+    const earlier = await relay('/codes', {
+      method: 'POST',
+      headers: { Origin: 'https://wish-jar.expo.app' },
+    });
+    expect(earlier.headers.get('Access-Control-Allow-Origin')).toBe('https://wish-jar.expo.app');
 
     const preflight = await relay('/codes/K7P4XM/photo', {
       method: 'OPTIONS',
