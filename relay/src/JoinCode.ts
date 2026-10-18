@@ -60,29 +60,45 @@ type Misses = { count: number; until: number };
 
 // One per IP address that has typed a wrong code, counting its misses. It
 // forgets them when the window ends (the alarm).
+//
+// A try is counted before the code is checked, and given back if the code was
+// right, so guesses sent at once can't all see the count before any of them
+// adds to it (WJ-62). The count is read and written with the synchronous
+// storage API (SQLite-backed objects have it), so nothing can run between the
+// two; only the alarm is set after.
 export class JoinAttempts extends DurableObject<Env> {
-  async blocked(): Promise<boolean> {
-    const misses = await this.current();
-    return misses != null && misses.count >= MAX_JOIN_MISSES;
-  }
-
-  async missed(): Promise<void> {
-    const misses = await this.current();
+  // The window the try was counted in, or null when the caller has run out of
+  // tries and must wait.
+  async attempt(): Promise<number | null> {
+    const misses = this.current();
+    if (misses && misses.count >= MAX_JOIN_MISSES) return null;
     if (misses) {
-      await this.ctx.storage.put<Misses>('misses', { ...misses, count: misses.count + 1 });
-      return;
+      this.ctx.storage.kv.put<Misses>('misses', { ...misses, count: misses.count + 1 });
+      return misses.until;
     }
     const until = Date.now() + JOIN_MISSES_WINDOW_MS;
-    await this.ctx.storage.put<Misses>('misses', { count: 1, until });
+    this.ctx.storage.kv.put<Misses>('misses', { count: 1, until });
     await this.ctx.storage.setAlarm(until);
+    return until;
   }
 
+  // The code was right: the try counted in that window isn't a miss. Nothing
+  // to give back once the window has ended and another begun. The alarm is
+  // left to go off on its own, so it can't race a new window's.
+  async right(window: number): Promise<void> {
+    const misses = this.current();
+    if (!misses || misses.until !== window) return;
+    if (misses.count > 1) this.ctx.storage.kv.put<Misses>('misses', { ...misses, count: misses.count - 1 });
+    else this.ctx.storage.kv.delete('misses');
+  }
+
+  // Only a window that has ended: a new one may have begun before it ran.
   async alarm(): Promise<void> {
-    await this.ctx.storage.deleteAll();
+    if (!this.current()) this.ctx.storage.kv.delete('misses');
   }
 
-  private async current(): Promise<Misses | null> {
-    const misses = await this.ctx.storage.get<Misses>('misses');
+  private current(): Misses | null {
+    const misses = this.ctx.storage.kv.get<Misses>('misses');
     return misses && Date.now() < misses.until ? misses : null;
   }
 }

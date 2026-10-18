@@ -204,7 +204,8 @@ app says how long to wait. The request that is turned away isn't counted.
 | Live socket | `GET /jar/live` | 120 per 10 minutes | memory |
 
 Wrong join codes still have their own tighter limit (`JoinAttempts`: 10 per 15
-minutes).
+minutes). Each try is counted before the code is checked and given back when
+the code was right, so wrong codes sent all at once can't get past it.
 
 - **Storage or memory.** Counts kept in storage survive the object being put
   to sleep. They're used for the rare actions that a slow script could still
