@@ -173,15 +173,16 @@ describe('cleaning up families', () => {
 
   it("drops its Echo Show's link, so the Show finds no family", async () => {
     const alexaDeviceId = `amzn1.ask.device.${crypto.randomUUID()}`;
+    const showSecret = 'S'.repeat(64);
     const { token, familyId } = await newFamily('Echo Show');
-    expect((await postJson('/devices/echo-show/link', { alexaDeviceId }, auth(token))).status).toBe(204);
+    expect((await postJson('/devices/echo-show/link', { alexaDeviceId, showSecret }, auth(token))).status).toBe(204);
     const hash = await echoShowHash(alexaDeviceId);
 
     await age(familyId, 400 * DAY_MS, ABANDONED_MS + DAY_MS);
     expect(await runDurableObjectAlarm(jarOf(familyId))).toBe(true);
     const link = await runInDurableObject(env.ECHO_SHOW_LINKS.getByName(hash), (_, state) => state.storage.list());
     expect(link.size).toBe(0);
-    expect((await postJson('/devices/echo-show', { alexaDeviceId })).status).toBe(404);
+    expect((await postJson('/devices/echo-show', { alexaDeviceId, showSecret })).status).toBe(404);
   });
 
   it("turns away a join code for a family that's gone", async () => {

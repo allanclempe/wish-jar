@@ -74,8 +74,8 @@ export function echoShowSetupNote(): string | null {
 let knownEchoShow: EchoShowRequest | null | undefined;
 
 // The relay turns away an id or a secret shorter than 32 characters, or
-// longer than 512 (relay/src/echoShow.ts). A secret it would turn away is left
-// out, so the Show still rejoins while the relay has none for it.
+// longer than 512 (relay/src/echoShow.ts). Without both the Show can't rejoin,
+// so it's treated as one that can't tell which device it is.
 function fits(value: string | null): value is string {
   return value != null && value.length >= 32 && value.length <= 512;
 }
@@ -84,8 +84,7 @@ async function thisEchoShow(): Promise<EchoShowRequest | null> {
   if (!onEchoShow) return null;
   if (knownEchoShow === undefined) {
     const launch = await getAlexaLaunch().catch(() => null);
-    if (!launch || !fits(launch.deviceId)) knownEchoShow = null;
-    else if (!fits(launch.secret)) knownEchoShow = { alexaDeviceId: launch.deviceId };
+    if (!launch || !fits(launch.deviceId) || !fits(launch.secret)) knownEchoShow = null;
     else knownEchoShow = { alexaDeviceId: launch.deviceId, showSecret: launch.secret };
   }
   return knownEchoShow;

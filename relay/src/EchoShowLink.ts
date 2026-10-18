@@ -11,37 +11,30 @@ import { DurableObject } from 'cloudflare:workers';
 // on the Show's device row, so removing the device there ends the link even
 // though this object still names the family.
 //
-// A Show linked before WJ-60, or whose skill sends no secret yet, has no hash
-// here: its id alone rejoins, and the first rejoin with a secret keeps that
-// secret's hash (trust on first use).
+// A Show linked before WJ-60 has no hash here, so it doesn't rejoin: it joins
+// with a code again, and its link from then on keeps its secret's hash.
 export class EchoShowLink extends DurableObject<Env> {
   // Whether a device of `familyId` may link the Show: always in the family
   // it's in (which has it anyway, and gets it back this way when the skill
   // loses its secret), and in another family only with the Show's secret.
-  async mayLink(familyId: string, secretHash: string | null): Promise<boolean> {
+  async mayLink(familyId: string, secretHash: string): Promise<boolean> {
     const [linkedTo, kept] = await this.read();
     return linkedTo == null || linkedTo === familyId || kept == null || sameHash(kept, secretHash);
   }
 
   // False when the Show can't move to `familyId` (mayLink). The secret sent
-  // with the link is the one kept from then on, or none.
-  async link(familyId: string, secretHash: string | null): Promise<boolean> {
+  // with the link is the one kept from then on.
+  async link(familyId: string, secretHash: string): Promise<boolean> {
     if (!(await this.mayLink(familyId, secretHash))) return false;
-    await this.ctx.storage.put('familyId', familyId);
-    if (secretHash) await this.ctx.storage.put('secretHash', secretHash);
-    else await this.ctx.storage.delete('secretHash');
+    await this.ctx.storage.put({ familyId, secretHash });
     return true;
   }
 
   // The Show's family, for a rejoin with this secret: null when it has none,
-  // or another secret is kept for it, or one is and none was sent.
-  async rejoin(secretHash: string | null): Promise<string | null> {
+  // or no secret is kept for it, or another one is.
+  async rejoin(secretHash: string): Promise<string | null> {
     const [familyId, kept] = await this.read();
-    if (familyId == null) return null;
-    if (kept == null) {
-      if (secretHash) await this.ctx.storage.put('secretHash', secretHash);
-      return familyId;
-    }
+    if (familyId == null || kept == null) return null;
     return sameHash(kept, secretHash) ? familyId : null;
   }
 
@@ -62,8 +55,7 @@ export class EchoShowLink extends DurableObject<Env> {
   }
 }
 
-function sameHash(expected: string, given: string | null): boolean {
-  if (given == null) return false;
+function sameHash(expected: string, given: string): boolean {
   const a = new TextEncoder().encode(expected);
   const b = new TextEncoder().encode(given);
   return a.byteLength === b.byteLength && crypto.subtle.timingSafeEqual(a, b);

@@ -546,36 +546,32 @@ up to a day. `pnpm dev` purges nothing; the tests use a made-up token and zone (
 
 The Echo Show can't keep a token (Amazon wipes its storage when the skill
 closes), so at every launch it asks `POST /devices/echo-show` for a new one
-(WJ-45). Its Alexa device id never changes, and the skill's backend and its
-logs see it, so the id alone would give anyone who learnt it a token to the
-family's jar, and let any family link the Show to itself. Now:
+(WJ-45), with its Alexa device id and a secret:
 
 - **The Show has a secret.** The Alexa skill keeps a random secret for each
   Show and hands it to the page at launch with the device id, as
   `data: { deviceId, secret }` (`src/device/alexa.ts`). The app sends it as
   `showSecret`.
 - **Rejoining needs it.** The Show's `EchoShowLink` keeps a hash of the
-  secret (never the secret), and a rejoin with no secret or another one gets
+  secret (never the secret), kept when a device of the family links the Show,
+  never on a rejoin. A rejoin with no secret, or another one, gets
   **404**, as for a Show that isn't linked: the Show asks to join with a code.
   The family's jar isn't asked, so the real Show's token and its socket are
   left alone.
 - **Moving it to another family needs it.** `POST /devices/echo-show/link`
   from a device of another family gets **403** unless it sends the Show's
-  secret, so a stranger with the id can't take the Show. Its own family can
+  secret. Its own family can
   link it again with a new secret (how the Show gets back in when the skill
   lost its secret: join with a code), and once the family it's in no longer
   has it (a parent removed it), any family can.
 
 ### Shows linked before this, and skills that send no secret
 
-A Show linked before WJ-60 has no secret stored. Until it has one, it rejoins
-with the id alone, as before, and **the first rejoin that sends a secret
-keeps it** (trust on first use); from then on the id alone gets 404. A Show
-linked by a skill that sends no secret has none stored either.
-
-So the old way stays open for a Show until its skill sends a secret: update
-the skill as below. If the skill ever stops sending it (an older handler put
-back), the Show can't rejoin and asks for a code each time until it does.
+A Show linked before WJ-60 has no secret stored, so it doesn't rejoin: at its
+next launch it asks to join with a code once, and the link it makes then keeps
+its secret. A skill that sends no secret can't link the Show at all (400), and
+the app says the skill needs an update: update it as below before this is
+deployed.
 
 ### The skill change (made by hand in the Alexa developer console)
 
@@ -670,8 +666,8 @@ be one per Show, so the adapter is keyed by the device id
 
 3. **Save**, then **Deploy**.
 
-The `uri` is the site's address since WJ-63, `https://wish-jar.blastin.dev/`
-(`src/device/host.ts`), in place of `https://wish-jar.expo.app`. Keep
+The `uri` is the site's address, `https://wish-jar.blastin.dev/`
+(`src/device/host.ts`). Keep
 `?host=alexa`: it's how the page knows it's on the Show.
 
 A skill that keeps its persistent attributes in S3 instead

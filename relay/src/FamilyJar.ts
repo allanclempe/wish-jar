@@ -295,6 +295,14 @@ export class FamilyJar extends DurableObject<Env> {
     return { ok: true, result: null };
   }
 
+  // Undoes linkEchoShow when the Show turned out to be in another family
+  // (echoShow.ts): no row here has it.
+  async unmarkEchoShow(echoShowHash: string): Promise<void> {
+    const storage = this.ctx.storage;
+    if (!isJar(storage)) return;
+    run(storage, 'UPDATE devices SET echo_show_hash = NULL WHERE echo_show_hash = ?', echoShowHash);
+  }
+
   // Whether a device row here is the Echo Show whose Alexa device id hashes to
   // `echoShowHash`, for a link from another family (echoShow.ts, WJ-60).
   async hasEchoShow(echoShowHash: string): Promise<boolean> {

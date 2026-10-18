@@ -13,8 +13,7 @@ import type { CreateFamilyReply } from './jar/api';
 export const MIN_ALEXA_DEVICE_ID_LENGTH = 32;
 export const MAX_ALEXA_DEVICE_ID_LENGTH = 512;
 // The Show's secret (WJ-60): random, kept per Show by the Alexa skill, which
-// hands it to the page at launch with the device id. The id alone proves
-// nothing: the skill's backend and its logs see it too.
+// hands it to the page at launch with the device id.
 export const MIN_ECHO_SHOW_SECRET_LENGTH = 32;
 export const MAX_ECHO_SHOW_SECRET_LENGTH = 512;
 const MAX_ECHO_SHOW_BYTES = 2048;
@@ -46,11 +45,8 @@ function hex(digest: ArrayBuffer): string {
 // wiped at the end of every skill session, so it can't keep a token: once
 // it's in a family (started a jar, or joined with a code), it links its Alexa
 // device id, and at every launch after that it gets a new token for the same
-// device row with that id and its secret (WJ-60).
-//
-// A Show linked before the secret, or whose skill doesn't send one yet, has
-// none stored: it rejoins with the id alone, and the first launch that sends a
-// secret keeps it (trust on first use). From then on the id alone gets 404.
+// device row with that id and its secret (WJ-60). A Show linked before the
+// secret has none stored, and joins with a code again.
 export async function echoShowApi(request: Request, env: Env, pathname: string, reply: Reply): Promise<Response> {
   if (request.method !== 'POST') return reply('Use POST', 405, { Allow: 'POST, OPTIONS' });
   return pathname === '/devices/echo-show/link' ? link(request, env, reply) : rejoin(request, env, reply);
@@ -58,8 +54,7 @@ export async function echoShowApi(request: Request, env: Env, pathname: string, 
 
 // POST /devices/echo-show/link (device token): this device is the Echo Show
 // with this Alexa device id. A Show another family has, with a secret, moves
-// only with that secret (403 otherwise), so a stranger with its id can't take
-// it.
+// only with that secret (403 otherwise).
 async function link(request: Request, env: Env, reply: Reply): Promise<Response> {
   const device = parseDeviceToken(request.headers.get('Authorization'), env);
   if (!device) return reply('Not a device of this family', 401, { 'WWW-Authenticate': 'Bearer' });
@@ -81,15 +76,18 @@ async function link(request: Request, env: Env, reply: Reply): Promise<Response>
   const jar = env.FAMILY_JARS.getByName(device.familyId);
   const outcome = (await jar.linkEchoShow(device.secret, hash)) as JarOutcome;
   if (!outcome.ok) return refuse(outcome, reply);
-  if (!(await showLink.link(device.familyId, show.secretHash))) return taken();
+  if (!(await showLink.link(device.familyId, show.secretHash))) {
+    // The row marked above isn't the Show's after all.
+    await jar.unmarkEchoShow(hash);
+    return taken();
+  }
   return reply(null, 204);
 }
 
 // POST /devices/echo-show (no token): the Show's family and a new token for
 // its device row. 404 when it was never linked, its family no longer has it,
-// or the secret isn't the one kept for it: the jar isn't asked then, so a
-// stranger with the id can't give the Show's row a new token, which would shut
-// the real Show out.
+// or the secret isn't the one kept for it: the jar isn't asked then, so the
+// Show's row keeps its token.
 async function rejoin(request: Request, env: Env, reply: Reply): Promise<Response> {
   const show = await readEchoShow(request, reply);
   if (show instanceof Response) return show;
@@ -111,9 +109,9 @@ async function rejoin(request: Request, env: Env, reply: Reply): Promise<Respons
   return reply(JSON.stringify(rejoined), 200, { 'Content-Type': 'application/json' });
 }
 
-type EchoShow = { alexaDeviceId: string; secretHash: string | null };
+type EchoShow = { alexaDeviceId: string; secretHash: string };
 
-// The Show's id, and the hash of its secret: null when the skill sent none.
+// The Show's id, and the hash of its secret.
 async function readEchoShow(request: Request, reply: Reply): Promise<EchoShow | Response> {
   const body = await readJson(request, MAX_ECHO_SHOW_BYTES, reply, false);
   if (body instanceof Response) return body;
@@ -128,13 +126,12 @@ async function readEchoShow(request: Request, reply: Reply): Promise<EchoShow | 
   ) {
     return reply('Send { alexaDeviceId }, the Alexa device id', 400);
   }
-  if (showSecret === undefined) return { alexaDeviceId: id, secretHash: null };
   if (
     typeof showSecret !== 'string' ||
     showSecret.length < MIN_ECHO_SHOW_SECRET_LENGTH ||
     showSecret.length > MAX_ECHO_SHOW_SECRET_LENGTH
   ) {
-    return reply('Send { showSecret } as the secret the Alexa skill gave, or leave it out', 400);
+    return reply('Send { showSecret }, the secret the Alexa skill gave', 400);
   }
   return { alexaDeviceId: id, secretHash: await echoShowSecretHash(showSecret) };
 }

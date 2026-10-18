@@ -275,7 +275,7 @@ export type DeviceList = { devices: Device[] };
 //   POST /devices/echo-show       EchoShowRequest → 200 CreateFamilyReply, 400,
 //                                 404 (not linked, removed from its family, or
 //                                 not its secret), 429
-export type EchoShowRequest = { alexaDeviceId: string; showSecret?: string };
+export type EchoShowRequest = { alexaDeviceId: string; showSecret: string };
 
 // The family's photos (WJ-49), kept in its jar. A photo column holds the
 // photo's URL, GET /photos/<familyId>/<photo id>.jpg?sig=<signature>: the id

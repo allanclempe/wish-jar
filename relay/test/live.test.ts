@@ -223,7 +223,7 @@ describe('the live socket', () => {
     const json = (token?: string) => ({
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...(token ? auth(token) : {}) },
-      body: JSON.stringify({ alexaDeviceId }),
+      body: JSON.stringify({ alexaDeviceId, showSecret: 'S'.repeat(64) }),
     });
     expect((await relay('/devices/echo-show/link', json(show.token))).status).toBe(204);
     const lastSession = await live(show.token);
