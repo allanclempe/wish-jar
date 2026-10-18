@@ -1,0 +1,389 @@
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type PropsWithChildren,
+} from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
+
+import { KeyboardAwayScrollView } from '../components/KeyboardAwayScrollView';
+import { JoinFamilyForm } from '../family/JoinFamilyForm';
+import { SetUpJar } from '../family/SetUpJar';
+import { colors, fonts, radius, spacing, typography } from '../theme';
+import { moveLocalPhotosOnline } from '../photos/photos';
+import { FirstLaunchBusy } from './firstLaunch';
+import { createJarClient, JarCallError, waitWords, type FamilyJar, type JarProblem } from './jar';
+import { connectLive, createJarChanges, newClientId, type JarChanges, type JarTable } from './live';
+import { echoShowSetupNote, openFamilyJar, startFamilyJar } from './open';
+
+// While the API can't be reached, the app tries again this often by itself:
+// a frame on the wall has nobody to tap "Try again".
+const RECONNECT_EVERY_MS = 5_000;
+// A live socket the jar closed though the device is still in the family
+// (another session of the Echo Show took its place) tries again after this.
+const LIVE_REFUSED_RETRY_MS = 60_000;
+
+const FamilyJarContext = createContext<FamilyJar | null>(null);
+// What the family's other devices changed (WJ-50), for useJarVersion.
+const JarChangesContext = createContext<JarChanges | null>(null);
+// Switches the app to another family's jar once this device has joined it
+// (WJ-48).
+const SwitchFamilyContext = createContext<((token: string) => void) | null>(null);
+
+// The jar is online only (WJ-47): without the API there's a reconnecting
+// screen, never a stale copy. A device with no family yet starts one or joins
+// one first (SetUpJar).
+export function FamilyJarProvider({ children }: PropsWithChildren) {
+  const [opening, setOpening] = useState(0);
+  // Whether to open the device's family, or make one (Start a new jar): the
+  // token of the Turnstile check that starting one needs (WJ-54).
+  const [starting, setStarting] = useState<string | null>(null);
+  // undefined until known; null when the device has no family yet.
+  const [token, setToken] = useState<string | null | undefined>(undefined);
+  const [openFailure, setOpenFailure] = useState<unknown>(null);
+  // Why the last Start a new jar didn't go through, said on the setup screen.
+  const [startRefused, setStartRefused] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    // The last failure stays up while this try runs.
+    (starting ? startFamilyJar(starting) : openFamilyJar()).then(
+      (opened) => {
+        if (cancelled) return;
+        setOpenFailure(null);
+        setToken(opened);
+      },
+      (error: unknown) => {
+        if (cancelled) return;
+        // Too many new jars from this internet connection (WJ-51), or from
+        // everyone today (WJ-57): back to the choices, saying so, as joining
+        // the family's jar still works.
+        if (starting && error instanceof JarCallError && error.tooMany) {
+          setStartRefused(
+            `Lots of new jars have been started today. Try again in ${waitWords(error)}, or join a family jar with a code.`,
+          );
+          setStarting(null);
+          return;
+        }
+        // The API turned down the Turnstile check (WJ-54), or its token was
+        // spent on a try that didn't finish: back to the choices, for a new
+        // check.
+        if (starting && error instanceof JarCallError && error.checkFailed) {
+          setStartRefused("The check before starting a jar didn't go through. Tap Start a new jar to try again.");
+          setStarting(null);
+          return;
+        }
+        setOpenFailure(error);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [opening, starting]);
+
+  const retryOpening = useCallback(() => setOpening((attempt) => attempt + 1), []);
+
+  const switchFamily = useCallback((joined: string) => {
+    setOpenFailure(null);
+    setToken(joined);
+  }, []);
+
+  // A lost connection is tried again by itself, after every failed try, and
+  // so is an API that asked to wait (WJ-51), once the wait is over; anything
+  // else waits for a tap.
+  useEffect(() => {
+    if (!(openFailure instanceof JarCallError)) return;
+    let wait: number;
+    if (openFailure.lost) wait = RECONNECT_EVERY_MS;
+    else if (openFailure.tooMany) wait = Math.max(RECONNECT_EVERY_MS, (openFailure.retryAfter ?? 60) * 1000);
+    else return;
+    // setTimeout gives up past about 24 days; the API never asks for that.
+    const timer = setTimeout(retryOpening, Math.min(wait, 2 ** 31 - 1));
+    return () => clearTimeout(timer);
+  }, [openFailure, retryOpening]);
+
+  if (openFailure != null) {
+    return <JarUnavailable message={openingMessage(openFailure)} onRetry={retryOpening} />;
+  }
+  if (token === undefined) return null;
+  if (token === null) {
+    return (
+      <SetUpJar
+        starting={starting != null}
+        note={startRefused ?? echoShowSetupNote()}
+        onStart={(turnstileToken) => {
+          setStartRefused(null);
+          setStarting(turnstileToken);
+        }}
+        onJoined={switchFamily}
+      />
+    );
+  }
+  // A new token is another family: everything under it starts afresh.
+  return (
+    <SwitchFamilyContext.Provider value={switchFamily}>
+      <ConnectedJar key={token} token={token} onJoined={switchFamily}>
+        {children}
+      </ConnectedJar>
+    </SwitchFamilyContext.Provider>
+  );
+}
+
+function ConnectedJar({
+  token,
+  onJoined,
+  children,
+}: PropsWithChildren<{ token: string; onJoined: (token: string) => void }>) {
+  const [problem, setProblem] = useState<JarProblem | null>(null);
+  // Something on screen failed to load while the connection was lost.
+  const readFailed = useRef(false);
+  // This running app, which the jar doesn't tell of its own changes.
+  const [client] = useState(newClientId);
+  const [jar, setJar] = useState(() => createClient());
+
+  function createClient(): FamilyJar {
+    return createJarClient(
+      token,
+      (next) => {
+        if (!next.write) readFailed.current = true;
+        // A write that didn't save stays on the screen until the jar is back.
+        setProblem((current) => (current?.write ? current : next));
+      },
+      client,
+    );
+  }
+
+  // One live socket for the app (WJ-50): what another device changes, the
+  // screens showing it load again. A socket the jar refuses is checked over
+  // HTTP, which brings up "doesn't know this device" if it really doesn't.
+  const [changes] = useState(createJarChanges);
+  const latestJar = useRef(jar);
+  useEffect(() => {
+    latestJar.current = jar;
+  }, [jar]);
+  const [liveAttempt, setLiveAttempt] = useState(0);
+  useEffect(() => {
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    const tryAgain = () => {
+      retry = setTimeout(() => setLiveAttempt((attempt) => attempt + 1), LIVE_REFUSED_RETRY_MS);
+    };
+    const stop = connectLive(token, client, {
+      onChange: changes.heard,
+      onRefused: () => {
+        latestJar.current.call('getSoundEnabled').then(tryAgain, (error: unknown) => {
+          if (!(error instanceof JarCallError && error.unknownDevice)) tryAgain();
+        });
+      },
+    });
+    return () => {
+      stop();
+      clearTimeout(retry);
+    };
+  }, [token, client, changes, liveAttempt]);
+  useEffect(() => changes.stop, [changes]);
+
+  const [checking, setChecking] = useState(false);
+  const reconnect = useCallback(async () => {
+    if (checking) return;
+    setChecking(true);
+    try {
+      await createJarClient(token).call('getSoundEnabled');
+    } catch {
+      return;
+    } finally {
+      setChecking(false);
+    }
+    setProblem(null);
+    // A new handle reruns everything that loads from the jar (it's in their
+    // effects' dependencies), so what failed to load comes in now. Only when
+    // something did fail: an edit screen whose save failed keeps its edits.
+    if (readFailed.current) {
+      readFailed.current = false;
+      setJar(createClient());
+    }
+    // createClient only reads `token` and `client`, which never change here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checking, token]);
+
+  // Photos this phone kept as files before WJ-49 go up into the jar, in the
+  // background and with a handle of their own: a failure here needs no
+  // reconnecting screen, the next launch tries again.
+  useEffect(() => {
+    moveLocalPhotosOnline(createJarClient(token, undefined, client)).catch(() => {});
+  }, [token, client]);
+
+  const lost = problem?.error.lost ?? false;
+  // A device taken out of its family can only join one again (WJ-48).
+  const [joining, setJoining] = useState(false);
+  useEffect(() => {
+    if (!lost || checking) return;
+    const timer = setTimeout(reconnect, RECONNECT_EVERY_MS);
+    return () => clearTimeout(timer);
+  }, [lost, checking, reconnect]);
+
+  return (
+    <FamilyJarContext.Provider value={jar}>
+      <JarChangesContext.Provider value={changes}>
+        <View style={styles.fill}>
+          {children}
+          {problem && joining ? (
+            <View style={StyleSheet.absoluteFill}>
+              <RejoinFamily onJoined={onJoined} onBack={() => setJoining(false)} />
+            </View>
+          ) : problem ? (
+            <View style={StyleSheet.absoluteFill}>
+              <JarUnavailable
+                title={lost ? 'Reconnecting…' : undefined}
+                message={problemMessage(problem)}
+                onRetry={reconnect}
+                onJoin={problem.error.unknownDevice ? () => setJoining(true) : undefined}
+              />
+            </View>
+          ) : null}
+        </View>
+      </JarChangesContext.Provider>
+    </FamilyJarContext.Provider>
+  );
+}
+
+function openingMessage(error: unknown): string {
+  if (error instanceof FirstLaunchBusy) return error.message;
+  if (!(error instanceof JarCallError)) {
+    return 'Could not open the jar kept on this device. Try again.';
+  }
+  // The API's limits for one internet connection (WJ-51), such as an Echo
+  // Show's rejoins.
+  if (error.tooMany) {
+    return `Wish Jar has opened lots of times from this internet connection just now. It tries again by itself in ${waitWords(error)}.`;
+  }
+  // The jar is online only (WJ-47), and the Echo Show keeps nothing at all:
+  // what's safe is the jar itself, not this device's copy.
+  if (error.lost) {
+    return "Wish Jar can't reach the family jar. Check the Wi-Fi — it keeps trying. The jar is kept safe online, so nothing is lost.";
+  }
+  return `The family jar couldn't be set up: ${error.message}. Nothing has changed, so you can try again.`;
+}
+
+function problemMessage({ error, write }: JarProblem): string {
+  if (error.unknownDevice) {
+    return "The family jar doesn't know this device any more. It may have been removed from the family: join it again with a code from another of its devices.";
+  }
+  const unsaved = write ? " The last change didn't save." : '';
+  return `Wish Jar can't reach the family jar. Check the Wi-Fi — it keeps trying.${unsaved}`;
+}
+
+function JarUnavailable({
+  title = 'One moment…',
+  message,
+  onRetry,
+  onJoin,
+}: {
+  title?: string;
+  message: string;
+  onRetry: () => void;
+  onJoin?: () => void;
+}) {
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>{title}</Text>
+      <Text style={styles.message}>{message}</Text>
+      <View style={styles.buttons}>
+        <Pressable style={styles.button} onPress={onRetry} accessibilityRole="button">
+          <Text style={styles.buttonText}>Try again</Text>
+        </Pressable>
+        {onJoin ? (
+          <Pressable style={styles.button} onPress={onJoin} accessibilityRole="button">
+            <Text style={styles.buttonText}>🔗 Join a family jar</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
+  );
+}
+
+// Joining again from the "doesn't know this device" screen. The old jar is
+// out of reach already, so there's nothing to warn about.
+function RejoinFamily({ onJoined, onBack }: { onJoined: (token: string) => void; onBack: () => void }) {
+  return (
+    <KeyboardAwayScrollView style={styles.rejoin} contentContainerStyle={styles.container}>
+      <View style={styles.column}>
+        <Text style={styles.title}>🔗 Join a family jar</Text>
+        <Text style={styles.message}>
+          On a device still in the family, open Grown-ups → Devices → Add a device, then type the
+          code it shows.
+        </Text>
+        <JoinFamilyForm onJoined={onJoined} />
+        <Pressable onPress={onBack} accessibilityRole="button" hitSlop={12}>
+          <Text style={styles.back}>‹ Back</Text>
+        </Pressable>
+      </View>
+    </KeyboardAwayScrollView>
+  );
+}
+
+// The handle every src/db function takes first. It changes when the jar comes
+// back after a lost connection, so effects that load from it run again.
+export function useFamilyJar(): FamilyJar {
+  const jar = useContext(FamilyJarContext);
+  if (!jar) {
+    throw new Error('useFamilyJar must be used inside FamilyJarProvider');
+  }
+  return jar;
+}
+
+// Goes up whenever another of the family's devices changes any of `tables`
+// (WJ-50). A screen puts it in its loader's dependencies, next to the jar, to
+// show the change; useFocusEffect waits until the screen is in front.
+export function useJarVersion(...tables: JarTable[]): number {
+  const changes = useContext(JarChangesContext);
+  if (!changes) {
+    throw new Error('useJarVersion must be used inside FamilyJarProvider');
+  }
+  const key = tables.join();
+  // `key` stands for `tables`, a new array each render.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const read = useCallback(() => changes.version(tables), [changes, key]);
+  return useSyncExternalStore(changes.subscribe, read);
+}
+
+// Swaps the app over to the family this device has just joined (WJ-48): every
+// screen starts again from the new jar.
+export function useSwitchFamily(): (token: string) => void {
+  const switchFamily = useContext(SwitchFamilyContext);
+  if (!switchFamily) {
+    throw new Error('useSwitchFamily must be used inside FamilyJarProvider');
+  }
+  return switchFamily;
+}
+
+export type { FamilyJar, JarTable };
+
+const styles = StyleSheet.create({
+  fill: { flex: 1 },
+  container: {
+    flexGrow: 1,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.lg,
+    gap: spacing.md,
+  },
+  rejoin: { flex: 1, backgroundColor: colors.background },
+  column: { width: '100%', maxWidth: 560, alignItems: 'center', gap: spacing.md },
+  title: { ...typography.heading, color: colors.text, textAlign: 'center' },
+  message: { ...typography.body, color: colors.textMuted, textAlign: 'center' },
+  back: { ...typography.body, color: colors.textMuted, fontFamily: fonts.semibold },
+  buttons: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: spacing.sm },
+  button: {
+    marginTop: spacing.sm,
+    backgroundColor: colors.primary,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.sm + 4,
+    paddingHorizontal: spacing.lg,
+  },
+  buttonText: { ...typography.body, color: colors.surface, fontFamily: fonts.bold },
+});

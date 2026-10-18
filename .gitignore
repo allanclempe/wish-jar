@@ -37,11 +37,11 @@ yarn-error.*
 *.tsbuildinfo
 
 # generated native folders
-/ios
-/android
+/apps/mobile/ios
+/apps/mobile/android
 
 # Frameo kiosk build
-/frame/build
+/apps/frame/build
 
 # Cloudflare (wrangler dev)
 .wrangler/
