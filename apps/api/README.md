@@ -14,6 +14,7 @@ In this folder (`pnpm install` at the repository's root first):
 
 ```bash
 pnpm dev                # http://localhost:8787, or `pnpm api` at the root
+                        # (`pnpm dev` at the root runs the app with it)
 pnpm run typecheck
 pnpm test               # workerd locally, no Cloudflare account needed
 ```
@@ -391,11 +392,13 @@ passes only with a test secret.
 `pnpm dev` gives the Worker Cloudflare's test secret,
 `1x0000000000000000000000000000000AA`, unless `TURNSTILE_SECRET_KEY` is set in
 the environment. It passes only the dummy token that Cloudflare's test site
-keys hand out. Point a dev build of the app at it with the test site key:
+keys hand out, and a dev build of the app uses the test site key when
+`EXPO_PUBLIC_TURNSTILE_SITE_KEY` isn't set. `pnpm dev` at the repository's root
+runs this Worker and the app's dev server together, with the app pointed at it
+(`scripts/dev.mjs`, WJ-73). By hand:
 
 ```bash
-EXPO_PUBLIC_API_URL=http://localhost:8787 \
-EXPO_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA pnpm start
+EXPO_PUBLIC_API_URL=http://localhost:8787 pnpm start
 ```
 
 `2x00000000000000000000AB` is the test site key that always fails, and

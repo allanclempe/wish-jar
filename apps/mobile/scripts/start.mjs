@@ -1,23 +1,11 @@
 // Starts the Expo dev server on this machine's Tailscale address, so a phone
 // on the same tailnet can open the QR code even when the machine is a VM its
 // LAN address can't reach. Without Tailscale, Expo picks its usual address.
-import { execFileSync, spawn } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
+import { tailscaleAddress } from './address.mjs';
 
 const require = createRequire(import.meta.url);
-
-function tailscaleAddress() {
-  try {
-    const output = execFileSync('tailscale', ['ip', '-4'], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-      timeout: 3000,
-    });
-    return output.split('\n')[0].trim() || null;
-  } catch {
-    return null;
-  }
-}
 
 const env = { ...process.env };
 if (!env.REACT_NATIVE_PACKAGER_HOSTNAME) {

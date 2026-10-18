@@ -37,7 +37,7 @@ Run these in `apps/mobile`. Use `bunx` instead of `npx` if the project uses bun 
 
 ```bash
 npx expo install <package>  # ALWAYS use instead of npm/yarn/pnpm/bun add — resolves SDK-compatible versions
-npx expo start              # start the dev server
+npx expo start              # start the dev server (against the deployed API)
 npx expo lint               # lint
 npx tsc --noEmit            # typecheck
 npx expo-doctor             # diagnose dependency and config issues
@@ -45,6 +45,10 @@ npx expo install --fix      # fix incompatible package versions
 ```
 
 Run lint and typecheck before declaring any task done.
+
+`pnpm dev` at the repository's root runs the dev server and the API locally,
+with the app pointed at that API (`scripts/dev.mjs`). It's the only way a dev
+build gets past the Turnstile check that starting a family needs.
 
 ## Navigation & Routing
 
