@@ -3,7 +3,10 @@ import { env, exports } from 'cloudflare:workers';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CALLER_LIMITS, callerKey } from '../src/CallerLimits';
+import { FAMILIES_PER_DAY, FAMILY_STARTS_NAME } from '../src/FamilyStarts';
 import type { CreateFamilyReply, JoinCode } from '../src/jar/api';
+import { DAILY_WRITES } from '../src/jar/dailyWrites';
+import { MAX_JAR_BYTES } from '../src/jar/limits';
 import { fromSomewhere } from './caller';
 
 const BASE = 'https://relay.example';
@@ -236,5 +239,82 @@ describe('per-caller limits', () => {
     expect(await runDurableObjectAlarm(limits)).toBe(true);
     expect(await kept()).toEqual([]);
     expect(await runDurableObjectAlarm(limits)).toBe(false);
+  });
+});
+
+describe('new families for everyone (WJ-57)', () => {
+  const DAY_MS = 24 * HOUR_S * 1000;
+  const familyStarts = () => env.FAMILY_STARTS.getByName(FAMILY_STARTS_NAME);
+  // Today's families started so far, as kept.
+  const started = (count: number) =>
+    runInDurableObject(familyStarts(), (_, state) =>
+      state.storage.put('started', { day: Math.floor(Date.now() / DAY_MS), count }),
+    );
+  const startedToday = () =>
+    runInDurableObject(familyStarts(), async (_, state) => {
+      return (await state.storage.get<{ count: number }>('started'))?.count;
+    });
+
+  it("adds up to well under half of the Free plan's 5 GB", () => {
+    // Families nobody comes back to last 7 days, so those alive span 8 UTC
+    // days, each one at most a full jar.
+    expect(8 * FAMILIES_PER_DAY * MAX_JAR_BYTES).toBeLessThan(5e9 / 2);
+    expect(DAILY_WRITES.bytes).toBeLessThanOrEqual(MAX_JAR_BYTES);
+  });
+
+  it('lets only so many families start a day, and leaves the ones started alone', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-10-17T18:00:00Z'));
+    const { token } = await newFamily();
+
+    await started(FAMILIES_PER_DAY - 1);
+    expect((await startFamily(nextIp())).status).toBe(201);
+    const refused = await startFamily(nextIp());
+    expect(refused.status).toBe(429);
+    expect(await refused.text()).toMatch(/all the new family jars it can today/);
+    // Until 00:00 UTC.
+    expect(retryAfter(refused)).toBe(6 * HOUR_S);
+    expect(refused.headers.get('Access-Control-Expose-Headers')).toBe('Retry-After');
+    expect(await startedToday()).toBe(FAMILIES_PER_DAY);
+
+    const call = await relay('/jar/call', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ fn: 'insertKid', args: [{ name: 'Ava', photoUri: null }] }),
+    });
+    expect(call.status).toBe(200);
+
+    vi.setSystemTime(new Date('2026-10-18T00:00:01Z'));
+    expect((await startFamily(nextIp())).status).toBe(201);
+    expect(await startedToday()).toBe(1);
+  });
+
+  it("doesn't count a start the check or the caller's limit turned away", async () => {
+    const ip = nextIp();
+    await reachLimit(CALLER_LIMITS.families.max, () => startFamily(ip), (status) => status === 201);
+    const failedCheck = await relay('/families', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Turnstile-Token': 'not-a-token' },
+      body: '{}',
+    });
+    expect(failedCheck.status).toBe(403);
+    expect(await startedToday()).toBe(CALLER_LIMITS.families.max);
+  });
+
+  it("doesn't count a start whose body is turned away", async () => {
+    await started(3);
+    const notJson = await relay('/families', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: APP, ...from(nextIp()) },
+      body: '{',
+    });
+    expect(notJson.status).toBe(400);
+    const badJar = await relay('/families', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: APP, ...from(nextIp()) },
+      body: JSON.stringify({ jar: 'not a jar' }),
+    });
+    expect(badJar.status).toBe(400);
+    expect(await startedToday()).toBe(3);
   });
 });

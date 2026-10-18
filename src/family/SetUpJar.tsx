@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { colors, fonts, radius, shadow, spacing, typography } from '../theme';
 import { JoinFamilyForm } from './JoinFamilyForm';
+import { TurnstileCheck } from './TurnstileCheck';
 
 type Props = {
   // Start was tapped and the family is being made.
@@ -12,23 +13,43 @@ type Props = {
   // Said under the choices, such as whether an Echo Show will find its family
   // by itself next time (WJ-45).
   note?: string | null;
-  onStart: () => void;
+  // With the token of the Turnstile check (WJ-54).
+  onStart: (turnstileToken: string) => void;
   onJoined: (token: string) => void;
 };
 
 // The first screen on a device with no family jar yet (WJ-48): start the
 // family's jar here, or join the one the family already has with a code from
 // another of its devices. A phone that scanned a join code's QR code lands
-// here with the code filled in (?join=).
+// here with the code filled in (?join=). Starting a jar needs a Turnstile
+// check first (WJ-54), so a script can't start families.
 export function SetUpJar({ starting, note, onStart, onJoined }: Props) {
   const { join } = useGlobalSearchParams<{ join?: string }>();
   const [joining, setJoining] = useState(() => typeof join === 'string' && join.length > 0);
+  const [checking, setChecking] = useState(false);
 
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <View style={styles.column}>
-          {joining ? (
+          {checking ? (
+            <>
+              <Text style={styles.emoji}>✨</Text>
+              <Text style={styles.title}>One quick check</Text>
+              <Text style={styles.subtitle}>
+                So Wish Jar knows a person, not a computer program, is starting this jar.
+              </Text>
+              <TurnstileCheck
+                onToken={(token) => {
+                  setChecking(false);
+                  onStart(token);
+                }}
+              />
+              <Pressable onPress={() => setChecking(false)} accessibilityRole="button" hitSlop={12}>
+                <Text style={styles.back}>‹ Back</Text>
+              </Pressable>
+            </>
+          ) : joining ? (
             <>
               <Text style={styles.emoji}>🔗</Text>
               <Text style={styles.title}>Join a family jar</Text>
@@ -57,7 +78,7 @@ export function SetUpJar({ starting, note, onStart, onJoined }: Props) {
                 title="Start a new jar"
                 text="For the family's first device. Anything already on this device comes along."
                 busy={starting}
-                onPress={onStart}
+                onPress={() => setChecking(true)}
               />
               <Choice
                 emoji="🔗"

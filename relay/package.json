@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "wrangler dev --local-upstream localhost:8787",
+    "dev": "TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY:-1x0000000000000000000000000000000AA} SIGNING_KEY=${SIGNING_KEY:-wish-jar-dev-signing-key} wrangler dev --local-upstream localhost:8787",
     "deploy": "wrangler deploy",
     "test": "vitest run",
     "typecheck": "wrangler types && tsc --noEmit"
@@ -14,6 +14,7 @@
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "1.4.3",
+    "@types/node": "^24.19.2",
     "typescript": "~6.0.3",
     "vitest": "^4.1.12",
     "wrangler": "4.151.0"

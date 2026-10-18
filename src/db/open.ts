@@ -2,7 +2,7 @@ import { getAlexaDeviceId } from '../device/alexa';
 import { onEchoShow } from '../device/host';
 import { deviceLabel } from '../device/label';
 import { addStarterTasks } from '../tasks/starter';
-import { loadDevice, saveDevice } from './device';
+import { loadDevice, saveDevice, type DeviceState } from './device';
 import { firstLaunchDone, guardFirstLaunch } from './firstLaunch';
 import {
   createFamily,
@@ -11,6 +11,7 @@ import {
   joinFamily,
   linkEchoShow,
   rejoinEchoShow,
+  signToken,
 } from './jar';
 import { readLocalJar } from './localJar';
 
@@ -26,9 +27,10 @@ import { readLocalJar } from './localJar';
 export async function openFamilyJar(): Promise<string | null> {
   const device = await loadDevice();
   if (device.token) {
+    const token = await withSignature(device, device.token);
     // A link that didn't go through earlier in this session.
-    void linkThisEchoShow(device.token);
-    return device.token;
+    void linkThisEchoShow(token);
+    return token;
   }
   const alexaDeviceId = await echoShowDeviceId();
   if (!alexaDeviceId) return null;
@@ -37,6 +39,22 @@ export async function openFamilyJar(): Promise<string | null> {
   await saveDevice({ token: rejoined.token, activeKidId: null });
   markLinked(rejoined.token);
   return rejoined.token;
+}
+
+// A token from before WJ-55 has no signature, and the relay takes it only
+// until a cut-off date (relay/src/signing.ts): it's swapped here for this
+// device's signed token, kept from then on. Tried at every launch until it
+// works, with a short timeout (signToken); meanwhile the old token still opens
+// the jar.
+async function withSignature(device: DeviceState, token: string): Promise<string> {
+  if (token.split('.').length !== 2) return token;
+  try {
+    const signed = await signToken(token);
+    await saveDevice({ ...device, token: signed.token });
+    return signed.token;
+  } catch {
+    return token;
+  }
 }
 
 // What the setup screen tells the person setting up an Echo Show, once
@@ -116,8 +134,9 @@ async function linkThisEchoShow(token: string): Promise<void> {
 // before (localJar.ts) goes up with it, and stays on the device untouched;
 // the device only switches to the family jar once the token is kept, so a
 // failure anywhere leaves it as it was, to try again. A device that had no jar
-// gets a fresh family with the starter tasks.
-export async function startFamilyJar(): Promise<string> {
+// gets a fresh family with the starter tasks. `turnstileToken` is from the
+// Turnstile check on the setup screen (WJ-54); it works once.
+export async function startFamilyJar(turnstileToken: string): Promise<string> {
   const device = await loadDevice();
   if (device.token) return device.token;
 
@@ -128,7 +147,7 @@ export async function startFamilyJar(): Promise<string> {
 
     const local = await readLocalJar();
     if (local) {
-      const { token } = await createFamily(deviceLabel(), local.jar);
+      const { token } = await createFamily(deviceLabel(), turnstileToken, local.jar);
       await saveDevice({ token, activeKidId: local.activeKidId });
       firstLaunchDone();
       await linkThisEchoShow(token);
@@ -138,7 +157,7 @@ export async function startFamilyJar(): Promise<string> {
     // The starter tasks go in before the token is kept: a family left
     // half-filled by a lost connection is never opened again, and the next
     // try starts a whole new one rather than adding the list twice.
-    const { token } = await createFamily(deviceLabel());
+    const { token } = await createFamily(deviceLabel(), turnstileToken);
     await addStarterTasks(createJarClient(token));
     await saveDevice({ token, activeKidId: null });
     firstLaunchDone();

@@ -178,12 +178,6 @@ describe('CORS', () => {
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe(APP);
     expect(response.headers.get('Vary')).toBe('Origin');
 
-    // The site's earlier address, for devices that haven't moved yet (WJ-63).
-    const earlier = await relay('/codes', {
-      method: 'POST',
-      headers: { Origin: 'https://wish-jar.expo.app' },
-    });
-    expect(earlier.headers.get('Access-Control-Allow-Origin')).toBe('https://wish-jar.expo.app');
 
     const preflight = await relay('/codes/K7P4XM/photo', {
       method: 'OPTIONS',

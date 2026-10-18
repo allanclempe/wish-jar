@@ -1,22 +1,47 @@
+import { waitHeaders } from './CallerLimits';
 import { randomToken } from './codes';
 import { forgetPhotos, photoBase } from './familyPhotos';
 import type { JarOutcome } from './FamilyJar';
+import { giveBackFamilyStart, takeFamilyStart } from './FamilyStarts';
 import { readCapped, type Reply } from './http';
 import type { CreateFamilyReply } from './jar/api';
 import { MAX_CALL_BYTES, MAX_IMPORT_BYTES } from './jar/limits';
+import { deviceSignature, deviceSignatureOk, unsignedAllowed } from './signing';
 
 // Kept out of src/index.ts, like src/codes.ts: a Worker's main module may only
 // export handlers and classes.
 
-// randomToken's 32 bytes in URL-safe Base64.
+// randomToken's 32 bytes in URL-safe Base64, and an HMAC's too.
 const PART = '[A-Za-z0-9_-]{43}';
-const DEVICE_TOKEN = new RegExp(`^Bearer (${PART})\\.(${PART})$`);
+const DEVICE_TOKEN = new RegExp(`^Bearer (${PART})\\.(${PART})(?:\\.(\\d{1,15})\\.(${PART}))?$`);
 
-// A device's token is "<familyId>.<secret>": the family id says which jar to
-// open, and the jar checks the secret against the hashes it keeps.
-export function parseDeviceToken(header: string | null): { familyId: string; secret: string } | null {
+export type DeviceToken = { familyId: string; secret: string; signed: boolean };
+
+// A device's token is "<familyId>.<secret>.<deviceId>.<signature>": the
+// family id says which jar to open, and the jar checks the secret against the
+// hashes it keeps. The signature (WJ-55, src/signing.ts), over the family id
+// and the device's id, is checked first, so a made-up token is turned away
+// (null, send the 401) without waking any jar. A token from before WJ-55 is
+// only "<familyId>.<secret>": taken until UNSIGNED_UNTIL, and swapped for a
+// signed one by POST /devices/token, which takes it after the cut-off too
+// (`unsignedOk`).
+export function parseDeviceToken(
+  header: string | null,
+  env: Env,
+  unsignedOk = unsignedAllowed(),
+): DeviceToken | null {
   const match = header?.match(DEVICE_TOKEN);
-  return match ? { familyId: match[1], secret: match[2] } : null;
+  if (!match) return null;
+  const [, familyId, secret, deviceId, signature] = match;
+  if (signature === undefined) return unsignedOk ? { familyId, secret, signed: false } : null;
+  return deviceSignatureOk(env, familyId, Number(deviceId), signature)
+    ? { familyId, secret, signed: true }
+    : null;
+}
+
+// The token of the device with this secret and id.
+export function deviceToken(env: Env, familyId: string, secret: string, deviceId: number): string {
+  return `${familyId}.${secret}.${deviceId}.${deviceSignature(env, familyId, deviceId)}`;
 }
 
 // Which running app a call or a socket is from (WJ-50), so a change isn't sent
@@ -32,6 +57,14 @@ export function clientId(value: unknown): string | null {
 export async function createFamily(request: Request, env: Env, reply: Reply): Promise<Response> {
   const body = await readJson(request, MAX_IMPORT_BYTES, reply, true);
   if (body instanceof Response) return body;
+  // Everyone's day (WJ-57, src/FamilyStarts.ts): counted once the body is
+  // read, and given back when the jar turns the family down, so only families
+  // that start count.
+  const full = await takeFamilyStart(env);
+  if (full != null) {
+    const why = 'Wish Jar has started all the new family jars it can today: try again tomorrow';
+    return reply(why, 429, waitHeaders(full));
+  }
 
   const familyId = randomToken();
   const secret = randomToken();
@@ -41,8 +74,11 @@ export async function createFamily(request: Request, env: Env, reply: Reply): Pr
     body,
     photoBase(request, familyId),
   )) as JarOutcome;
-  if (!outcome.ok) return refuse(outcome, reply);
-  const created: CreateFamilyReply = { token: `${familyId}.${secret}`, familyId };
+  if (!outcome.ok) {
+    await giveBackFamilyStart(env);
+    return refuse(outcome, reply);
+  }
+  const created: CreateFamilyReply = { token: deviceToken(env, familyId, secret, outcome.result as number), familyId };
   return reply(JSON.stringify(created), 201, { 'Content-Type': 'application/json' });
 }
 
@@ -51,7 +87,7 @@ export async function createFamily(request: Request, env: Env, reply: Reply): Pr
 export async function callJar(request: Request, env: Env, reply: Reply): Promise<Response> {
   // Checked before the body is read, so a stranger can't make the relay read
   // megabytes.
-  const device = parseDeviceToken(request.headers.get('Authorization'));
+  const device = parseDeviceToken(request.headers.get('Authorization'), env);
   if (!device) return reply('Not a device of this family', 401, { 'WWW-Authenticate': 'Bearer' });
 
   const body = await readJson(request, MAX_CALL_BYTES, reply, false);
@@ -75,7 +111,8 @@ export async function callJar(request: Request, env: Env, reply: Reply): Promise
 }
 
 export function refuse(outcome: Extract<JarOutcome, { ok: false }>, reply: Reply): Response {
-  const headers: HeadersInit = outcome.status === 401 ? { 'WWW-Authenticate': 'Bearer' } : {};
+  const headers: HeadersInit =
+    outcome.status === 401 ? { 'WWW-Authenticate': 'Bearer' } : outcome.wait ? waitHeaders(outcome.wait) : {};
   return reply(outcome.error, outcome.status, headers);
 }
 

@@ -2,6 +2,7 @@ import { DurableObject } from 'cloudflare:workers';
 
 import type { Device, JarChange, JarTable } from './jar/api';
 import { findCall } from './jar/calls';
+import { DailyWrites } from './jar/dailyWrites';
 import { importJar } from './jar/importJar';
 import { MAX_JAR_BYTES } from './jar/limits';
 import {
@@ -11,23 +12,34 @@ import {
   moveDataPhotos,
   PHOTO_TABLES,
   photoUrl,
+  type PhotoUrls,
   readPhoto,
+  signPhotoUrls,
   type StoredPhoto,
   sweepPhotos,
 } from './jar/photos';
 import { isJar, migrateJar, STARTER_CONSEQUENCE_TYPES } from './jar/schema';
-import { all, first, insert, run } from './jar/sql';
+import { all, countingWrites, first, insert, run } from './jar/sql';
 import { id, JarError, type JarErrorStatus, label, record } from './jar/validate';
 import { clientId } from './families';
 import { LIVE_REFUSED, liveResponse, liveToken, PING, PONG, refusedSocket } from './live';
+import { photoSignature } from './signing';
 
 // What the Worker gets back: the result, or the status and why. `dropped` are
 // the photos the call deleted, for the Worker to forget too (src/familyPhotos.ts).
+// `wait` is how many seconds a 429 asks to wait.
 export type JarOutcome =
   | { ok: true; result: unknown; dropped?: string[] }
-  | { ok: false; status: JarErrorStatus; error: string };
+  | { ok: false; status: JarErrorStatus; error: string; wait?: number };
 
 const NOT_A_DEVICE: JarOutcome = { ok: false, status: 401, error: 'Not a device of this family' };
+
+// Past the family's daily budget (src/jar/dailyWrites.ts).
+const TOO_MANY_WRITES = 'Too many changes today: the jar takes more at 00:00 UTC';
+
+// A family's jar holds MAX_JAR_BYTES at most.
+const JAR_FULL = 'The jar is full: delete something first';
+const JAR_TOO_BIG = 'That jar is too big to bring online: delete some photos first';
 
 // A device's last_seen_at is only written this often, so a device that reads
 // the jar all day doesn't spend the Free plan's daily writes on it.
@@ -46,6 +58,8 @@ const RECHECK_MS = 24 * 60 * 60_000;
 
 // Set in jar_meta once the photos kept as data: URIs are in the photos table.
 const PHOTOS_MOVED = 'photos_moved';
+// Set in jar_meta once the photo URLs from before WJ-55 have their signature.
+const PHOTOS_SIGNED = 'photos_signed';
 
 // What each device's socket (WJ-50) keeps through hibernation: whose it is,
 // and the app it's from, which a change it made isn't sent back to.
@@ -61,7 +75,13 @@ function deviceTag(deviceId: number): string {
 //
 // `photoBase` is where the Worker serves this family's photos from
 // (`${origin}/photos/${familyId}/`), the start of every photo URL the jar
-// hands out.
+// hands out. The jar signs each one (WJ-55, src/signing.ts).
+//
+// create, addDevice and rejoinEchoShow, which give a device its secret, and
+// check answer with the device's id, which the Worker signs its token with.
+//
+// Its writes, removes and photo uploads count toward a daily budget (WJ-56,
+// src/jar/dailyWrites.ts), counted here as the jar is awake for them anyway.
 //
 // The family's devices keep a WebSocket open to it (WJ-50), through the
 // Hibernation API: an idle socket costs no duration, the pings the app sends
@@ -69,8 +89,11 @@ function deviceTag(deviceId: number): string {
 // to storage. After a call that changed the jar, every other socket hears
 // which tables changed.
 export class FamilyJar extends DurableObject<Env> {
-  // Whether the photos kept as data: URIs have moved (movePhotosOnce).
+  // Whether the photos kept as data: URIs have moved (movePhotosOnce), and
+  // the URLs from before WJ-55 are signed (signPhotosOnce).
   private photosMoved = false;
+  private photosSigned = false;
+  private writes = new DailyWrites(this.ctx.storage);
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -102,7 +125,7 @@ export class FamilyJar extends DurableObject<Env> {
   // GET /jar/live, from the Worker (src/live.ts): a socket for a device of the
   // family, tagged with the device so removing it can close it.
   async fetch(request: Request): Promise<Response> {
-    const token = liveToken(request);
+    const token = liveToken(request, this.env);
     const self = token && isJar(this.ctx.storage) ? this.seen(await hashSecret(token.secret)) : null;
     if (self == null) return refusedSocket();
     const [socket, server] = Object.values(new WebSocketPair());
@@ -128,10 +151,12 @@ export class FamilyJar extends DurableObject<Env> {
         migrateJar(storage);
         if (body.jar === undefined) storage.sql.exec(STARTER_CONSEQUENCE_TYPES);
         else importJar(storage, body.jar);
-        moveDataPhotos(storage, photoBase);
-        run(storage, "INSERT INTO jar_meta (key, value) VALUES (?, '1')", PHOTOS_MOVED);
-        insert(storage, 'INSERT INTO devices (secret_hash, label) VALUES (?, ?)', hash, device);
-        return null;
+        moveDataPhotos(storage, this.photoUrls(photoBase));
+        // Rolled back, so nothing is kept: a family starts no bigger than a
+        // jar may grow (WJ-57).
+        if (storage.sql.databaseSize > MAX_JAR_BYTES) throw new JarError(507, JAR_TOO_BIG);
+        run(storage, "INSERT INTO jar_meta (key, value) VALUES (?, '1'), (?, '1')", PHOTOS_MOVED, PHOTOS_SIGNED);
+        return insert(storage, 'INSERT INTO devices (secret_hash, label) VALUES (?, ?)', hash, device);
       }),
     );
     if (created.ok) await storage.setAlarm(Date.now() + UNUSED_MS);
@@ -153,23 +178,37 @@ export class FamilyJar extends DurableObject<Env> {
     const storage = this.ctx.storage;
     if (!isJar(storage) || this.seen(hash) == null) return NOT_A_DEVICE;
     this.movePhotosOnce(photoBase);
+    this.signPhotosOnce();
     let dropped: string[] = [];
     let changes: readonly JarTable[] = [];
+    const now = Date.now();
+    const counted = countingWrites(storage);
+    // Whether it's a write or a remove, and the bytes of the photos it
+    // brings as data: URIs, for the family's budget.
+    let writing = false;
+    let photoBytes = 0;
     const done = outcome(() => {
       const found = findCall(fn, args);
+      if (found.call.kind !== 'read') {
+        const wait = this.writes.wait(now);
+        if (wait != null) throw new JarError(429, TOO_MANY_WRITES, wait);
+        writing = true;
+        const sent = JSON.stringify(found.args);
+        if (sent.includes('"data:')) photoBytes = sent.length;
+      }
       if (found.call.kind === 'write' && storage.sql.databaseSize >= MAX_JAR_BYTES) {
-        throw new JarError(507, 'The jar is full: delete something first');
+        throw new JarError(507, JAR_FULL);
       }
       return storage.transactionSync(() => {
-        const result = found.call.run(storage, found.args);
-        if (found.call.leftBehind) dropped = dropPhotos(storage, found.call.leftBehind(found.args, result));
-        if (found.call.kind !== 'read' && JSON.stringify(found.args).includes('"data:')) {
-          moveDataPhotos(storage, photoBase);
-        }
+        const result = found.call.run(counted.db, found.args);
+        if (found.call.leftBehind) dropped = dropPhotos(counted.db, found.call.leftBehind(found.args, result));
+        if (photoBytes > 0) moveDataPhotos(counted.db, this.photoUrls(photoBase));
         if (found.call.changes && (found.call.changed?.(result) ?? true)) changes = found.call.changes;
         return result;
       });
     });
+    // A write that failed halfway still counts what it wrote.
+    if (writing) this.writes.add(now, counted.written(), photoBytes);
     if (done.ok) this.tell(changes, client);
     return done.ok && dropped.length > 0 ? { ...done, dropped } : done;
   }
@@ -180,11 +219,17 @@ export class FamilyJar extends DurableObject<Env> {
     const hash = await hashSecret(secret);
     const storage = this.ctx.storage;
     if (!isJar(storage) || this.seen(hash) == null) return NOT_A_DEVICE;
-    const dropped = sweepPhotos(storage, Date.now());
+    const now = Date.now();
+    const wait = this.writes.wait(now);
+    if (wait != null) return { ok: false, status: 429, error: TOO_MANY_WRITES, wait };
+    const counted = countingWrites(storage);
+    const dropped = sweepPhotos(counted.db, now);
     if (storage.sql.databaseSize + data.byteLength >= MAX_JAR_BYTES) {
-      return { ok: false, status: 507, error: 'The jar is full: delete something first' };
+      this.writes.add(now, counted.written(), 0);
+      return { ok: false, status: 507, error: JAR_FULL };
     }
-    const url = photoUrl(photoBase, addPhoto(storage, new Uint8Array(data)));
+    const url = this.photoUrls(photoBase)(addPhoto(counted.db, new Uint8Array(data)));
+    this.writes.add(now, counted.written(), data.byteLength);
     return { ok: true, result: url, dropped };
   }
 
@@ -207,11 +252,12 @@ export class FamilyJar extends DurableObject<Env> {
   }
 
   // Whether `secret` is one of the family's devices, before the Worker hands
-  // out a join code for it.
+  // out a join code for it or signs its token; the device's id.
   async check(secret: string): Promise<JarOutcome> {
     const hash = await hashSecret(secret);
-    if (!isJar(this.ctx.storage) || this.seen(hash) == null) return NOT_A_DEVICE;
-    return { ok: true, result: null };
+    const self = isJar(this.ctx.storage) ? this.seen(hash) : null;
+    if (self == null) return NOT_A_DEVICE;
+    return { ok: true, result: self };
   }
 
   // A new device, joining with a code the Worker has already claimed for this
@@ -220,10 +266,9 @@ export class FamilyJar extends DurableObject<Env> {
     const hash = await hashSecret(secret);
     const storage = this.ctx.storage;
     if (!isJar(storage)) return { ok: false, status: 410, error: 'That family jar is gone' };
-    const done = outcome(() => {
-      insert(storage, 'INSERT INTO devices (secret_hash, label) VALUES (?, ?)', hash, label(deviceLabel));
-      return null;
-    });
+    const done = outcome(() =>
+      insert(storage, 'INSERT INTO devices (secret_hash, label) VALUES (?, ?)', hash, label(deviceLabel)),
+    );
     if (done.ok) this.tell(['devices']);
     return done;
   }
@@ -272,7 +317,7 @@ export class FamilyJar extends DurableObject<Env> {
     );
     // Last session's token opens nothing now, its socket included.
     this.closeSockets(row.id);
-    return { ok: true, result: null };
+    return { ok: true, result: row.id };
   }
 
   // Every device of the family, oldest first, for a device of the family.
@@ -326,11 +371,41 @@ export class FamilyJar extends DurableObject<Env> {
     if (!first(storage, 'SELECT 1 FROM jar_meta WHERE key = ?', PHOTOS_MOVED)) {
       const moved = storage.transactionSync(() => {
         run(storage, "INSERT INTO jar_meta (key, value) VALUES (?, '1')", PHOTOS_MOVED);
-        return moveDataPhotos(storage, photoBase);
+        return moveDataPhotos(storage, this.photoUrls(photoBase));
       });
       if (moved > 0) this.tell(PHOTO_TABLES);
     }
     this.photosMoved = true;
+  }
+
+  // The photo URLs a jar from before WJ-55 keeps have no signature; they get
+  // theirs at its first call since, and the family's devices load them again,
+  // so they keep showing once unsigned URLs are turned away.
+  private signPhotosOnce(): void {
+    if (this.photosSigned) return;
+    const storage = this.ctx.storage;
+    if (!first(storage, 'SELECT 1 FROM jar_meta WHERE key = ?', PHOTOS_SIGNED)) {
+      const familyId = this.familyId();
+      const signed = storage.transactionSync(() => {
+        run(storage, "INSERT INTO jar_meta (key, value) VALUES (?, '1')", PHOTOS_SIGNED);
+        return signPhotoUrls(storage, familyId, (id) => photoSignature(this.env, familyId, id));
+      });
+      if (signed > 0) this.tell(PHOTO_TABLES);
+    }
+    this.photosSigned = true;
+  }
+
+  // New photos' URLs, signed for this family.
+  private photoUrls(photoBase: string): PhotoUrls {
+    const familyId = this.familyId();
+    return (id) => photoUrl(photoBase, id, photoSignature(this.env, familyId, id));
+  }
+
+  // The name the Worker opened the jar by (getByName) is the family id.
+  private familyId(): string {
+    const familyId = this.ctx.id.name;
+    if (!familyId) throw new Error('A family jar is opened by its family id');
+    return familyId;
   }
 
   // Tells every socket but the calling app's own which tables changed. Sent
@@ -385,6 +460,8 @@ export class FamilyJar extends DurableObject<Env> {
     // The alarm too (compatibility date 2026-02-24 and later).
     await this.ctx.storage.deleteAll();
     this.photosMoved = false;
+    this.photosSigned = false;
+    this.writes = new DailyWrites(this.ctx.storage);
     // The name it was opened by is the family id; only links to this family
     // are dropped, as a Show may have moved on to another.
     const familyId = this.ctx.id.name;
@@ -432,7 +509,9 @@ function outcome(work: () => unknown): JarOutcome {
   try {
     return { ok: true, result: work() ?? null };
   } catch (error) {
-    if (error instanceof JarError) return { ok: false, status: error.status, error: error.message };
+    if (error instanceof JarError) {
+      return { ok: false, status: error.status, error: error.message, ...(error.wait ? { wait: error.wait } : {}) };
+    }
     if (error instanceof Error && error.message.includes('SQLITE_CONSTRAINT')) {
       return { ok: false, status: 400, error: "That doesn't fit the jar" };
     }

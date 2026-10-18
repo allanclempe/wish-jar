@@ -22,6 +22,9 @@ export const JAR_URL = process.env.EXPO_PUBLIC_JAR_URL || PHOTO_RELAY_URL;
 // A frame that has just woken up may take a while to get its Wi-Fi back; past
 // this a call counts as lost rather than hanging the screen.
 const CALL_TIMEOUT_MS = 15_000;
+// Swapping a token from before WJ-55 at launch (src/db/open.ts), which waits
+// for it: short, as the old token still works meanwhile.
+const SIGN_TIMEOUT_MS = 3_000;
 // A whole jar going up, photos and all, on the first launch.
 const CREATE_TIMEOUT_MS = 60_000;
 // A photo of a few hundred KB, on a frame's slow Wi-Fi.
@@ -47,8 +50,9 @@ export class JarCallError extends Error {
   }
 
   // This internet connection did too much of something just now, such as
-  // starting families or sending photos (WJ-51): the same call will do once
-  // the wait is over (waitWords), not straight away.
+  // starting families or sending photos (WJ-51), or the family has saved all
+  // the changes it may today (WJ-56): the same call will do once the wait is
+  // over (waitWords), not straight away.
   get tooMany(): boolean {
     return this.status === 429;
   }
@@ -58,6 +62,12 @@ export class JarCallError extends Error {
   // joining a family again.
   get unknownDevice(): boolean {
     return this.status === 401;
+  }
+
+  // Starting a family: the relay turned down its Turnstile token (WJ-54),
+  // which works only once and for 5 minutes. A new check gets a new one.
+  get checkFailed(): boolean {
+    return this.status === 403;
   }
 }
 
@@ -124,10 +134,17 @@ export function createJarClient(
 
 // A new family, with this device as its first. With `jar`, the family starts
 // from this device's existing jar instead of an empty one. `label` is how the
-// family's list of devices shows this one.
-export function createFamily(label: string, jar?: JarImport): Promise<CreateFamilyReply> {
+// family's list of devices shows this one. `turnstileToken` is from the
+// Turnstile check the relay asks for (WJ-54, src/family/TurnstileCheck.tsx).
+export function createFamily(
+  label: string,
+  turnstileToken: string,
+  jar?: JarImport,
+): Promise<CreateFamilyReply> {
   const body: CreateFamilyRequest = jar ? { label, jar } : { label };
-  return request('POST', '/families', body, CREATE_TIMEOUT_MS);
+  return request('POST', '/families', body, CREATE_TIMEOUT_MS, undefined, {
+    'Turnstile-Token': turnstileToken,
+  });
 }
 
 // A token of this device's own to the family whose join code was typed
@@ -148,6 +165,13 @@ export async function rejoinEchoShow(alexaDeviceId: string): Promise<CreateFamil
     if (error instanceof JarCallError && error.status === 404) return null;
     throw error;
   }
+}
+
+// The signed token of the device whose token is from before WJ-55 (no
+// signature, "<familyId>.<secret>"): the relay takes those only until a
+// cut-off date (relay/src/signing.ts).
+export function signToken(token: string): Promise<CreateFamilyReply> {
+  return request('POST', '/devices/token', undefined, SIGN_TIMEOUT_MS, token);
 }
 
 // Lets this Echo Show, now a device of the family `token` opens, rejoin it at
@@ -196,10 +220,11 @@ export function wordsFor(seconds: number | null): string {
   return hours === 1 ? 'an hour' : `${hours} hours`;
 }
 
-// What a save screen says when a save didn't go through.
+// What a save screen says when a save didn't go through. Too many is photos
+// from this internet connection, or the family's changes for the day.
 export function saveProblem(error: unknown): string {
   if (error instanceof JarCallError && error.tooMany) {
-    return `Lots of photos went up from this internet connection just now. Wait ${waitWords(error)}, then try again.`;
+    return `Lots of changes and photos have gone into the jar lately. Wait ${waitWords(error)}, then try again.`;
   }
   return 'Something went wrong while saving. Please try again.';
 }
@@ -223,6 +248,7 @@ async function request<T>(
   body: unknown,
   timeoutMs: number,
   token?: string,
+  headers: Record<string, string> = {},
 ): Promise<T> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -233,6 +259,7 @@ async function request<T>(
       headers: {
         ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...headers,
       },
       body: body === undefined ? undefined : JSON.stringify(body),
       signal: controller.signal,

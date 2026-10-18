@@ -5,12 +5,12 @@ import { DurableObject } from 'cloudflare:workers';
 // shares the one Free account (100k requests and 100k rows written a day,
 // 5 GB of storage), so a script must not be able to use it up. A family on
 // one home connection, with several devices and a parent adding photos in a
-// burst, never gets near these. The edge rule in relay/README.md turns away
+// burst, never gets near these. The edge rules in relay/README.md turn away
 // fast floods before they reach the Worker.
 //
 // `kept` says where the count lives. 'storage' outlives the object being put
 // to sleep, for the rare things a slow script could still pile up (a new
-// family a few minutes apart is 20 MB a time); each one counted is a row
+// family a few minutes apart is 10 MB a time); each one counted is a row
 // written. 'memory' costs no writes, for the frequent ones: a caller fast
 // enough to matter keeps the object awake.
 export const CALLER_LIMITS = {
@@ -26,6 +26,9 @@ export const CALLER_LIMITS = {
   // POST /devices/join, right or wrong (wrong ones have a tighter limit of
   // their own: JoinAttempts).
   joins: { max: 20, windowMs: 60 * 60_000, kept: 'storage' },
+  // POST /devices/token with a token from before WJ-55, past the cut-off:
+  // once per device.
+  tokenSwaps: { max: 20, windowMs: 60 * 60_000, kept: 'storage' },
   // POST /devices/echo-show, at every launch of the skill on every Show.
   echoShows: { max: 60, windowMs: 60 * 60_000, kept: 'storage' },
   // POST /photos. A new family puts up the 7 starter photos at once, and a

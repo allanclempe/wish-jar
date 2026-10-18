@@ -208,14 +208,22 @@ export type JarImport = {
 
 // Each caller (by IP address) may only do so much on the endpoints anyone can
 // reach (relay/src/CallerLimits.ts): past that, 429 with Retry-After, the
-// seconds to wait. A socket to /jar/live past its limit fails to open.
+// seconds to wait. A socket to /jar/live past its limit fails to open. Each
+// family may only write so much a day (WJ-56, relay/src/jar/dailyWrites.ts):
+// past that, its writes on /jar/call and POST /photos get the same 429 until
+// 00:00 UTC; reads are always answered.
 //
 // A family no device has been seen in for 6 months deletes itself, and so does
 // one no device came back to in the week after it was made (FamilyJar.alarm);
 // its devices' tokens then open nothing (401, and 4401 on the socket).
 
-// POST /families → 201 CreateFamilyReply, 400, 413, 429
+// POST /families → 201 CreateFamilyReply, 400, 403, 413, 429, 503
+// It needs a Turnstile token in the Turnstile-Token header (WJ-54): 403
+// without a good one (a token works once), 503 when Cloudflare couldn't check.
 export type CreateFamilyRequest = { label?: string | null; jar?: JarImport };
+// `token` is the device's: Authorization: Bearer <token> on every endpoint
+// that needs a device of the family. The relay signs it (WJ-55), and turns
+// away one it didn't make with 401 (4401 on the socket).
 export type CreateFamilyReply = { token: string; familyId: string };
 
 // A family's devices (WJ-48). Each holds its own token; a parent adds one with
@@ -225,6 +233,11 @@ export type CreateFamilyReply = { token: string; familyId: string };
 //   POST   /devices/join  JoinRequest → 201 CreateFamilyReply, 400, 410, 429
 //   GET    /devices              → 200 DeviceList, 401
 //   DELETE /devices/:id          → 204, 401, 404, 409 (the device asking)
+//   POST   /devices/token        → 200 CreateFamilyReply, 401, 429
+// /devices/token swaps a token from before WJ-55, which has no signature, for
+// the device's signed one (429 when a caller swaps too many); everywhere else
+// the relay takes unsigned tokens only until a cut-off date (UNSIGNED_UNTIL in
+// relay/src/signing.ts).
 export type JoinCode = {
   // 6 letters and digits, typed on the new device.
   code: string;
@@ -258,12 +271,15 @@ export type DeviceList = { devices: Device[] };
 export type EchoShowRequest = { alexaDeviceId: string };
 
 // The family's photos (WJ-49), kept in its jar. A photo column holds the
-// photo's URL, GET /photos/<familyId>/<photo id>.jpg: the id is 32 random
-// bytes, so the URL is all an <img> needs, and it never changes (a new photo
-// gets a new URL). A photo nothing shows any more is deleted by the jar.
+// photo's URL, GET /photos/<familyId>/<photo id>.jpg?sig=<signature>: the id
+// is 32 random bytes, so the URL is all an <img> needs, and it never changes
+// (a new photo gets a new URL). The signature (WJ-55) lets the relay turn away
+// a URL it didn't make (404); URLs from before it work until the cut-off for
+// unsigned ones, and the jar signs the ones it keeps. A photo nothing shows
+// any more is deleted by the jar.
 //   POST   /photos  (device token, image/jpeg, up to 1 MB) → 201 PhotoUpload,
 //                   401, 413, 415 (not a JPEG), 429, 507 (jar full)
-//   GET    /photos/:familyId/:id.jpg → 200 the photo, 404
+//   GET    /photos/:familyId/:id.jpg?sig=… → 200 the photo, 404
 //   DELETE /photos/:familyId/:id.jpg (device token) → 204, 401, 404,
 //                   409 (something still shows it)
 export type PhotoUpload = { url: string };

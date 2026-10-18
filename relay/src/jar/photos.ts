@@ -3,14 +3,21 @@ import { MAX_JAR_PHOTO_BYTES } from './limits';
 import { all, type Db, first, run } from './sql';
 
 // The family's photos (WJ-49): one JPEG per row of the jar's own photos table,
-// shown from GET /photos/<familyId>/<id>.jpg. The id is 32 random bytes, so
-// the URL itself is the secret an <img> can carry without a token. The kids',
-// tasks', wishes' and consequence types' photo columns hold those URLs.
+// shown from GET /photos/<familyId>/<id>.jpg?sig=<signature>. The id is 32
+// random bytes, so the URL itself is the secret an <img> can carry without a
+// token; the signature (WJ-55, src/signing.ts) lets the Worker turn away a
+// made-up URL without waking the jar. The kids', tasks', wishes' and
+// consequence types' photo columns hold those URLs. URLs from before WJ-55
+// have no signature; the jar signs the ones it keeps (signPhotoUrls).
 
 const ID = '[A-Za-z0-9_-]{43}';
 export const PHOTO_ID = new RegExp(`^${ID}$`);
-// A photo's URL, from any relay address: only its id says which photo it is.
-const PHOTO_URL = new RegExp(`/photos/${ID}/(${ID})\\.jpg$`);
+// The query parameter with a photo URL's signature, an HMAC in URL-safe
+// Base64 (as long as an id).
+export const PHOTO_SIGNATURE = 'sig';
+// A photo's URL, from any relay address, signed or not: only its id says
+// which photo it is.
+const PHOTO_URL = new RegExp(`/photos/${ID}/(${ID})\\.jpg(?:\\?${PHOTO_SIGNATURE}=${ID})?$`);
 
 // Every column that may hold a photo.
 const PHOTO_COLUMNS = [
@@ -37,10 +44,14 @@ export function photoId(uri: string | null | undefined): string | null {
 }
 
 // The photo's URL, given where the family's photos are served from
-// (`${origin}/photos/${familyId}/`).
-export function photoUrl(base: string, id: string): string {
-  return `${base}${id}.jpg`;
+// (`${origin}/photos/${familyId}/`) and its signature.
+export function photoUrl(base: string, id: string, signature: string): string {
+  return `${base}${id}.jpg?${PHOTO_SIGNATURE}=${signature}`;
 }
+
+// A new photo's URL, from its id: photoUrl with the jar's signature
+// (FamilyJar.photoUrls).
+export type PhotoUrls = (id: string) => string;
 
 export function isJpeg(bytes: Uint8Array): boolean {
   return bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
@@ -58,14 +69,13 @@ export function readPhoto(db: Db, id: string): StoredPhoto | null {
   return first<StoredPhoto>(db, 'SELECT data, type FROM photos WHERE id = ?', id);
 }
 
-// Whether a kid, task, wish or consequence type still shows the photo.
-// One query per table: a Durable Object's SQLite allows few UNION terms.
+// Whether a kid, task, wish or consequence type still shows the photo, by a
+// URL signed or not: the id is 43 random characters, so it's found nowhere
+// else. One query per table: a Durable Object's SQLite allows few UNION terms.
 function inUse(db: Db, id: string): boolean {
-  const suffix = `/${id}.jpg`;
+  const name = `/${id}.jpg`;
   return PHOTO_COLUMNS.some(
-    ([table, column]) =>
-      first(db, `SELECT 1 FROM ${table} WHERE substr(${column}, -?) = ? LIMIT 1`, suffix.length, suffix) !=
-      null,
+    ([table, column]) => first(db, `SELECT 1 FROM ${table} WHERE instr(${column}, ?) > 0 LIMIT 1`, name) != null,
   );
 }
 
@@ -142,7 +152,7 @@ function fromDataUri(uri: string): { data: Uint8Array; type: string } | null {
 // before WJ-49) move into the photos table, and the rows get their URL. The
 // same picture used twice becomes one photo. One that isn't a picture the
 // browser could show is left as it is. How many rows changed.
-export function moveDataPhotos(db: Db, base: string): number {
+export function moveDataPhotos(db: Db, urls: PhotoUrls): number {
   const uris = new Set<string>();
   for (const [table, column] of PHOTO_COLUMNS) {
     for (const row of all<{ uri: string }>(db, `SELECT ${column} AS uri FROM ${table} WHERE ${column} LIKE 'data:%'`)) {
@@ -152,7 +162,29 @@ export function moveDataPhotos(db: Db, base: string): number {
   let changed = 0;
   for (const uri of uris) {
     const photo = fromDataUri(uri);
-    if (photo) changed += replacePhoto(db, uri, photoUrl(base, addPhoto(db, photo.data, photo.type)));
+    if (photo) changed += replacePhoto(db, uri, urls(addPhoto(db, photo.data, photo.type)));
+  }
+  return changed;
+}
+
+// The family's own photo URLs from before WJ-55, kept in its rows, get their
+// signature, so they still show once unsigned URLs are turned away
+// (UNSIGNED_UNTIL in src/signing.ts). A URL to another family's photo is left
+// as it is. How many rows changed.
+export function signPhotoUrls(db: Db, familyId: string, signature: (id: string) => string): number {
+  const unsigned = new RegExp(`/photos/${familyId}/(${ID})\\.jpg$`);
+  let changed = 0;
+  for (const [table, column] of PHOTO_COLUMNS) {
+    const rows = all<{ uri: string }>(
+      db,
+      `SELECT DISTINCT ${column} AS uri FROM ${table} WHERE ${column} LIKE '%.jpg'`,
+    );
+    for (const { uri } of rows) {
+      const id = uri.match(unsigned)?.[1];
+      if (!id) continue;
+      const signed = `${uri}?${PHOTO_SIGNATURE}=${signature(id)}`;
+      changed += all(db, `UPDATE ${table} SET ${column} = ? WHERE ${column} = ? RETURNING 1`, signed, uri).length;
+    }
   }
   return changed;
 }

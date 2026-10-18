@@ -1,11 +1,12 @@
 import { callerKey, takeLimit, waitHeaders } from './CallerLimits';
 import { CODE_TTL_MS, normaliseCode, randomCode, randomToken } from './codes';
-import { parseDeviceToken, readJson, refuse } from './families';
+import { deviceToken, parseDeviceToken, readJson, refuse } from './families';
 import { echoShowApi } from './echoShow';
 import type { JarOutcome } from './FamilyJar';
 import type { Reply } from './http';
 import type { CreateFamilyReply, Device, DeviceList, JoinCode } from './jar/api';
 import { JarError, label } from './jar/validate';
+import { unsignedAllowed } from './signing';
 
 // Kept out of src/index.ts, like src/codes.ts: a Worker's main module may only
 // export handlers and classes.
@@ -26,7 +27,11 @@ export async function devicesApi(request: Request, env: Env, url: URL, reply: Re
     return echoShowApi(request, env, pathname, reply);
   }
 
-  const device = parseDeviceToken(request.headers.get('Authorization'));
+  if (pathname === '/devices/token') {
+    return method === 'POST' ? signToken(request, env, reply) : useMethod('POST', reply);
+  }
+
+  const device = parseDeviceToken(request.headers.get('Authorization'), env);
   if (!device) return reply('Not a device of this family', 401, { 'WWW-Authenticate': 'Bearer' });
   const jar = env.FAMILY_JARS.getByName(device.familyId);
 
@@ -79,6 +84,27 @@ export async function devicesApi(request: Request, env: Env, url: URL, reply: Re
   return reply('Not found', 404);
 }
 
+// POST /devices/token: a signed token for this device (WJ-55), for one from
+// before the signatures: the same secret, so nothing else changes. It takes an
+// unsigned token after the cut-off too, so a device that wasn't opened until
+// then still keeps its family; those are counted per caller, as they wake the
+// jar unsigned.
+async function signToken(request: Request, env: Env, reply: Reply): Promise<Response> {
+  const device = parseDeviceToken(request.headers.get('Authorization'), env, true);
+  if (!device) return reply('Not a device of this family', 401, { 'WWW-Authenticate': 'Bearer' });
+  if (!device.signed && !unsignedAllowed()) {
+    const wait = await takeLimit(request, env, 'tokenSwaps');
+    if (wait != null) return reply('Too many tries: wait a little', 429, waitHeaders(wait));
+  }
+  const checked = (await env.FAMILY_JARS.getByName(device.familyId).check(device.secret)) as JarOutcome;
+  if (!checked.ok) return refuse(checked, reply);
+  const signed: CreateFamilyReply = {
+    token: deviceToken(env, device.familyId, device.secret, checked.result as number),
+    familyId: device.familyId,
+  };
+  return reply(JSON.stringify(signed), 200, { 'Content-Type': 'application/json' });
+}
+
 // POST /devices/join: a new device's own token, for the family whose code it
 // typed. The code works once; a caller typing wrong codes is slowed down.
 async function joinFamily(request: Request, env: Env, reply: Reply): Promise<Response> {
@@ -114,7 +140,7 @@ async function joinFamily(request: Request, env: Env, reply: Reply): Promise<Res
   const secret = randomToken();
   const outcome = (await env.FAMILY_JARS.getByName(familyId).addDevice(secret, deviceLabel)) as JarOutcome;
   if (!outcome.ok) return refuse(outcome, reply);
-  const joined: CreateFamilyReply = { token: `${familyId}.${secret}`, familyId };
+  const joined: CreateFamilyReply = { token: deviceToken(env, familyId, secret, outcome.result as number), familyId };
   return reply(JSON.stringify(joined), 201, { 'Content-Type': 'application/json' });
 }
 

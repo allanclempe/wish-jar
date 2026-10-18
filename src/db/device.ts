@@ -5,7 +5,8 @@ import { File, Paths } from 'expo-file-system';
 // clear. Losing the token loses the jar for this device: there's no recovery
 // (WJ-47), a second device (WJ-48) is the backup.
 export type DeviceState = {
-  // "<familyId>.<secret>" (relay/src/families.ts).
+  // "<familyId>.<secret>.<deviceId>.<signature>" (relay/src/families.ts), or
+  // "<familyId>.<secret>" from before WJ-55 until openFamilyJar swaps it.
   token: string | null;
   activeKidId: number | null;
 };
