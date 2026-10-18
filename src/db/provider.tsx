@@ -8,8 +8,9 @@ import {
   useSyncExternalStore,
   type PropsWithChildren,
 } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { KeyboardAwayScrollView } from '../components/KeyboardAwayScrollView';
 import { JoinFamilyForm } from '../family/JoinFamilyForm';
 import { SetUpJar } from '../family/SetUpJar';
 import { colors, fonts, radius, spacing, typography } from '../theme';
@@ -308,11 +309,7 @@ function JarUnavailable({
 // out of reach already, so there's nothing to warn about.
 function RejoinFamily({ onJoined, onBack }: { onJoined: (token: string) => void; onBack: () => void }) {
   return (
-    <ScrollView
-      style={styles.rejoin}
-      contentContainerStyle={styles.container}
-      keyboardShouldPersistTaps="handled"
-    >
+    <KeyboardAwayScrollView style={styles.rejoin} contentContainerStyle={styles.container}>
       <View style={styles.column}>
         <Text style={styles.title}>🔗 Join a family jar</Text>
         <Text style={styles.message}>
@@ -324,7 +321,7 @@ function RejoinFamily({ onJoined, onBack }: { onJoined: (token: string) => void;
           <Text style={styles.back}>‹ Back</Text>
         </Pressable>
       </View>
-    </ScrollView>
+    </KeyboardAwayScrollView>
   );
 }
 
