@@ -5,7 +5,8 @@
 # Account Settings: Read, and on the blastin.dev zone: Workers Routes: Edit,
 # DNS: Edit, Zone: Read, Zone WAF: Edit) and the variables
 # CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_ZONE_ID from the "production"
-# environment.
+# environment. The Worker's TURNSTILE_SECRET_KEY (WJ-54) is a secret there
+# too, uploaded with each deploy.
 name: Photo relay
 
 on:
@@ -65,7 +66,19 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
-      - run: pnpm run deploy
+      # The secret goes up with the version that needs it. An upload only adds
+      # or changes, so a secret gone from GitHub keeps its last value in
+      # Cloudflare; an empty one stops the deploy instead of breaking the
+      # Turnstile check.
+      - run: |
+          if [ -z "$TURNSTILE_SECRET_KEY" ]; then
+            echo '::error::TURNSTILE_SECRET_KEY is not set in the "production" environment'
+            exit 1
+          fi
+          umask 077
+          printf 'TURNSTILE_SECRET_KEY=%s\n' "$TURNSTILE_SECRET_KEY" > "$RUNNER_TEMP/relay-secrets.env"
+          pnpm run deploy --secrets-file "$RUNNER_TEMP/relay-secrets.env"
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}

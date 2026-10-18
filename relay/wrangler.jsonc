@@ -57,8 +57,9 @@
     "APP_URL": "https://wish-jar.blastin.dev"
   },
   // The Turnstile widget's secret key, which checks the token a new family
-  // brings (WJ-54): `wrangler secret put TURNSTILE_SECRET_KEY` (README.md). A
-  // deploy fails while it isn't set. `pnpm dev` and the tests use Cloudflare's
+  // brings (WJ-54): the deploy job uploads it from the "production"
+  // environment's secret in GitHub (README.md). A deploy fails while it isn't
+  // set. `pnpm dev` and the tests use Cloudflare's
   // test key, which passes the test widget's dummy token.
   //
   // SIGNING_KEY signs device tokens and photo URLs (WJ-55, src/signing.ts),

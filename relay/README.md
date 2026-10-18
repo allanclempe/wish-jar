@@ -339,7 +339,7 @@ Joining with a code and the Echo Show's rejoin don't need the check.
    | Setting | Value |
    | --- | --- |
    | Widget name | `Wish Jar: start a family` |
-   | Hostnames | `wish-jar.blastin.dev` (the site and the Echo Show), `wish-jar-api.blastin.dev` (the relay's page for the phone app), `appassets.androidplatform.net` (the frame's pages, frame/README.md), `localhost` (dev builds) |
+   | Hostnames | `wish-jar.blastin.dev` (the site and the Echo Show), `wish-jar-api.blastin.dev` (the relay's page for the phone app), `appassets.androidplatform.net` (the frame's pages, frame/README.md) |
    | Widget mode | Managed |
    | Pre-clearance | No |
 
@@ -350,6 +350,9 @@ Joining with a code and the Echo Show's rejoin don't need the check.
    `/turnstile` on to the relay (`run_worker_first` in the root
    `wrangler.jsonc`).
 
+   `localhost` isn't listed: dev builds use Cloudflare's test keys (below),
+   so the real site key only works on the addresses the app is served from.
+
 2. Put the **site key** in the `TURNSTILE_SITE_KEY` repository variable in
    GitHub (**Settings → Secrets and variables → Actions → Variables**). It
    isn't a secret. The site's build passes it to the app as
@@ -357,15 +360,13 @@ Joining with a code and the Echo Show's rejoin don't need the check.
    without it; build the frame with the same variable set
    (`frame/build.sh`). The relay's page takes the key from the app, so it's
    only set there.
-3. Give the Worker the **secret key**:
-
-   ```bash
-   cd relay
-   pnpm exec wrangler secret put TURNSTILE_SECRET_KEY
-   ```
-
-   Do this before the change is merged. `wrangler.jsonc` lists the secret as
-   required, so a deploy fails while it isn't set.
+3. Put the **secret key** in the `TURNSTILE_SECRET_KEY` secret of the
+   "production" environment in GitHub (**Settings → Environments →
+   production → Environment secrets**). The deploy job uploads it with each
+   version of the Worker (`.github/workflows/relay.yml`), and stops before
+   deploying while it's empty. To change the key, change the secret and run
+   the workflow again. Taking the secret out of GitHub doesn't take it out of
+   the Worker: an upload only adds or changes.
 
 Once the relay has the real secret, only the real site key passes. Builds of
 the app from before the check can't start a family any more (403); joining
@@ -387,8 +388,8 @@ EXPO_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA pnpm start
 
 `2x00000000000000000000AB` is the test site key that always fails, and
 `2x0000000000000000000000000000000AA` the test secret that turns every token
-down. A dev build on the real relay uses the real site key, which works on
-`localhost`.
+down. The real site key doesn't work on `localhost`, so a dev build on the
+real relay can join a family with a code but can't start one.
 
 The tests use the test secret too (`vitest.config.ts`). `test/setup.ts`
 answers for siteverify, so they need no network.
