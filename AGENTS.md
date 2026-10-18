@@ -51,6 +51,8 @@ Not on EAS Hosting any more (`wish-jar.expo.app` is retired). Both run on Cloudf
 
 Build-time values such as `EXPO_PUBLIC_TURNSTILE_SITE_KEY` come from GitHub Actions variables, not from EAS.
 
+The relay is also guarded by WAF rules on the blastin.dev zone (relay/README.md, "The edge rules"): a rate limiting rule for the endpoints that need no token, and a custom rule that blocks every path and method the relay doesn't serve. They follow the code, so keep them in step whenever you add, rename or remove a relay route (`relay/src/routes.ts`), a path the site passes on to the relay, or an endpoint that needs no token. Update the rules, their tests and the README in the same change. Once WJ-70 lands they deploy with the relay (`.github/workflows/relay.yml`); until then they're set by hand in the dashboard, so say so in the PR.
+
 ## Building with EAS
 
 Use EAS to build, sign, and submit the app in the cloud (`eas build`, `eas submit`) and to ship over-the-air updates (`eas update`) — no local Xcode or Android Studio required. Run EAS CLI as `bunx eas-cli <command>` in Bun projects, or `npx eas-cli@latest <command>` otherwise; substitute that for bare `eas` in docs examples.
