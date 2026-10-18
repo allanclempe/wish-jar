@@ -21,12 +21,21 @@ get a token by starting a family. Without limits, one script could take the
 relay down for everyone until 00:00 UTC, or fill its storage. There are five
 guards.
 
-### 1. The edge rule (set by hand in the dashboard)
+### 1. The edge rules (set by hand in the dashboard)
 
-A WAF rate limiting rule turns away fast floods before they reach the Worker,
-so they don't count toward the 100,000 requests. The Free plan has one rule,
-counts by IP only, and its period and duration are fixed at 10 seconds. Its
-expression can only use the URI path (no host, no method).
+Two WAF rules on the blastin.dev zone turn requests away before they reach the
+Worker, so they don't count toward the 100,000 requests: a rate limiting rule
+for fast floods, and a custom rule for the paths and methods the relay doesn't
+serve. They cover the relay's `wish-jar-api.blastin.dev`, and its paths on
+`wish-jar.blastin.dev`, which the site passes on to it (WJ-63); the
+`workers.dev` address answers almost nothing
+([below](#the-workersdev-address-wj-58)).
+
+#### The rate limiting rule
+
+The Free plan has one rate limiting rule, counts by IP only, and its period
+and duration are fixed at 10 seconds. Its expression can only use the URI path
+(no host, no method).
 
 In the dashboard, go to **blastin.dev → Security → WAF → Rate limiting rules →
 Create rule** and fill it in like this:
@@ -67,12 +76,125 @@ Why these paths and this rate:
   blastin.dev uses them. The site at `wish-jar.blastin.dev` has no page at
   any of them: it passes them on to the relay (`site/worker.js`), so the rule
   guards them there too.
-- The rule doesn't cover the `workers.dev` address (`workers_dev: true` in
-  `wrangler.jsonc`), which isn't part of the zone. The Worker's own limits
-  below apply there too.
 - A blocked call reaches Wish Jar's pages without CORS headers. The browser
   reports it as a lost connection, and the app tries again by itself a few
   seconds later.
+
+#### Paths and methods the relay doesn't serve (WJ-58)
+
+A WAF custom rule blocks every request to the relay that isn't one of its
+routes, with one of the methods it answers there. The Free
+plan has 5 custom rules, with Block and Managed Challenge among their actions,
+and no regex. Its expressions can still use the host, the method, the path and
+the query, and the `wildcard` operator (`*` is any run of characters, `/`
+included, ignoring case).
+
+The routes are `ROUTES` in `src/routes.ts`, with `OPTIONS` wherever Wish Jar's
+pages send a CORS preflight. The Worker answers 404 to any path not in the
+list, and `test/routes.test.ts` checks that the expression below is the one
+`ROUTES` makes. So a route added to the Worker but not to the list fails its
+own tests, and one added to the list but not here fails that test. When it
+fails, the test prints the new expression: put it here and in the dashboard.
+
+The relay is reached at two hosts, and the rule covers each in its own way:
+
+- **`wish-jar-api.blastin.dev`**, the relay's own address: every path.
+- **`wish-jar.blastin.dev`**, the site's since WJ-63: only the paths its
+  Worker passes on to the relay through a service binding
+  (`run_worker_first` in the root `wrangler.jsonc`, `SITE_FORWARDED_PATHS` in
+  `src/routes.ts`; the test keeps the two the same). The site's pages and
+  files are every other path, so the rule never blocks them. The service
+  binding doesn't go through the zone again, so the rules see these requests
+  once, at the site's host.
+
+`site/worker.js` passes on whatever reaches it, any method and any path under
+those globs (`/jar/anything`, `PUT /codes`), and the relay turns away what it
+doesn't serve with a 404. Without the rule each of those costs a request of
+the site's Worker and wakes the relay; with it, they're blocked at the edge
+like the same requests at the relay's own address.
+
+In the dashboard, go to **blastin.dev → Security → WAF → Custom rules →
+Create rule** and fill it in like this:
+
+| Setting | Value |
+| --- | --- |
+| Rule name | `Wish Jar relay: paths and methods it doesn't serve` |
+| If incoming requests match | **Edit expression**, and paste the expression below (the builder can't make its parentheses) |
+| Then take action | **Block** (Cloudflare answers 403) |
+
+```
+(http.host in {"wish-jar-api.blastin.dev" "wish-jar.blastin.dev"} and (http.host eq "wish-jar-api.blastin.dev" or http.request.uri.path wildcard "/codes" or http.request.uri.path wildcard "/codes/*" or http.request.uri.path wildcard "/families" or http.request.uri.path wildcard "/jar/*" or http.request.uri.path wildcard "/devices" or http.request.uri.path wildcard "/devices/*" or http.request.uri.path wildcard "/photos" or http.request.uri.path wildcard "/photos/*" or http.request.uri.path wildcard "/s" or http.request.uri.path wildcard "/s/*" or http.request.uri.path wildcard "/qr/*") and not ((http.request.uri.path eq "/" and http.request.method in {"GET"}) or (http.request.uri.path eq "/s" and http.request.method in {"GET"}) or (http.request.uri.path wildcard "/s/*" and http.request.method in {"GET" "POST"}) or (http.request.uri.path wildcard "/qr/*.svg" and http.request.method in {"GET"}) or (http.request.uri.path eq "/codes" and http.request.method in {"POST" "OPTIONS"}) or (http.request.uri.path wildcard "/codes/*" and http.request.method in {"GET" "DELETE" "OPTIONS"}) or (http.request.uri.path eq "/turnstile" and http.request.method in {"GET"}) or (http.request.uri.path eq "/families" and http.request.method in {"POST" "OPTIONS"}) or (http.request.uri.path eq "/jar/call" and http.request.method in {"POST" "OPTIONS"}) or (http.request.uri.path eq "/jar/live" and http.request.method in {"GET"}) or (http.request.uri.path eq "/devices" and http.request.method in {"GET" "OPTIONS"}) or (http.request.uri.path wildcard "/devices/*" and http.request.method in {"POST" "DELETE" "OPTIONS"}) or (http.request.uri.path eq "/photos" and http.request.method in {"POST" "OPTIONS"}) or (http.request.uri.path wildcard "/photos/*/*.jpg" and http.request.method in {"GET" "HEAD" "DELETE" "OPTIONS"})))
+```
+
+Why this rule and this action:
+
+- **Block, not Managed Challenge.** Nothing Wish Jar or the phone's page calls
+  matches it, so there's no person to let through, and a challenge is a page
+  that a `fetch` or a WebSocket can't solve.
+- **What it takes off the Worker's day:** scans for `/wp-login.php`, `/.env`
+  and the like, and methods the relay never answers, such as `PUT`. Floods of
+  requests that look like the app's are left to the rate limiting rule and the
+  Worker's own limits below.
+- **Query strings** (`/turnstile?sitekey=…`, `/s?code=…`,
+  `/jar/live?client=…`, `?sig=` on photo URLs) aren't matched; the Worker
+  checks them.
+- **The hosts are in the expression**, so other sites on blastin.dev aren't
+  touched. It uses 1 of the 5 custom rules, and about 1,800 of the 4,096
+  characters an expression can have.
+- **Paths are matched with `wildcard`**, which ignores case, so on the site's
+  host it may take in a case variant the site doesn't pass on (`/JAR/x`).
+  None of those is a page of the site.
+
+### The workers.dev address (WJ-58)
+
+The zone's WAF rules don't reach
+`wish-jar-photo-relay.allan-clempe.workers.dev`, which isn't part of
+blastin.dev, so a flood there would skip them. It stays on (`workers_dev:
+true` in `wrangler.jsonc`) because builds of Wish Jar made while it was
+`PHOTO_RELAY_URL` (WJ-41, until WJ-42 moved the app to `wish-jar.blastin.dev`
+in PR #75 on 2026-10-17) still call it. The frame app bundles the web export
+it was built with, so a frame built then keeps calling it until it's built
+again.
+
+Those builds only knew the photo codes. On `workers.dev` the Worker answers
+only their paths (`WORKERS_DEV_PATHS` in `src/routes.ts`), and 404 to
+everything else before any Durable Object is woken:
+
+| Who | Calls |
+| --- | --- |
+| The device | `POST /codes`, `GET /codes/:code/photo`, `DELETE /codes/:code` (with their preflights), `GET /qr/:code.svg` |
+| The parent's phone, at the address the device showed or its QR code | `GET /`, `GET /s?code=…`, `GET /s/:code`, `POST /s/:code/photo` |
+
+- **Served, not redirected** to `wish-jar-api.blastin.dev`: the device's
+  `GET /codes/:code/photo` sends a token, so the browser asks a preflight
+  first, and a preflight can't follow a redirect. The per-caller limits below
+  apply there too.
+- **No family jar** was ever reached through `workers.dev`: the app's
+  `JAR_URL` came after WJ-42. So no photo URL kept in a jar (WJ-49) starts
+  with it.
+- **A 404 there still counts** as a Worker request toward the day's 100,000,
+  but wakes nothing.
+- **Preview URLs** are `workers.dev` addresses too, each running the version of
+  the Worker it was made for, without this check. `preview_urls` is off.
+
+**Retiring it:** once no frame or phone build from before WJ-42 is in use, set
+`workers_dev` to `false` in `wrangler.jsonc`, and drop `WORKERS_DEV_PATHS` and
+`isWorkersDev` from `src/routes.ts`.
+
+### What the Origin check can't do
+
+The device endpoints check the `Origin` header against `ALLOWED_ORIGINS` in
+`wrangler.jsonc` (`corsReply` in `src/http.ts`). One of them,
+`https://appassets.androidplatform.net`, is the frame app's: its pages are
+served from there (`frame/README.md`). That origin isn't the frame's alone,
+though. It's the one Android sets aside for apps' own files, and
+WebViewAssetLoader's default, so a page in any Android app's WebView passes
+the check as the frame does. And a script or a native app can send any
+`Origin`, or none.
+
+So the Origin check only keeps other websites' pages out. What opens a
+family's jar is a device's token, signed since WJ-55 (below); what keeps one
+caller from using the relay up is the edge rules and the limits here.
 
 ### 2. Per-caller limits in the Worker
 

@@ -5,7 +5,7 @@ import { DurableObject } from 'cloudflare:workers';
 // shares the one Free account (100k requests and 100k rows written a day,
 // 5 GB of storage), so a script must not be able to use it up. A family on
 // one home connection, with several devices and a parent adding photos in a
-// burst, never gets near these. The edge rule in relay/README.md turns away
+// burst, never gets near these. The edge rules in relay/README.md turn away
 // fast floods before they reach the Worker.
 //
 // `kept` says where the count lives. 'storage' outlives the object being put

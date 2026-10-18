@@ -12,6 +12,7 @@ import { liveApi } from './live';
 import { codePage, homePage, htmlResponse } from './pages';
 import { PhotoDrop } from './PhotoDrop';
 import { qrSvg } from './qr';
+import { servedPath } from './routes';
 import { checkTurnstile, TURNSTILE_HEADER, turnstilePage } from './turnstile';
 
 export { CallerLimits, EchoShowLink, FamilyJar, FamilyStarts, JoinAttempts, JoinCode, PhotoDrop };
@@ -24,6 +25,11 @@ export default {
     const url = new URL(request.url);
     const { pathname } = url;
     const method = request.method;
+
+    // Only the paths in src/routes.ts, and on the workers.dev address only
+    // those the builds from before WJ-42 call (WJ-58): turned away before any
+    // Durable Object is woken.
+    if (!servedPath(url)) return text('Not found', 404);
 
     if (pathname === '/codes' || pathname.startsWith('/codes/')) {
       return api(request, env, url);

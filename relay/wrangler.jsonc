@@ -2,7 +2,7 @@
 // a device that can't pick one itself (WJ-41). It also hosts each family's
 // online jar, shared by the family's devices (WJ-46). Runs on the Workers Free
 // plan; relay/README.md has the limits that keep one caller from using it up
-// for every family (WJ-51), and the edge rule set in Cloudflare's dashboard.
+// for every family (WJ-51), and the edge rules set in Cloudflare's dashboard.
 // Merges to main that touch relay/ deploy it (.github/workflows/relay.yml);
 // its address is PHOTO_RELAY_URL in src/photos/phoneRelay.ts.
 {
@@ -13,12 +13,18 @@
   "observability": { "enabled": true },
   // The address parents see and type on their phone (WJ-63). The site took
   // over wish-jar.blastin.dev and passes the relay's paths there on to this
-  // Worker (site/worker.js), for photo URLs and devices still holding it. The
-  // workers.dev address stays on too. Photo URLs (WJ-49) start with
-  // the address a device called, so `pnpm dev` keeps wrangler from rewriting
-  // it to this route (--local-upstream localhost:8787; match it to --port).
+  // Worker (site/worker.js), for photo URLs and devices still holding it.
+  // Photo URLs (WJ-49) start with the address a device called, so `pnpm dev`
+  // keeps wrangler from rewriting it to this route (--local-upstream
+  // localhost:8787; match it to --port).
   "routes": [{ "pattern": "wish-jar-api.blastin.dev", "custom_domain": true }],
+  // The workers.dev address stays on for the builds from before WJ-42 that
+  // call it, but answers only their photo-code paths (WJ-58,
+  // WORKERS_DEV_PATHS in src/routes.ts): the zone's WAF rules don't reach it.
+  // Turn it off once those builds are gone. Preview URLs are workers.dev
+  // addresses too, each running an old version of the Worker, so they're off.
   "workers_dev": true,
+  "preview_urls": false,
   "durable_objects": {
     "bindings": [
       { "name": "PHOTO_DROPS", "class_name": "PhotoDrop" },
@@ -42,7 +48,8 @@
   "vars": {
     // Pages allowed to use codes and the family jar (CORS), comma-separated:
     // the site, the dev server, and the frame app's own pages
-    // (frame/README.md).
+    // (frame/README.md). A device's token, signed since WJ-55, is what opens a
+    // family's jar.
     "ALLOWED_ORIGINS": "https://wish-jar.blastin.dev,http://localhost:8081,https://appassets.androidplatform.net",
     // Where a join code's QR code sends a phone: Wish Jar with the code
     // filled in (WJ-48). `pnpm dev --var APP_URL:http://localhost:8081` for
