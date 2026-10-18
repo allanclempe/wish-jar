@@ -441,16 +441,16 @@ its family again with a code.
 
 ### Setting the signing key
 
-Give the Worker a long random key, before the change is merged:
+Put a long random key in the `SIGNING_KEY` secret of the "production"
+environment in GitHub (**Settings → Environments → production → Environment
+secrets**), for example the output of `openssl rand -base64 48`. The deploy
+job uploads it with each version of the Worker, with the Turnstile secret
+(`.github/workflows/relay.yml`), and stops before deploying while it's empty.
 
-```bash
-cd relay
-openssl rand -base64 48 | pnpm exec wrangler secret put SIGNING_KEY
-```
-
-`wrangler.jsonc` lists it as required, so a deploy fails while it isn't set.
 Keep it: a new key turns away every token and photo URL handed out under the
-old one, and every device would have to join its family again.
+old one, and every device would have to join its family again. So don't
+change the secret in GitHub unless that's what you want. Taking it out of
+GitHub doesn't take it out of the Worker: an upload only adds or changes.
 
 `pnpm dev` signs with `wish-jar-dev-signing-key` unless `SIGNING_KEY` is set in
 the environment, and the tests with the fixed key in `test/signingKey.ts`.
