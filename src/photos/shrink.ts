@@ -2,7 +2,7 @@ import { ImageManipulator, SaveFormat, type ImageResult } from 'expo-image-manip
 
 // The longest side a saved photo keeps: sharp on a big photo card (WJ-24), and
 // small enough that a screen of them draws quickly. Phone cameras shoot 3000+
-// px; photos picked on a Frameo frame arrive at 512 px and are left that size.
+// px.
 export const MAX_PHOTO_SIZE = 1024;
 const JPEG_QUALITY = 0.8;
 

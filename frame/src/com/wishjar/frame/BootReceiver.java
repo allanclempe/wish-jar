@@ -13,7 +13,7 @@ import android.util.Log;
  * Opens Wish Jar after the frame restarts. Frameo is the frame's home screen, so it is what comes
  * up, and Frameo's own boot receiver may bring it to the front again a little later. So rather than
  * starting Wish Jar once, this checks at each of CHECKS_MS and starts Wish Jar whenever it isn't in
- * front. Frameo keeps running behind it, so photos sent to the frame still arrive.
+ * front.
  *
  * The frame's firmware (Allwinner's BackgroundManagerService) only sends BOOT_COMPLETED to the apps
  * on a list built into the system image, so on this frame it never reaches Wish Jar. The storage

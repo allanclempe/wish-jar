@@ -13,14 +13,6 @@ export PATH="${JAVA_BIN}${JAVA_BIN:+:}$PATH" # d8 and apksigner run java from PA
 # Updates must be signed with the same key, or the app has to be uninstalled, which deletes its data.
 KS="${KEYSTORE:-$HOME/.android/debug.keystore}"
 VERSION_CODE="${VERSION_CODE:-$(git rev-list --count HEAD)}"
-# 1: the photo buttons pick from the photos sent to the frame with the Frameo phone app (see
-# "Photos from Frameo" in README.md). 0: the usual file picker, for a device without Frameo.
-FRAMEO_PHOTOS="${FRAMEO_PHOTOS:-1}"
-case "$FRAMEO_PHOTOS" in
-  0) FRAMEO_PHOTOS_JS=false ;;
-  1) FRAMEO_PHOTOS_JS=true ;;
-  *) echo "FRAMEO_PHOTOS must be 0 or 1" >&2; exit 1 ;;
-esac
 
 rm -rf build && mkdir -p build/res/mipmap-xxxhdpi build/gen build/classes build/apk/assets
 
@@ -37,8 +29,8 @@ if ! echo "$TWEMOJI_SHA256  $TWEMOJI" | sha256sum -c --status 2>/dev/null; then
 fi
 mkdir -p build/apk/assets/www/frame
 cp web/* "$TWEMOJI" build/apk/assets/www/frame/
-# The frame app's settings for the page (src/photos/frameo.ts), added to every page like frame.css.
-echo "window.wishJarFrame = { frameoPhotos: $FRAMEO_PHOTOS_JS };" > build/apk/assets/www/frame/config.js
+# Tells the page it runs on the frame (src/device/frame.ts), added to every page like frame.css.
+echo "window.wishJarFrame = {};" > build/apk/assets/www/frame/config.js
 
 cp ../assets/icon.png build/res/mipmap-xxxhdpi/ic_launcher.png
 "$BT/aapt2" compile --dir build/res -o build/res.zip
