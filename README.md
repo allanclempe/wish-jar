@@ -22,6 +22,9 @@ off and put some cash toward their wishes.
 This is an [Expo](https://docs.expo.dev/) / React Native app using
 [Expo Router](https://docs.expo.dev/router/introduction.md).
 
+It's a pnpm workspace: the app is in `apps/mobile`, and these run from the
+repository's root.
+
 ```bash
 pnpm install
 pnpm start        # start the dev server
@@ -35,14 +38,15 @@ uses its Tailscale address, so the QR code works from a phone on the same
 tailnet even when the machine is a VM. Set `REACT_NATIVE_PACKAGER_HOSTNAME`
 to choose another address.
 
-The family jar lives in the relay, a Cloudflare Worker in `relay/`. Starting
-a family needs a Turnstile check: [relay/README.md](./relay/README.md) says how
-to make the widget and give the Worker its secret key, and how to run both
-locally.
+The family jar lives in the API, a Cloudflare Worker in `apps/api`
+(`pnpm api` runs it locally). The jar's types, shared by the app and the API,
+are in `packages/jar`. Starting a family needs a Turnstile check:
+[apps/api/README.md](./apps/api/README.md) says how to make the widget and
+give the Worker its secret key, and how to run both locally.
 
 See [AGENTS.md](./AGENTS.md) for project conventions and commands.
 
 ## Frameo photo frame
 
 Wish Jar can also run full screen on a Frameo photo frame. See
-[frame/README.md](./frame/README.md).
+[apps/frame/README.md](./apps/frame/README.md).

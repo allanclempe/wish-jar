@@ -17,13 +17,23 @@ See [README.md](./README.md) for the full description.
 
 Expo ships breaking changes every SDK release. APIs you remember are likely renamed, moved, or removed. Before writing any code that touches an Expo, EAS, or React Native API:
 
-1. Read the major version of the `expo` package in `package.json`.
+1. Read the major version of the `expo` package in `apps/mobile/package.json`.
 2. Fetch the matching versioned docs: `https://docs.expo.dev/versions/v<major>.0.0/`
 3. For anything else, fetch https://docs.expo.dev/llms.txt — an index of all Expo docs with corrections to common LLM misconceptions. Follow its links to the specific page you need; never answer from memory.
 
+## Repository layout
+
+A pnpm workspace with one lockfile (`pnpm-workspace.yaml`, `pnpm install` at the root):
+
+- `apps/mobile` — the Expo app (`@wish-jar/mobile`), and the site's Worker that serves its web export (`wrangler.jsonc`, `site/`).
+- `apps/api` — the API (`@wish-jar/api`), the Cloudflare Worker that holds every family's jar, devices, join codes, the Echo Show link and photos. It has its own checks: `pnpm typecheck` and `pnpm test` in `apps/api`.
+- `apps/frame` — the Frameo frame's kiosk app (Java, built by `build.sh`, not part of the workspace's packages).
+- `packages/jar` — the jar API's types (`@wish-jar/jar`), shared by the app and the API.
+- `patches/` — patched dependencies, listed in `pnpm-workspace.yaml`.
+
 ## Commands
 
-Use `bunx` instead of `npx` if the project uses bun (`bun.lock` present).
+Run these in `apps/mobile`. Use `bunx` instead of `npx` if the project uses bun (`bun.lock` present).
 
 ```bash
 npx expo install <package>  # ALWAYS use instead of npm/yarn/pnpm/bun add — resolves SDK-compatible versions
@@ -38,7 +48,7 @@ Run lint and typecheck before declaring any task done.
 
 ## Navigation & Routing
 
-- Use **Expo Router** for all navigation. Routes live in `app/` — every file there is a screen, `_layout.tsx` files define navigators. Keep non-route code (components, hooks, utils) in `src/`, outside `app/`.
+- Use **Expo Router** for all navigation. Routes live in `apps/mobile/app/` — every file there is a screen, `_layout.tsx` files define navigators. Keep non-route code (components, hooks, utils) in `apps/mobile/src/`, outside `app/`.
 - Import `Link`, `router`, and `useLocalSearchParams` from `expo-router`.
 - Docs: https://docs.expo.dev/router/introduction.md
 
@@ -46,12 +56,12 @@ Run lint and typecheck before declaring any task done.
 
 Not on EAS Hosting any more (`wish-jar.expo.app` is retired). Both run on Cloudflare Workers and deploy from GitHub Actions on merge to main:
 
-- **The app** (the web export, also loaded by the Echo Show): https://wish-jar.blastin.dev, from the root `wrangler.jsonc` (`.github/workflows/site.yml`).
-- **The relay** (family jars, photos, join codes): https://wish-jar-api.blastin.dev, from `relay/` (`.github/workflows/relay.yml`).
+- **The app** (the web export, also loaded by the Echo Show and the Frameo frame): https://wish-jar.blastin.dev, from `apps/mobile/wrangler.jsonc` (`.github/workflows/site.yml`).
+- **The API** (family jars, devices, photos, join codes): https://wish-jar-api.blastin.dev, from `apps/api` (`.github/workflows/api.yml`). Its Worker is still named `wish-jar-photo-relay` from when it only carried photos (WJ-72).
 
 Build-time values such as `EXPO_PUBLIC_TURNSTILE_SITE_KEY` come from GitHub Actions variables, not from EAS.
 
-The relay is also guarded by WAF rules on the blastin.dev zone (relay/README.md, "The edge rules"): a rate limiting rule for the endpoints that need no token, and a custom rule that blocks every path and method the relay doesn't serve. They follow the code, so keep them in step whenever you add, rename or remove a relay route (`relay/src/routes.ts`), a path the site passes on to the relay, or an endpoint that needs no token. Update the rules, their tests and the README in the same change. Once WJ-70 lands they deploy with the relay (`.github/workflows/relay.yml`); until then they're set by hand in the dashboard, so say so in the PR.
+The API is also guarded by WAF rules on the blastin.dev zone (apps/api/README.md, "The edge rules"): a rate limiting rule for the endpoints that need no token, and a custom rule that blocks every path and method the API doesn't serve. They follow the code, so keep them in step whenever you add, rename or remove an API route (`apps/api/src/routes.ts`), a path the site passes on to the API, or an endpoint that needs no token. Update the rules (`apps/api/scripts/waf.ts`), their tests and the README in the same change; they deploy with the API (`.github/workflows/api.yml`).
 
 ## Building with EAS
 
@@ -75,7 +85,7 @@ Everything committed here (code comments, READMEs, commit messages, PR descripti
 
 ## Rules
 
-- If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
+- If `apps/mobile/ios/` and `apps/mobile/android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `apps/mobile/app.json` and config plugins.
 - Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
-- Every change must work on the Frameo frame (Android 6, WebView 106) as well as the Echo Show: both open the deployed site (`?host=frameo`, `?host=alexa`; `src/device/host.ts`), so a merge to main reaches them on their next load. No web APIs or syntax WebView 106 lacks without a fallback. See [frame/README.md](./frame/README.md).
+- Every change must work on the Frameo frame (Android 6, WebView 106) as well as the Echo Show: both open the deployed site (`?host=frameo`, `?host=alexa`; `apps/mobile/src/device/host.ts`), so a merge to main reaches them on their next load. No web APIs or syntax WebView 106 lacks without a fallback. See [apps/frame/README.md](./apps/frame/README.md).
 - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md

@@ -1,20 +1,24 @@
-# The web site runs on Cloudflare Workers (wrangler.jsonc, WJ-63). Pull
-# requests run its checks and the export; merges to main also deploy it. The
-# deploy job reads the same secret and variable as relay.yml, from the
-# "production" environment; the token's DNS and Workers Routes permissions on
-# the blastin.dev zone cover wish-jar.blastin.dev.
+# The web site runs on Cloudflare Workers (apps/mobile/wrangler.jsonc,
+# WJ-63). Pull requests run its checks and the export; merges to main also
+# deploy it. The deploy job reads the same secret and variable as api.yml,
+# from the "production" environment; the token's DNS and Workers Routes
+# permissions on the blastin.dev zone cover wish-jar.blastin.dev.
 name: Site
 
 on:
   pull_request:
-    paths-ignore: ['relay/**', 'frame/**', '.github/workflows/relay.yml']
+    paths-ignore: &paths-ignore ['apps/api/**', 'apps/frame/**', '.github/workflows/api.yml']
   push:
     branches: [main]
-    paths-ignore: ['relay/**', 'frame/**', '.github/workflows/relay.yml']
+    paths-ignore: *paths-ignore
   workflow_dispatch:
 
 permissions:
   contents: read
+
+defaults:
+  run:
+    working-directory: apps/mobile
 
 jobs:
   build:
@@ -28,7 +32,8 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-      - run: pnpm install --frozen-lockfile
+      # The app's packages only, not the API's.
+      - run: pnpm install --frozen-lockfile --filter @wish-jar/mobile...
       - run: pnpm exec expo lint
       - run: pnpm exec tsc --noEmit
       # The Turnstile widget's site key (src/family/turnstile.ts), a
@@ -43,7 +48,7 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: site
-          path: dist
+          path: apps/mobile/dist
           include-hidden-files: true
 
   deploy:
@@ -60,7 +65,7 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: site
-          path: dist
+          path: apps/mobile/dist
       - run: npx --yes wrangler@4.151.0 deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
