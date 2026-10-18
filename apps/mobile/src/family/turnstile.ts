@@ -8,7 +8,7 @@
 // TURNSTILE_SITE_KEY variable in GitHub Actions (.github/workflows/site.yml),
 // the frame's from the same variable in frame/build.sh. A dev build without it
 // gets Cloudflare's test key, which always passes and whose dummy token only
-// the test secret (`pnpm api`) accepts. A release build without it
+// the local API's test secret (`pnpm dev`) accepts. A release build without it
 // has no key, so the check fails rather than send a token the API rejects.
 const TEST_SITE_KEY = '1x00000000000000000000AA';
 

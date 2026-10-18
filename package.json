@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "dev": "node scripts/dev.mjs",
     "start": "pnpm --filter @wish-jar/mobile start",
     "android": "pnpm --filter @wish-jar/mobile android",
     "ios": "pnpm --filter @wish-jar/mobile ios",
