@@ -1,9 +1,11 @@
 # The photo relay (relay/, WJ-41) runs on Cloudflare Workers, apart from the
 # site (site.yml). Pull requests that touch it run its checks; merges to
-# main also deploy it. The deploy job reads the secret CLOUDFLARE_API_TOKEN
-# (Workers Scripts: Edit, Account Settings: Read, and for its addresses on the
-# blastin.dev zone: Workers Routes: Edit, DNS: Edit, Zone: Read) and
-# the variable CLOUDFLARE_ACCOUNT_ID from the "production" environment.
+# main also deploy it, its WAF rules first (relay/scripts/waf.ts, WJ-70). The
+# deploy job reads the secret CLOUDFLARE_API_TOKEN (Workers Scripts: Edit,
+# Account Settings: Read, and on the blastin.dev zone: Workers Routes: Edit,
+# DNS: Edit, Zone: Read, Zone WAF: Edit) and the variables
+# CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_ZONE_ID from the "production"
+# environment.
 name: Photo relay
 
 on:
@@ -58,6 +60,11 @@ jobs:
           cache: pnpm
           cache-dependency-path: relay/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      # Before the Worker, so a route it now serves isn't blocked at the edge.
+      - run: pnpm run waf
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
       - run: pnpm run deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

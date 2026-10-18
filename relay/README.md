@@ -21,7 +21,7 @@ get a token by starting a family. Without limits, one script could take the
 relay down for everyone until 00:00 UTC, or fill its storage. There are five
 guards.
 
-### 1. The edge rules (set by hand in the dashboard)
+### 1. The edge rules (deployed with the relay)
 
 Two WAF rules on the blastin.dev zone turn requests away before they reach the
 Worker, so they don't count toward the 100,000 requests: a rate limiting rule
@@ -31,38 +31,38 @@ serve. They cover the relay's `wish-jar-api.blastin.dev`, and its paths on
 `workers.dev` address answers only the old builds' photo-code paths
 ([below](#the-workersdev-address-wj-58)).
 
+Both are built from `src/routes.ts` by `scripts/waf.ts` (WJ-70), and every
+relay deploy writes them (`pnpm run waf`, before the Worker, in
+`.github/workflows/relay.yml`), so a change to the routes reaches the edge with
+the code. Each phase's rules belong to the whole zone, so the script writes
+only Wish Jar's rule, found by its `ref` (`wish-jar-relay-open-endpoints`,
+`wish-jar-relay-routes`), or the first time by its name, and leaves every other
+rule on blastin.dev alone. It needs, in the "production" environment, the
+`CLOUDFLARE_ZONE_ID` variable (blastin.dev's zone id) and **Zone WAF: Edit**
+on the zone for `CLOUDFLARE_API_TOKEN`. Don't edit these two rules in the
+dashboard: the next deploy puts them back as the code has them.
+
 #### The rate limiting rule
 
 The Free plan has one rate limiting rule, counts by IP only, and its period
 and duration are fixed at 10 seconds. Its expression can only use the URI path
 (no host, no method).
 
-In the dashboard, go to **blastin.dev → Security → WAF → Rate limiting rules →
-Create rule** and fill it in like this:
+The rule (`RATE_LIMITED_PATHS` and `RATE_LIMIT` in `src/routes.ts`):
 
 | Setting | Value |
 | --- | --- |
 | Rule name | `Wish Jar relay: open endpoints` |
-| If incoming requests match | Field **URI Path**, operator **is in**, values `/families`, `/codes`, `/devices/codes`, `/devices/join`, `/devices/echo-show`, `/jar/live` |
-| With the same characteristics | IP (the only choice on Free) |
-| When rate exceeds | **10** requests per **10 seconds** |
-| Then take action | **Block** (Cloudflare answers 429) |
-| For duration | **10 seconds** |
-
-The same rule as an expression (**Edit expression**):
-
-```
-(http.request.uri.path in {"/families" "/codes" "/devices/codes" "/devices/join" "/devices/echo-show" "/jar/live"})
-```
-
-If the builder has no **is in**, use one **equals** line per path, joined with
-**Or**.
+| Matches | URI path is one of `/families`, `/codes`, `/devices/codes`, `/devices/join`, `/devices/echo-show`, `/jar/live` |
+| Counted by | IP (the only choice on Free) |
+| Rate | **10** requests per **10 seconds** |
+| Action | **Block** (Cloudflare answers 429) for **10 seconds** |
 
 Why these paths and this rate:
 
-- They're the endpoints a script would loop on: starting families, asking for
-  codes, joining, the Echo Show's rejoin (none needs a token), and opening the
-  live socket, which wakes a family's jar.
+- They're the endpoints that need no token (starting families, asking for
+  codes, joining, the Echo Show's rejoin), and opening the live socket, which
+  wakes a family's jar.
 - `/codes` is matched exactly, so the device polling `/codes/:code/photo`
   every 2 seconds isn't counted. `/photos` isn't in the rule: a new family
   uploads its 7 starter photos at once.
@@ -91,10 +91,9 @@ included, ignoring case).
 
 The routes are `ROUTES` in `src/routes.ts`, with `OPTIONS` wherever Wish Jar's
 pages send a CORS preflight. The Worker answers 404 to any path not in the
-list, and `test/routes.test.ts` checks that the expression below is the one
-`ROUTES` makes. So a route added to the Worker but not to the list fails its
-own tests, and one added to the list but not here fails that test. When it
-fails, the test prints the new expression: put it here and in the dashboard.
+list, so a route added to the Worker but not to the list fails its own tests;
+the rule's expression is made from the list (`blockExpression`), and
+`test/routes.test.ts` checks what it lets through.
 
 The relay is reached at two hosts, and the rule covers each in its own way:
 
@@ -113,18 +112,8 @@ doesn't serve with a 404. Without the rule each of those costs a request of
 the site's Worker and wakes the relay; with it, they're blocked at the edge
 like the same requests at the relay's own address.
 
-In the dashboard, go to **blastin.dev → Security → WAF → Custom rules →
-Create rule** and fill it in like this:
-
-| Setting | Value |
-| --- | --- |
-| Rule name | `Wish Jar relay: paths and methods it doesn't serve` |
-| If incoming requests match | **Edit expression**, and paste the expression below (the builder can't make its parentheses) |
-| Then take action | **Block** (Cloudflare answers 403) |
-
-```
-(http.host in {"wish-jar-api.blastin.dev" "wish-jar.blastin.dev"} and (http.host eq "wish-jar-api.blastin.dev" or http.request.uri.path wildcard "/codes" or http.request.uri.path wildcard "/codes/*" or http.request.uri.path wildcard "/families" or http.request.uri.path wildcard "/jar/*" or http.request.uri.path wildcard "/devices" or http.request.uri.path wildcard "/devices/*" or http.request.uri.path wildcard "/photos" or http.request.uri.path wildcard "/photos/*" or http.request.uri.path wildcard "/s" or http.request.uri.path wildcard "/s/*" or http.request.uri.path wildcard "/qr/*") and not ((http.request.uri.path eq "/" and http.request.method in {"GET"}) or (http.request.uri.path eq "/s" and http.request.method in {"GET"}) or (http.request.uri.path wildcard "/s/*" and http.request.method in {"GET" "POST"}) or (http.request.uri.path wildcard "/qr/*.svg" and http.request.method in {"GET"}) or (http.request.uri.path eq "/codes" and http.request.method in {"POST" "OPTIONS"}) or (http.request.uri.path wildcard "/codes/*" and http.request.method in {"GET" "DELETE" "OPTIONS"}) or (http.request.uri.path eq "/turnstile" and http.request.method in {"GET"}) or (http.request.uri.path eq "/families" and http.request.method in {"POST" "OPTIONS"}) or (http.request.uri.path eq "/jar/call" and http.request.method in {"POST" "OPTIONS"}) or (http.request.uri.path eq "/jar/live" and http.request.method in {"GET"}) or (http.request.uri.path eq "/devices" and http.request.method in {"GET" "OPTIONS"}) or (http.request.uri.path wildcard "/devices/*" and http.request.method in {"POST" "DELETE" "OPTIONS"}) or (http.request.uri.path eq "/photos" and http.request.method in {"POST" "OPTIONS"}) or (http.request.uri.path wildcard "/photos/*/*.jpg" and http.request.method in {"GET" "HEAD" "DELETE" "OPTIONS"})))
-```
+The rule is named `Wish Jar relay: paths and methods it doesn't serve`, and
+its action is **Block** (Cloudflare answers 403).
 
 Why this rule and this action:
 

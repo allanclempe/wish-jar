@@ -2,7 +2,6 @@ import { exports } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 
 import siteConfig from '../../wrangler.jsonc?raw';
-import readme from '../README.md?raw';
 import { fromSomewhere } from './caller';
 
 import {
@@ -65,13 +64,6 @@ function blocks(host: string, path: string, method: string): boolean {
 }
 
 describe('the WAF custom rule (WJ-58)', () => {
-  it('is in README.md as ROUTES makes it', () => {
-    const expression = blockExpression(RELAY_HOST, SITE_HOST);
-    // Put this in README.md and the dashboard's rule when ROUTES changes.
-    expect(readme, `README.md should have the expression:\n${expression}\n`).toContain(`\n${expression}\n`);
-    expect(expression.length).toBeLessThan(4096);
-  });
-
   it('lets every route through with every method the relay answers there', async () => {
     for (const { path, methods } of ROUTES) {
       const examples = EXAMPLES[path];
