@@ -193,8 +193,10 @@ can store well under it:
   being read, photos too, but takes nothing more. Once the family deletes
   enough to be back under, it takes writes again.
 - **New families.** `FamilyStarts` is one Durable Object counting the families
-  started in the UTC day. It's checked last, after Turnstile and the
-  per-caller limit, so only families that would start count. Past 25, `POST
+  started in the UTC day. It's checked last, after Turnstile, the
+  per-caller limit and reading the body, and a start the jar turns down
+  (a jar too big, or not valid) is given back, so only families that start
+  count. Past 25, `POST
   /families` gets **429** with `Retry-After` until 00:00 UTC, and the app says
   how long to wait. Families already started are never touched, and joining
   with a code still works.
@@ -203,11 +205,6 @@ can store well under it:
   moment were made in the last 7 days, which touch 8 UTC days:
   8 × 25 × 10 MB = 2 GB (2.1 GB in 10⁹ bytes), well under half of the 5 GB,
   leaving the rest for the families in use.
-- **What it doesn't bound.** A script that comes back to its families keeps
-  them for 6 months, like a real family. It still needs a Turnstile check for
-  each one, and starts at most 25 a day between all callers (250 MB a day), so
-  filling the other 3 GB takes it about 12 days of solving checks.
-  Cloudflare's dashboard shows storage growing long before that.
 
 ## Starting a family needs a Turnstile check (WJ-54)
 

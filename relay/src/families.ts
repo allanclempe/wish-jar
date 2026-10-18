@@ -2,6 +2,7 @@ import { waitHeaders } from './CallerLimits';
 import { randomToken } from './codes';
 import { forgetPhotos, photoBase } from './familyPhotos';
 import type { JarOutcome } from './FamilyJar';
+import { giveBackFamilyStart, takeFamilyStart } from './FamilyStarts';
 import { readCapped, type Reply } from './http';
 import type { CreateFamilyReply } from './jar/api';
 import { MAX_CALL_BYTES, MAX_IMPORT_BYTES } from './jar/limits';
@@ -56,6 +57,14 @@ export function clientId(value: unknown): string | null {
 export async function createFamily(request: Request, env: Env, reply: Reply): Promise<Response> {
   const body = await readJson(request, MAX_IMPORT_BYTES, reply, true);
   if (body instanceof Response) return body;
+  // Everyone's day (WJ-57, src/FamilyStarts.ts): counted once the body is
+  // read, and given back when the jar turns the family down, so only families
+  // that start count.
+  const full = await takeFamilyStart(env);
+  if (full != null) {
+    const why = 'Wish Jar has started all the new family jars it can today: try again tomorrow';
+    return reply(why, 429, waitHeaders(full));
+  }
 
   const familyId = randomToken();
   const secret = randomToken();
@@ -65,7 +74,10 @@ export async function createFamily(request: Request, env: Env, reply: Reply): Pr
     body,
     photoBase(request, familyId),
   )) as JarOutcome;
-  if (!outcome.ok) return refuse(outcome, reply);
+  if (!outcome.ok) {
+    await giveBackFamilyStart(env);
+    return refuse(outcome, reply);
+  }
   const created: CreateFamilyReply = { token: deviceToken(env, familyId, secret, outcome.result as number), familyId };
   return reply(JSON.stringify(created), 201, { 'Content-Type': 'application/json' });
 }

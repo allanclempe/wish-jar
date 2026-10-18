@@ -5,7 +5,7 @@ import { EchoShowLink } from './EchoShowLink';
 import { callJar, createFamily } from './families';
 import { deletePhoto, parsePhotoPath, showPhoto, uploadPhoto } from './familyPhotos';
 import { FamilyJar } from './FamilyJar';
-import { FamilyStarts, takeFamilyStart } from './FamilyStarts';
+import { FamilyStarts } from './FamilyStarts';
 import { corsReply, readCapped } from './http';
 import { JoinAttempts, JoinCode } from './JoinCode';
 import { liveApi } from './live';
@@ -180,13 +180,6 @@ async function familyApi(request: Request, env: Env, pathname: string): Promise<
   const wait = await takeLimit(request, env, 'families');
   if (wait != null) {
     return reply('Too many new family jars from here today: try again tomorrow', 429, waitHeaders(wait));
-  }
-  // Last, so only families that would start count toward everyone's day
-  // (WJ-57, src/FamilyStarts.ts).
-  const full = await takeFamilyStart(env);
-  if (full != null) {
-    const why = 'Wish Jar has started all the new family jars it can today: try again tomorrow';
-    return reply(why, 429, waitHeaders(full));
   }
   return createFamily(request, env, reply);
 }

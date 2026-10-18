@@ -300,4 +300,21 @@ describe('new families for everyone (WJ-57)', () => {
     expect(failedCheck.status).toBe(403);
     expect(await startedToday()).toBe(CALLER_LIMITS.families.max);
   });
+
+  it("doesn't count a start whose body is turned away", async () => {
+    await started(3);
+    const notJson = await relay('/families', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: APP, ...from(nextIp()) },
+      body: '{',
+    });
+    expect(notJson.status).toBe(400);
+    const badJar = await relay('/families', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: APP, ...from(nextIp()) },
+      body: JSON.stringify({ jar: 'not a jar' }),
+    });
+    expect(badJar.status).toBe(400);
+    expect(await startedToday()).toBe(3);
+  });
 });
