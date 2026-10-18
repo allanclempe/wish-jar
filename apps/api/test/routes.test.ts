@@ -86,6 +86,9 @@ describe('the WAF custom rule (WJ-58)', () => {
   it("leaves the site's own pages alone", () => {
     const pages = ['/', '/index.html', '/settings', '/kids', '/join-family', '/turnstile', '/_expo/static/js/web/entry.js'];
     for (const page of pages) expect(blocks(SITE_HOST, page, 'GET'), page).toBe(false);
+    // The Devices page shares its path with the API's GET /devices, which the
+    // site's Worker tells apart (site/worker.js, WJ-65).
+    expect(blocks(SITE_HOST, '/devices', 'GET')).toBe(false);
     // On the API's address the same paths aren't the API's.
     expect(blocks(API_HOST, '/settings', 'GET')).toBe(true);
     expect(blocks(API_HOST, '/', 'GET')).toBe(false);

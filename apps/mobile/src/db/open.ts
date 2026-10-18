@@ -14,6 +14,7 @@ import {
   rejoinEchoShow,
   signToken,
 } from './jar';
+import { listKids } from './kids';
 import { readLocalJar } from './localJar';
 
 // The token of this device's family, or null when it has none yet: then the
@@ -178,10 +179,12 @@ export async function startFamilyJar(turnstileToken: string): Promise<string> {
 // device's own. Whatever jar this device had before stays behind: the jar it
 // kept on the device (never uploaded), or the family jar it was in, whose
 // token is dropped here. Nothing is merged. An Echo Show rejoins this family
-// from now on (WJ-45).
+// from now on (WJ-45). The family's first kid starts out picked, so the device
+// opens on their tasks rather than the welcome screen.
 export async function joinFamilyJar(code: string): Promise<string> {
   const { token } = await joinFamily(code, deviceLabel());
-  await saveDevice({ token, activeKidId: null });
+  const kids = await listKids(createJarClient(token)).catch(() => []);
+  await saveDevice({ token, activeKidId: kids[0]?.id ?? null });
   firstLaunchDone();
   await linkThisEchoShow(token);
   return token;
