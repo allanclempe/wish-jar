@@ -3,7 +3,14 @@ import { describe, expect, it } from 'vitest';
 
 import { CALLER_LIMITS } from '../src/CallerLimits';
 import { fromSomewhere } from './caller';
-import { CLOUDFLARE_DOWN_TOKEN, CLOUDFLARE_ERROR_TOKEN, siteverifyCalls, USED_TOKEN } from './setup';
+import {
+  CLOUDFLARE_DOWN_TOKEN,
+  CLOUDFLARE_ERROR_TOKEN,
+  OTHER_PAGE_TOKEN,
+  SITE_TOKEN,
+  siteverifyCalls,
+  USED_TOKEN,
+} from './setup';
 import { DUMMY_TOKEN, TEST_SECRET_KEY } from './turnstileKeys';
 
 const BASE = 'https://relay.example';
@@ -52,6 +59,12 @@ describe('starting a family (WJ-54)', () => {
     expect((await startFamily('not-a-real-token')).status).toBe(403);
     expect((await startFamily(USED_TOKEN)).status).toBe(403);
     expect(siteverifyCalls).toHaveLength(2);
+  });
+
+  it("passes a token from the site's widget, and turns one from another page away (WJ-69)", async () => {
+    expect((await startFamily(SITE_TOKEN)).status).toBe(201);
+    // Any Android app's own pages are on appassets.androidplatform.net.
+    expect((await startFamily(OTHER_PAGE_TOKEN)).status).toBe(403);
   });
 
   it("turns away a token longer than any of Cloudflare's, without asking it", async () => {

@@ -11,7 +11,6 @@ import {
   useFamilyJar,
   useJarVersion,
 } from '../src/db';
-import { currentTimeZone, onFrame, timeZoneName } from '../src/device/frame';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
 import { useSound } from '../src/sound/SoundProvider';
 import { colors, fonts, radius, shadow, spacing, typography } from '../src/theme';
@@ -85,12 +84,10 @@ export default function SettingsScreen() {
   const [wishCount, setWishCount] = useState(0);
   const [consequenceCount, setConsequenceCount] = useState(0);
   const [deviceCount, setDeviceCount] = useState<number | null>(null);
-  const [timeZone, setTimeZone] = useState(currentTimeZone);
 
   useFocusEffect(
     useCallback(() => {
       let cancelled = false;
-      setTimeZone(currentTimeZone());
       Promise.all([listTasks(jar), listWishes(jar), listConsequenceTypes(jar)]).then(
         ([tasks, wishes, consequenceTypes]) => {
           if (cancelled) return;
@@ -166,14 +163,6 @@ export default function SettingsScreen() {
           subtitle="The code that opens this page"
           onPress={() => router.push('/change-pin')}
         />
-        {onFrame ? (
-          <MenuItem
-            emoji="🕰️"
-            title="Timezone"
-            subtitle={timeZoneName(timeZone)}
-            onPress={() => router.push('/timezone')}
-          />
-        ) : null}
       </View>
     </ScrollScreen>
   );

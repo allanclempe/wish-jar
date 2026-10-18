@@ -9,6 +9,16 @@ import { htmlResponse } from './pages';
 export const TURNSTILE_HEADER = 'Turnstile-Token';
 
 const SITEVERIFY = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+// Where the widget may have run (WJ-69): the site, which the Echo Show and the
+// Frameo frame open too, and this relay's page for the phone app. The widget's
+// own list of hostnames (README.md) says the same; siteverify's hostname is
+// checked as well, in case that list ever lets in more.
+const WIDGET_HOSTNAMES = ['wish-jar.blastin.dev', 'wish-jar-api.blastin.dev'];
+// Cloudflare's test secrets (1x…AA passes, 2x…AA fails, 3x…AA says spent)
+// answer for any page with this hostname, so `pnpm dev` and the tests still
+// pass with the test widget. Only with a test secret.
+const TEST_SECRET = /^[123]x0+AA$/;
+const TEST_HOSTNAME = 'example.com';
 // Cloudflare's tokens are never longer.
 const MAX_TOKEN_LENGTH = 2048;
 // A site key goes into the page as it is, so only what one looks like.
@@ -29,7 +39,7 @@ export async function checkTurnstile(request: Request, env: Env): Promise<Turnst
   const ip = request.headers.get('CF-Connecting-IP');
   if (ip) form.set('remoteip', ip);
 
-  let outcome: { success?: unknown; 'error-codes'?: unknown };
+  let outcome: { success?: unknown; hostname?: unknown; 'error-codes'?: unknown };
   try {
     const response = await fetch(SITEVERIFY, { method: 'POST', body: form });
     if (!response.ok) return 'unavailable';
@@ -37,9 +47,15 @@ export async function checkTurnstile(request: Request, env: Env): Promise<Turnst
   } catch {
     return 'unavailable';
   }
-  if (outcome.success === true) return 'passed';
+  if (outcome.success === true) return fromWidgetHostname(outcome.hostname, env) ? 'passed' : 'failed';
   const errors = Array.isArray(outcome['error-codes']) ? outcome['error-codes'] : [];
   return errors.includes('internal-error') ? 'unavailable' : 'failed';
+}
+
+function fromWidgetHostname(hostname: unknown, env: Env): boolean {
+  if (typeof hostname !== 'string') return false;
+  if (WIDGET_HOSTNAMES.includes(hostname)) return true;
+  return hostname === TEST_HOSTNAME && TEST_SECRET.test(env.TURNSTILE_SECRET_KEY);
 }
 
 // GET /turnstile?sitekey=…: the widget on a page of its own, for the phone

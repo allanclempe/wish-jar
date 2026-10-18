@@ -57,4 +57,5 @@ branching and linking sessions.
 
 - If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
 - Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
+- Every change must work on the Frameo frame (Android 6, WebView 106) as well as the Echo Show: both open the deployed site (`?host=frameo`, `?host=alexa`; `src/device/host.ts`), so a merge to main reaches them on their next load. No web APIs or syntax WebView 106 lacks without a fallback. See [frame/README.md](./frame/README.md).
 - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md

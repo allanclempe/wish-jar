@@ -139,9 +139,9 @@ Why this rule and this action:
 The relay's `workers.dev` address stays on (`workers_dev: true` in
 `wrangler.jsonc`) because builds of Wish Jar made while it was
 `PHOTO_RELAY_URL` (WJ-41, until WJ-42 moved the app to the blastin.dev
-addresses on 2026-10-17) still call it. The frame app bundles the web export
-it was built with, so a frame built then keeps calling it until it's built
-again.
+addresses on 2026-10-17) still call it. Frame apps built before WJ-69 bundle
+the web export they were built with, so a frame built then keeps calling it
+until it gets the frame app that opens the site.
 
 Those builds only knew the photo codes, so there the Worker answers only their
 paths (`WORKERS_DEV_PATHS` in `src/routes.ts`), and 404 to everything else
@@ -339,7 +339,7 @@ Joining with a code and the Echo Show's rejoin don't need the check.
    | Setting | Value |
    | --- | --- |
    | Widget name | `Wish Jar: start a family` |
-   | Hostnames | `wish-jar.blastin.dev` (the site and the Echo Show), `wish-jar-api.blastin.dev` (the relay's page for the phone app), `appassets.androidplatform.net` (the frame's pages, frame/README.md) |
+   | Hostnames | `wish-jar.blastin.dev` (the site and the Echo Show), `wish-jar-api.blastin.dev` (the relay's page for the phone app) |
    | Widget mode | Managed |
    | Pre-clearance | No |
 
@@ -357,9 +357,9 @@ Joining with a code and the Echo Show's rejoin don't need the check.
    GitHub (**Settings → Secrets and variables → Actions → Variables**). It
    isn't a secret. The site's build passes it to the app as
    `EXPO_PUBLIC_TURNSTILE_SITE_KEY` (`.github/workflows/site.yml`) and fails
-   without it; build the frame with the same variable set
-   (`frame/build.sh`). The relay's page takes the key from the app, so it's
-   only set there.
+   without it. The Echo Show and the frame open the site, so they get it
+   from there. The relay's page takes the key from the app, so it's only set
+   there.
 3. Put the **secret key** in the `TURNSTILE_SECRET_KEY` secret of the
    "production" environment in GitHub (**Settings → Environments →
    production → Environment secrets**). The deploy job uploads it with each
@@ -371,8 +371,15 @@ Joining with a code and the Echo Show's rejoin don't need the check.
 Once the relay has the real secret, only the real site key passes. Builds of
 the app from before the check can't start a family any more (403); joining
 still works. The phone app needs a new build for `react-native-webview` (Expo
-Go has it already), and the frame app a new build so its WebView keeps
-Turnstile's cookies.
+Go has it already).
+
+A token passes only if siteverify says it came from one of those hostnames
+(`WIDGET_HOSTNAMES` in `src/turnstile.ts`, WJ-69), in case the widget's list
+ever lets in more. Until WJ-69 the frame served its own pages from
+`appassets.androidplatform.net`, which every Android app's own pages share,
+so the widget's list and `ALLOWED_ORIGINS` let in any app; neither has it now.
+Cloudflare's test secrets answer with `example.com` for every page, which
+passes only with a test secret.
 
 ### In development and tests
 

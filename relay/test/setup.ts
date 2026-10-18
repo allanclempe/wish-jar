@@ -14,12 +14,17 @@ const PURGE_API = `https://api.cloudflare.com/client/v4/zones/${TEST_PURGE_ZONE}
 export const USED_TOKEN = 'used-token';
 export const CLOUDFLARE_ERROR_TOKEN = 'cloudflare-error';
 export const CLOUDFLARE_DOWN_TOKEN = 'cloudflare-down';
+// Tokens that Cloudflare passes, but from a widget on another page: Wish Jar's
+// site, and a page that isn't Wish Jar's.
+export const SITE_TOKEN = 'site-token';
+export const OTHER_PAGE_TOKEN = 'other-page-token';
 
 // What the relay sent to siteverify, for the tests that look.
 export const siteverifyCalls: FormData[] = [];
 
 // Cloudflare's siteverify, answered here so the tests need no network. With
-// the test secret it passes the dummy token, as Cloudflare does.
+// the test secret it passes the dummy token, as Cloudflare does, with the
+// hostname Cloudflare gives every test widget.
 async function siteverify(form: FormData): Promise<Response> {
   siteverifyCalls.push(form);
   const token = form.get('response');
@@ -28,6 +33,10 @@ async function siteverify(form: FormData): Promise<Response> {
   if (token === CLOUDFLARE_ERROR_TOKEN) return reply({ success: false, 'error-codes': ['internal-error'] });
   if (form.get('secret') !== TEST_SECRET_KEY) return reply({ success: false, 'error-codes': ['invalid-input-secret'] });
   if (token === USED_TOKEN) return reply({ success: false, 'error-codes': ['timeout-or-duplicate'] });
+  if (token === SITE_TOKEN) return reply({ success: true, hostname: 'wish-jar.blastin.dev', 'error-codes': [] });
+  if (token === OTHER_PAGE_TOKEN) {
+    return reply({ success: true, hostname: 'appassets.androidplatform.net', 'error-codes': [] });
+  }
   if (token !== DUMMY_TOKEN) return reply({ success: false, 'error-codes': ['invalid-input-response'] });
   return reply({ success: true, hostname: 'example.com', 'error-codes': [] });
 }
