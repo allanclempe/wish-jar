@@ -9,11 +9,14 @@
   "compatibility_date": "2026-10-01",
   "assets": {
     "directory": "./dist",
+    // For the Devices page, whose path is also the API's (site/worker.js).
+    "binding": "ASSETS",
     // Every route has its own page. An address with no page gets index.html,
     // and Expo Router shows its not-found screen.
     "not_found_handling": "single-page-application",
     // The API's paths (apps/api/src/index.ts) on this address go to the API
-    // (site/worker.js). The site has no page at any of them.
+    // (site/worker.js). The site has no page at any of them but /devices,
+    // which the Worker serves from these assets to a browser loading it.
     "run_worker_first": [
       "/codes",
       "/codes/*",

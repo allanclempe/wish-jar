@@ -81,7 +81,7 @@ Why these paths and this rate:
   hostname of the zone, not only the API's. Check that nothing else on
   blastin.dev uses them. The site at `wish-jar.blastin.dev` has no page at
   any of them: it passes them on to the API (`apps/mobile/site/worker.js`), so the rule
-  guards them there too.
+  guards them there too. (Its Devices page, `/devices`, isn't counted.)
 - A blocked call reaches Wish Jar's pages without CORS headers. The browser
   reports it as a lost connection, and the app tries again by itself a few
   seconds later.
@@ -114,7 +114,10 @@ The API is reached at two hosts, and the rule covers each in its own way:
 
 `apps/mobile/site/worker.js` passes on whatever reaches it, any method and any path under
 those globs (`/jar/anything`, `PUT /codes`), and the API turns away what it
-doesn't serve with a 404. Without the rule each of those costs a request of
+doesn't serve with a 404. The one exception is the app's Devices page, which
+shares `/devices` with the API: a `GET` asking for HTML (a browser loading
+the page) gets the page from the site's assets instead (WJ-65). The API's
+`GET /devices` is a served route, so the rule lets both through. Without the rule each of those costs a request of
 the site's Worker and wakes the API; with it, they're blocked at the edge
 like the same requests at the API's own address.
 
