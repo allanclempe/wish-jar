@@ -8,50 +8,60 @@ import { onEchoShow } from './host';
 // `data` of its Alexa.Presentation.HTML.Start directive, as `{ deviceId }`,
 // which reaches the page as the `message` of Alexa.create().
 //
-// Alexa.create may run once per page, so the id is also kept in
-// sessionStorage for reloads within the skill session.
+// Along with it, `secret` (WJ-60): a random secret the skill keeps for this
+// Show, which proves to the relay that it's this Show and not something else
+// that learnt its id. relay/README.md has the skill's handler.
+//
+// Alexa.create may run once per page, so both are also kept in sessionStorage
+// for reloads within the skill session.
 const ALEXA_SCRIPT = 'https://cdn.html.games.alexa.a2z.com/alexa-html/latest/alexa-html.js';
 const DEVICE_ID_KEY = 'wish-jar:alexa-device-id';
+const SECRET_KEY = 'wish-jar:alexa-secret';
 const START_TIMEOUT_MS = 15_000;
 
 type AlexaStart = { alexa: unknown; message?: unknown };
 type AlexaGlobal = { create(options: { version: string }): Promise<AlexaStart> };
 
-let deviceIdPromise: Promise<string | null> | null = null;
+// `secret` is null when the skill sends none (a launch handler from before
+// WJ-60).
+export type AlexaLaunch = { deviceId: string; secret: string | null };
+
+let launchPromise: Promise<AlexaLaunch | null> | null = null;
 
 // Null off the Echo Show, or when the skill sends no device id (a launch
 // handler from before WJ-45). Rejects when Alexa doesn't answer.
-export function getAlexaDeviceId(): Promise<string | null> {
+export function getAlexaLaunch(): Promise<AlexaLaunch | null> {
   if (!onEchoShow) return Promise.resolve(null);
-  deviceIdPromise ??= readDeviceId().catch((error: unknown) => {
+  launchPromise ??= readLaunch().catch((error: unknown) => {
     // Let a retry ask again.
-    deviceIdPromise = null;
+    launchPromise = null;
     throw error;
   });
-  return deviceIdPromise;
+  return launchPromise;
 }
 
-async function readDeviceId(): Promise<string | null> {
+async function readLaunch(): Promise<AlexaLaunch | null> {
   const saved = readSaved();
   if (saved) return saved;
 
   const { message } = await withTimeout(startAlexa(), START_TIMEOUT_MS);
-  const deviceId =
-    message != null && typeof message === 'object' && 'deviceId' in message
-      ? message.deviceId
-      : null;
+  const { deviceId, secret } =
+    message != null && typeof message === 'object' ? (message as Record<string, unknown>) : {};
   if (typeof deviceId !== 'string' || !deviceId) return null;
+  const launch = { deviceId, secret: typeof secret === 'string' && secret ? secret : null };
   try {
-    sessionStorage.setItem(DEVICE_ID_KEY, deviceId);
+    sessionStorage.setItem(DEVICE_ID_KEY, launch.deviceId);
+    if (launch.secret) sessionStorage.setItem(SECRET_KEY, launch.secret);
   } catch {
     // Without sessionStorage a reload asks Alexa again.
   }
-  return deviceId;
+  return launch;
 }
 
-function readSaved(): string | null {
+function readSaved(): AlexaLaunch | null {
   try {
-    return sessionStorage.getItem(DEVICE_ID_KEY);
+    const deviceId = sessionStorage.getItem(DEVICE_ID_KEY);
+    return deviceId ? { deviceId, secret: sessionStorage.getItem(SECRET_KEY) } : null;
   } catch {
     return null;
   }

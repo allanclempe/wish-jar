@@ -265,10 +265,17 @@ export type DeviceList = { devices: Device[] };
 // skill session. Once in a family, it links its Alexa device id (32 to 512
 // characters; only a hash is kept); at every launch after that it gets a new
 // token for the same device row. Removing the device ends it.
-//   POST /devices/echo-show/link  EchoShowRequest (device token) → 204, 400, 401
+//
+// `showSecret` (WJ-60, 32 to 512 characters; only a hash is kept) is the
+// Show's own, which the Alexa skill keeps for it and hands it at launch. Once
+// the relay has one for the Show, rejoining needs it, and so does linking the
+// Show in another family. Left out by a skill that doesn't send one yet.
+//   POST /devices/echo-show/link  EchoShowRequest (device token) → 204, 400, 401,
+//                                 403 (in another family, and not its secret)
 //   POST /devices/echo-show       EchoShowRequest → 200 CreateFamilyReply, 400,
-//                                 404 (not linked, or removed from its family), 429
-export type EchoShowRequest = { alexaDeviceId: string };
+//                                 404 (not linked, removed from its family, or
+//                                 not its secret), 429
+export type EchoShowRequest = { alexaDeviceId: string; showSecret?: string };
 
 // The family's photos (WJ-49), kept in its jar. A photo column holds the
 // photo's URL, GET /photos/<familyId>/<photo id>.jpg?sig=<signature>: the id

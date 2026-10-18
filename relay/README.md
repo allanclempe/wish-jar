@@ -541,3 +541,142 @@ deploy goes ahead without them. Until they're set, a deleted photo is only
 forgotten in the data centre that deleted it, and served from the others for
 up to a day. `pnpm dev` purges nothing; the tests use a made-up token and zone (`test/purgeKeys.ts`), and
 `test/setup.ts` answers for the purge API.
+
+## The Echo Show proves it is that Show (WJ-60)
+
+The Echo Show can't keep a token (Amazon wipes its storage when the skill
+closes), so at every launch it asks `POST /devices/echo-show` for a new one
+(WJ-45). Its Alexa device id never changes, and the skill's backend and its
+logs see it, so the id alone would give anyone who learnt it a token to the
+family's jar, and let any family link the Show to itself. Now:
+
+- **The Show has a secret.** The Alexa skill keeps a random secret for each
+  Show and hands it to the page at launch with the device id, as
+  `data: { deviceId, secret }` (`src/device/alexa.ts`). The app sends it as
+  `showSecret`.
+- **Rejoining needs it.** The Show's `EchoShowLink` keeps a hash of the
+  secret (never the secret), and a rejoin with no secret or another one gets
+  **404**, as for a Show that isn't linked: the Show asks to join with a code.
+  The family's jar isn't asked, so the real Show's token and its socket are
+  left alone.
+- **Moving it to another family needs it.** `POST /devices/echo-show/link`
+  from a device of another family gets **403** unless it sends the Show's
+  secret, so a stranger with the id can't take the Show. Its own family can
+  link it again with a new secret (how the Show gets back in when the skill
+  lost its secret: join with a code), and once the family it's in no longer
+  has it (a parent removed it), any family can.
+
+### Shows linked before this, and skills that send no secret
+
+A Show linked before WJ-60 has no secret stored. Until it has one, it rejoins
+with the id alone, as before, and **the first rejoin that sends a secret
+keeps it** (trust on first use); from then on the id alone gets 404. A Show
+linked by a skill that sends no secret has none stored either.
+
+So the old way stays open for a Show until its skill sends a secret: update
+the skill as below. If the skill ever stops sending it (an older handler put
+back), the Show can't rejoin and asks for a code each time until it does.
+
+### The skill change (made by hand in the Alexa developer console)
+
+The skill isn't in this repo. In the skill's **Code** tab (an Alexa-hosted
+Node.js skill), the secret is kept with the ASK SDK's persistent attributes
+in the DynamoDB table every Alexa-hosted skill gets, which Amazon now
+recommends over S3 for persistence
+([Use Persistent Attributes in an Alexa-hosted Skill](https://developer.amazon.com/en-US/docs/alexa/hosted-skills/alexa-hosted-skills-session-persistence.html)).
+Persistent attributes are keyed by the user id by default; the secret has to
+be one per Show, so the adapter is keyed by the device id
+(`PartitionKeyGenerators.deviceId`).
+
+1. Add to `lambda/package.json`'s `dependencies`:
+
+   ```json
+   "ask-sdk-dynamodb-persistence-adapter": "^2.14.0",
+   "aws-sdk": "^2.1692.0"
+   ```
+
+2. Replace the `LaunchRequestHandler` in `lambda/index.js`, and add the
+   persistence adapter to the skill builder at the bottom:
+
+   ```js
+   const Alexa = require('ask-sdk-core');
+   const AWS = require('aws-sdk');
+   const crypto = require('crypto');
+   const ddbAdapter = require('ask-sdk-dynamodb-persistence-adapter');
+
+   // This Show's Wish Jar secret: made once, then kept in the skill's table
+   // (keyed by device id, below) and handed to Wish Jar at every launch, so
+   // its relay knows it's this Show. Null when the table can't be reached:
+   // Wish Jar then asks for a join code rather than rejoining.
+   async function wishJarSecret(attributesManager) {
+     try {
+       const attributes = await attributesManager.getPersistentAttributes();
+       if (typeof attributes.wishJarSecret !== 'string') {
+         attributes.wishJarSecret = crypto.randomBytes(32).toString('hex');
+         attributesManager.setPersistentAttributes(attributes);
+         await attributesManager.savePersistentAttributes();
+       }
+       return attributes.wishJarSecret;
+     } catch (error) {
+       console.log(`Wish Jar secret: ${error}`);
+       return null;
+     }
+   }
+
+   const LaunchRequestHandler = {
+     canHandle(handlerInput) {
+       return Alexa.getRequestType(handlerInput.requestEnvelope) === 'LaunchRequest';
+     },
+     async handle(handlerInput) {
+       const interfaces = Alexa.getSupportedInterfaces(handlerInput.requestEnvelope);
+       if (!interfaces['Alexa.Presentation.HTML']) {
+         return handlerInput.responseBuilder.speak("Sorry, this device can't show Wish Jar.").getResponse();
+       }
+       const deviceId = Alexa.getDeviceId(handlerInput.requestEnvelope);
+       const secret = await wishJarSecret(handlerInput.attributesManager);
+       return handlerInput.responseBuilder
+         .speak('Opening Wish Jar.')
+         .addDirective({
+           type: 'Alexa.Presentation.HTML.Start',
+           data: secret ? { deviceId, secret } : { deviceId },
+           request: { uri: 'https://wish-jar.blastin.dev/?host=alexa', method: 'GET' },
+           configuration: { timeoutInSeconds: 300 },
+         })
+         .getResponse();
+     },
+   };
+
+   // ...the skill's other handlers, unchanged...
+
+   exports.handler = Alexa.SkillBuilders.custom()
+     .addRequestHandlers(
+       LaunchRequestHandler,
+       // ...the other handlers already listed here...
+     )
+     .addErrorHandlers(ErrorHandler)
+     .withPersistenceAdapter(
+       new ddbAdapter.DynamoDbPersistenceAdapter({
+         tableName: process.env.DYNAMODB_PERSISTENCE_TABLE_NAME,
+         createTable: false,
+         partitionKeyGenerator: ddbAdapter.PartitionKeyGenerators.deviceId,
+         dynamoDBClient: new AWS.DynamoDB({
+           apiVersion: 'latest',
+           region: process.env.DYNAMODB_PERSISTENCE_REGION,
+         }),
+       }),
+     )
+     .lambda();
+   ```
+
+3. **Save**, then **Deploy**.
+
+The `uri` is the site's address since WJ-63, `https://wish-jar.blastin.dev/`
+(`src/device/host.ts`), in place of `https://wish-jar.expo.app`. Keep
+`?host=alexa`: it's how the page knows it's on the Show.
+
+A skill that keeps its persistent attributes in S3 instead
+(`ask-sdk-s3-persistence-adapter`, bucket `process.env.S3_PERSISTENCE_BUCKET`)
+does the same with `objectKeyGenerator: ObjectKeyGenerators.deviceId` in place
+of `partitionKeyGenerator`. Keep the secret out of the skill's logs, and don't
+reset the table: a Show whose secret is lost asks for a join code once, and
+is linked again in its family with a new secret.

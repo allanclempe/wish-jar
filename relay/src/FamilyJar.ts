@@ -295,6 +295,14 @@ export class FamilyJar extends DurableObject<Env> {
     return { ok: true, result: null };
   }
 
+  // Whether a device row here is the Echo Show whose Alexa device id hashes to
+  // `echoShowHash`, for a link from another family (echoShow.ts, WJ-60).
+  async hasEchoShow(echoShowHash: string): Promise<boolean> {
+    const storage = this.ctx.storage;
+    if (!isJar(storage)) return false;
+    return first(storage, 'SELECT id FROM devices WHERE echo_show_hash = ?', echoShowHash) != null;
+  }
+
   // A new token for the Echo Show's device row, at the start of a skill
   // session: `secret` replaces the one it had, so last session's token opens
   // nothing now. 404 when no row has the Show (a parent removed it, or the
