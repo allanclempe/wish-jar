@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
-import { Platform, ScrollView, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
+import { Platform, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+import { KeyboardAwayScrollView } from './KeyboardAwayScrollView';
 
 import { colors, contentMaxWidth, spacing, useLargeScreen } from '../theme';
 
@@ -10,17 +12,17 @@ type Props = {
 };
 
 // A screen whose content scrolls when it is taller than the screen or the
-// keyboard covers it. The header already handles the top inset.
+// keyboard covers it, and a tap beside the fields puts the keyboard away. The
+// header already handles the top inset.
 export function ScrollScreen({ children, contentContainerStyle }: Props) {
   const large = useLargeScreen();
   return (
     <SafeAreaView edges={['left', 'right', 'bottom']} style={styles.safe}>
-      <ScrollView
+      <KeyboardAwayScrollView
         style={styles.scroll}
         // flexGrow, not flex: flex pins the content to the screen's height,
         // so it never overflows and the screen can't scroll.
         contentContainerStyle={[styles.content, large && styles.contentLarge, contentContainerStyle]}
-        keyboardShouldPersistTaps="handled"
         // Not on web: React Native Web dismisses on every scroll, including the
         // browser scrolling the focused input above the keyboard, which closes it.
         keyboardDismissMode={Platform.select({ ios: 'interactive', android: 'on-drag', default: 'none' })}
@@ -29,7 +31,7 @@ export function ScrollScreen({ children, contentContainerStyle }: Props) {
         automaticallyAdjustKeyboardInsets
       >
         {children}
-      </ScrollView>
+      </KeyboardAwayScrollView>
     </SafeAreaView>
   );
 }

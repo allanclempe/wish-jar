@@ -1,8 +1,9 @@
 import { useGlobalSearchParams } from 'expo-router';
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { KeyboardAwayScrollView } from '../components/KeyboardAwayScrollView';
 import { colors, fonts, radius, shadow, spacing, typography } from '../theme';
 import { JoinFamilyForm } from './JoinFamilyForm';
 import { TurnstileCheck } from './TurnstileCheck';
@@ -30,7 +31,7 @@ export function SetUpJar({ starting, note, onStart, onJoined }: Props) {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <KeyboardAwayScrollView contentContainerStyle={styles.content}>
         <View style={styles.column}>
           {checking ? (
             <>
@@ -91,7 +92,7 @@ export function SetUpJar({ starting, note, onStart, onJoined }: Props) {
             </>
           )}
         </View>
-      </ScrollView>
+      </KeyboardAwayScrollView>
     </SafeAreaView>
   );
 }
