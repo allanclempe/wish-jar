@@ -9,7 +9,7 @@ import {
   type PointerEvent,
 } from 'react-native';
 
-import { IconBadge } from '../components/Icons';
+import { DEFAULT_KID_EMOJI, IconBadge } from '../components/Icons';
 import { ProgressBar } from '../components/ProgressBar';
 import { getKidSavings, listKids, listWishes, useFamilyJar, type Kid } from '../db';
 import type { FamilyJar } from '../db/jar';
@@ -266,7 +266,7 @@ function KidsStrip() {
     <View style={styles.strip} pointerEvents="none">
       {progress.map(({ kid, coins, wish }) => (
         <View key={kid.id} style={styles.kid}>
-          <IconBadge icon={{ emoji: kid.emoji, photoUri: kid.photoUri }} fallbackEmoji="🙂" size={56} />
+          <IconBadge icon={{ emoji: kid.emoji, photoUri: kid.photoUri }} fallbackEmoji={DEFAULT_KID_EMOJI} size={56} />
           <View style={styles.kidText}>
             <View style={styles.kidHeader}>
               <Text style={styles.name} numberOfLines={1}>

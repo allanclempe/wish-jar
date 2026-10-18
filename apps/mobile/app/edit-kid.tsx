@@ -4,7 +4,7 @@ import { Alert, Pressable, StyleSheet, Text, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { DeleteButton } from '../src/components/DeleteButton';
-import { IconPicker, KID_EMOJIS } from '../src/components/Icons';
+import { DEFAULT_KID_EMOJI, IconPicker, KID_EMOJIS } from '../src/components/Icons';
 import { ScrollScreen } from '../src/components/ScrollScreen';
 import {
   deleteKid,
@@ -94,7 +94,7 @@ export default function EditKidScreen() {
 
   return (
     <ScrollScreen>
-      <IconPicker value={icon} fallbackEmoji="🙂" onChange={setIcon} emojis={KID_EMOJIS} />
+      <IconPicker value={icon} fallbackEmoji={DEFAULT_KID_EMOJI} onChange={setIcon} emojis={KID_EMOJIS} />
 
       <Text style={styles.label}>Name</Text>
       <TextInput

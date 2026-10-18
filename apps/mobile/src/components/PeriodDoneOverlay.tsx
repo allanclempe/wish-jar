@@ -8,6 +8,7 @@ import { PERIOD_LABELS } from '../tasks/period';
 import { colors, fonts, offsetShadow, radius, spacing, typography, useLargeScreen } from '../theme';
 import { Celebration, SpringIn, Wiggle } from './Animations';
 import { CoinJar } from './CoinJar';
+import { DEFAULT_KID_EMOJI } from './Icons';
 
 type PeriodDoneOverlayProps = {
   kid: Kid;
@@ -69,7 +70,7 @@ export function PeriodDoneOverlay({ kid, period, total, coinsToday, onSeeWishes,
                   <View
                     style={[styles.photoEmpty, { width: photoSize, height: photoSize, borderRadius: photoSize / 2 }]}
                   >
-                    <Text style={{ fontSize: photoSize * 0.55 }}>{kid.emoji ?? '🙂'}</Text>
+                    <Text style={{ fontSize: photoSize * 0.55 }}>{kid.emoji ?? DEFAULT_KID_EMOJI}</Text>
                   </View>
                 )}
               </View>

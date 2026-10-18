@@ -2,7 +2,7 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, TextInput } from 'react-native';
 
-import { IconPicker, KID_EMOJIS } from '../src/components/Icons';
+import { DEFAULT_KID_EMOJI, IconPicker, KID_EMOJIS } from '../src/components/Icons';
 import { ScrollScreen } from '../src/components/ScrollScreen';
 import { discardPhoto, insertKid, saveProblem, useFamilyJar, type Icon } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
@@ -13,7 +13,7 @@ export default function AddKidScreen() {
   const jar = useFamilyJar();
   const { refreshKids } = useActiveKid();
   const [name, setName] = useState('');
-  const [icon, setIcon] = useState<Icon>({ emoji: null, photoUri: null });
+  const [icon, setIcon] = useState<Icon>({ emoji: DEFAULT_KID_EMOJI, photoUri: null });
   const [saving, setSaving] = useState(false);
 
   const canSave = name.trim().length > 0 && !saving;
@@ -36,7 +36,7 @@ export default function AddKidScreen() {
 
   return (
     <ScrollScreen>
-      <IconPicker value={icon} fallbackEmoji="🙂" onChange={setIcon} emojis={KID_EMOJIS} />
+      <IconPicker value={icon} fallbackEmoji={DEFAULT_KID_EMOJI} onChange={setIcon} emojis={KID_EMOJIS} />
 
       <Text style={styles.label}>Name</Text>
       <TextInput

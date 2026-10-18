@@ -3,6 +3,7 @@ import { Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { SpringTo, Squish } from '../components/Animations';
+import { DEFAULT_KID_EMOJI } from '../components/Icons';
 import { BonusCoinsButton, ParentLockButton } from '../parent/ParentLockButton';
 import { useSound } from '../sound/SoundProvider';
 import { useActiveKid, useSavings } from './ActiveKidProvider';
@@ -88,7 +89,7 @@ function KidAvatar({ name, photoUri, emoji, active, large, onPress }: KidAvatarP
           />
         ) : (
           <View style={[styles.avatar, large && styles.avatarLarge, styles.avatarEmpty, active && styles.avatarActive]}>
-            <Text style={[styles.avatarEmoji, large && styles.avatarEmojiLarge]}>{emoji ?? '🙂'}</Text>
+            <Text style={[styles.avatarEmoji, large && styles.avatarEmojiLarge]}>{emoji ?? DEFAULT_KID_EMOJI}</Text>
           </View>
         )}
       </SpringTo>

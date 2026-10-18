@@ -11,8 +11,10 @@ export const ICON_EMOJIS = [
   '🍦', '🍕', '🍭', '👟', '📺', '🎈', '🦄', '🚀',
 ];
 
-// A kid without a photo is a boy or a girl (WJ-74); one with neither shows 🙂.
+// A kid without a photo is a boy or a girl (WJ-74). A new kid starts as the
+// boy, and a kid saved before kids had an emoji shows him too.
 export const KID_EMOJIS = ['👦', '👧'];
+export const DEFAULT_KID_EMOJI = '👦';
 
 // What a kid did (shouting, lying, too much screen, bedtime…) and ways to make
 // it right that cost no coins: a hug, saying sorry, tidying up.
