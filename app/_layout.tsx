@@ -12,10 +12,10 @@ import { useEffect } from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { LargeHeader } from '../src/components/LargeHeader';
+import { onFrame } from '../src/device/frame';
 import { ActiveKidProvider } from '../src/kids/ActiveKidProvider';
 import { FamilyJarProvider } from '../src/db/provider';
 import { ParentLockProvider, useParentLock } from '../src/parent/ParentLockProvider';
-import { frameoPhotos } from '../src/photos/frameo';
 import { PhotoPickerProvider } from '../src/photos/PhotoPicker';
 import { IdleSlideshow } from '../src/photos/Slideshow';
 import { SoundProvider } from '../src/sound/SoundProvider';
@@ -74,7 +74,7 @@ export default function RootLayout() {
               <PhotoPickerProvider>
                 <StatusBar style="dark" />
                 <RootStack />
-                {frameoPhotos ? <IdleSlideshow /> : null}
+                {onFrame ? <IdleSlideshow /> : null}
               </PhotoPickerProvider>
             </SoundProvider>
           </ParentLockProvider>

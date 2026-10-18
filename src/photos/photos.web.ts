@@ -5,8 +5,7 @@ import { shrinkPhoto } from './shrink';
 // Puts the photo in the family jar (WJ-49), scaled down first when it is
 // bigger than a photo card needs (src/photos/shrink.ts); its URL, the same on
 // every device of the family. Works for every way a photo arrives here: a
-// picked file, a Frameo photo the frame app serves (/frameo/photos), or one
-// sent from a phone through the photo relay (a data: URI).
+// picked file, or one sent from a phone through the photo relay (a data: URI).
 export async function storePhoto(jar: FamilyJar, sourceUri: string): Promise<string> {
   const shrunk = await shrinkPhoto(sourceUri);
   try {

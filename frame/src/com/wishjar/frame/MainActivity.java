@@ -1,6 +1,5 @@
 package com.wishjar.frame;
 
-import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ActivityNotFoundException;
@@ -8,15 +7,9 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.pm.PackageManager;
-import android.graphics.Bitmap;
-import android.graphics.BitmapFactory;
-import android.graphics.Matrix;
 import android.graphics.Rect;
-import android.media.ExifInterface;
 import android.net.Uri;
 import android.os.Bundle;
-import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.Settings;
@@ -38,12 +31,9 @@ import org.json.JSONObject;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -59,10 +49,9 @@ import java.util.Map;
  * - The page is shrunk to the space above the keyboard (fitAboveKeyboard), so a focused input
  *   scrolls into view instead of hiding behind it.
  * - Hold two fingers still on the screen for 1.5 s to open the Frameo app, Android settings or reload.
- * - Photos sent to the frame with the Frameo phone app are served under /frameo/ for the page's
- *   photo picker (serveFrameo). The page uses them when /frame/config.js says so, which
- *   build.sh writes: on, unless built with FRAMEO_PHOTOS=0. The same setting turns on the page's
- *   slideshow of them while nobody is using Wish Jar.
+ * - Every page gets /frame/config.js, which build.sh writes: window.wishJarFrame tells the page
+ *   it runs on the frame (src/device/frame.ts), so photos come from a phone through the relay and
+ *   the family jar's photos show as a slideshow while nobody is using Wish Jar.
  * - The frame's timezone is looked up from its IP address until one is set, and grown-ups can
  *   change it in Settings through /device/timezone (FrameTimeZone, serveDevice). It is set again
  *   after Frameo puts back its own at boot.
@@ -76,12 +65,8 @@ public class MainActivity extends Activity {
   static final String START_URL = "https://" + HOST + "/";
   static final String FRAMEO = "net.frameo.frame";
   static final int PICK_FILE = 1;
-  static final int READ_PHOTOS = 2;
   static final long CONTROLS_HOLD_MS = 1500;
   static final float CONTROLS_SLOP_PX = 60;
-  // Where Frameo keeps the photos it receives. A .nomedia file hides them from the media index.
-  static final File FRAMEO_PHOTOS = new File(Environment.getExternalStorageDirectory(), "frameo_files/media");
-  static final int MAX_PHOTOS = 60;
   // Whether Wish Jar is in front, for BootReceiver.
   static volatile boolean resumed;
 
@@ -89,7 +74,6 @@ public class MainActivity extends Activity {
   private FrameLayout root;
   private final Rect visible = new Rect();
   private ValueCallback<Uri[]> pendingFiles;
-  private volatile boolean askingForPhotos;
   private final Handler handler = new Handler(Looper.getMainLooper());
   private final int[] holdIds = new int[2];
   private final float[] holdX = new float[2];
@@ -141,7 +125,6 @@ public class MainActivity extends Activity {
         Uri url = request.getUrl();
         if (!"https".equals(url.getScheme()) || !HOST.equals(url.getHost())) return null;
         List<String> segments = url.getPathSegments();
-        if (!segments.isEmpty() && "frameo".equals(segments.get(0))) return serveFrameo(url);
         if (!segments.isEmpty() && "device".equals(segments.get(0))) return serveDevice(request);
         return serveAsset(url.getPath());
       }
@@ -192,12 +175,6 @@ public class MainActivity extends Activity {
     if (requestCode != PICK_FILE || pendingFiles == null) return;
     pendingFiles.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data));
     pendingFiles = null;
-  }
-
-  @Override
-  public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] results) {
-    // The page's photo picker refreshes every few seconds, so it picks the answer up by itself.
-    if (requestCode == READ_PHOTOS) askingForPhotos = false;
   }
 
   /**
@@ -267,51 +244,6 @@ public class MainActivity extends Activity {
   }
 
   /**
-   * The photos sent to the frame with the Frameo phone app, for the page's photo picker
-   * (src/photos/frameo.ts):
-   *   /frameo/photos               the newest ones first, as [{"name": "…", "time": <ms>}]
-   *   /frameo/photos/<name>?size=N  one of them upright, cropped square and N px wide, as JPEG
-   *   /frameo/photos/<name>?width=W&height=H  the whole photo upright, fitted inside W x H, as
-   *                                 JPEG; with &fit=cover, filling W x H and cropped to it from
-   *                                 the middle: for the idle slideshow (src/photos/Slideshow.tsx)
-   *   POST /frameo/connect          opens Frameo to add a friend, and comes back (connectPhone)
-   * The photo routes answer 403 until Wish Jar may read shared storage. /frameo/photos?ask=1 also
-   * asks for that permission; the picker passes it when it opens, so a "Deny" isn't asked again on
-   * every refresh.
-   */
-  private WebResourceResponse serveFrameo(Uri url) {
-    List<String> segments = url.getPathSegments();
-    if (segments.size() == 2 && "connect".equals(segments.get(1))) {
-      runOnUiThread(this::connectPhone);
-      return json(200, "OK", "{\"ok\":true}");
-    }
-    boolean list = segments.size() == 2 && "photos".equals(segments.get(1));
-    boolean photo = segments.size() == 3 && "photos".equals(segments.get(1));
-    if (!list && !photo) return json(404, "Not Found", "{\"error\":\"not found\"}");
-
-    if (checkSelfPermission(Manifest.permission.READ_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
-      if (list && "1".equals(url.getQueryParameter("ask")) && !askingForPhotos) {
-        askingForPhotos = true;
-        runOnUiThread(() -> requestPermissions(
-            new String[] {Manifest.permission.READ_EXTERNAL_STORAGE}, READ_PHOTOS));
-      }
-      return json(403, "Forbidden", "{\"error\":\"permission\"}");
-    }
-    if (list) return json(200, "OK", listPhotos());
-
-    String name = segments.get(2);
-    // A name is one file straight in Frameo's folder, never a path out of it.
-    File file = name.contains("/") || name.startsWith(".") ? null : new File(FRAMEO_PHOTOS, name);
-    int width = intParameter(url, "width", 0, 64, 1920);
-    int height = intParameter(url, "height", 0, 64, 1920);
-    byte[] jpeg = file == null ? null
-        : width > 0 && height > 0 ? wholePhoto(file, width, height, "cover".equals(url.getQueryParameter("fit")))
-        : squarePhoto(file, intParameter(url, "size", 512, 64, 1024));
-    if (jpeg == null) return json(404, "Not Found", "{\"error\":\"not found\"}");
-    return new WebResourceResponse("image/jpeg", null, 200, "OK", headers(), new ByteArrayInputStream(jpeg));
-  }
-
-  /**
    * The frame's own settings, for the page's Settings (src/device/frame.ts):
    *   POST /device/timezone?zone=<IANA id>  sets the frame's timezone (FrameTimeZone.set)
    * The page reads the current timezone itself, from Intl.
@@ -328,143 +260,6 @@ public class MainActivity extends Activity {
       return json(400, "Bad Request", "{\"error\":\"could not set the timezone\"}");
     }
     return json(200, "OK", "{\"zone\":" + JSONObject.quote(zone) + "}");
-  }
-
-  /** Up to max of Frameo's photos, newest first, skipping videos and anything else that isn't an image. */
-  private static List<File> photos(int max) {
-    File[] files = FRAMEO_PHOTOS.listFiles();
-    if (files == null) files = new File[0];
-    Arrays.sort(files, (a, b) -> Long.compare(b.lastModified(), a.lastModified()));
-    List<File> photos = new ArrayList<>();
-    for (File file : files) {
-      if (photos.size() == max) break;
-      if (!file.isFile() || file.getName().startsWith(".")) continue;
-      BitmapFactory.Options bounds = new BitmapFactory.Options();
-      bounds.inJustDecodeBounds = true;
-      BitmapFactory.decodeFile(file.getPath(), bounds);
-      if (bounds.outWidth > 0) photos.add(file);
-    }
-    return photos;
-  }
-
-  /** When the newest of Frameo's photos arrived, or 0 with none (or no permission to look). */
-  static long newestPhotoTime() {
-    List<File> newest = photos(1);
-    return newest.isEmpty() ? 0 : newest.get(0).lastModified();
-  }
-
-  private static String listPhotos() {
-    StringBuilder out = new StringBuilder("[");
-    for (File file : photos(MAX_PHOTOS)) {
-      if (out.length() > 1) out.append(',');
-      out.append("{\"name\":").append(JSONObject.quote(file.getName()))
-          .append(",\"time\":").append(file.lastModified()).append('}');
-    }
-    return out.append(']').toString();
-  }
-
-  /**
-   * The photo turned upright, centre-cropped to a square and scaled down to size px, as JPEG:
-   * what the app keeps for a kid or an icon. Decoded at the smallest power-of-two sample that is
-   * still big enough, so a large photo never has to fit in memory whole.
-   */
-  private static byte[] squarePhoto(File file, int size) {
-    BitmapFactory.Options options = new BitmapFactory.Options();
-    options.inJustDecodeBounds = true;
-    BitmapFactory.decodeFile(file.getPath(), options);
-    if (options.outWidth <= 0) return null;
-    int side = Math.min(options.outWidth, options.outHeight);
-    options.inJustDecodeBounds = false;
-    options.inSampleSize = 1;
-    while (side / (options.inSampleSize * 2) >= size) options.inSampleSize *= 2;
-    Bitmap decoded = BitmapFactory.decodeFile(file.getPath(), options);
-    if (decoded == null) return null;
-
-    int crop = Math.min(decoded.getWidth(), decoded.getHeight());
-    float scale = Math.min(1f, (float) size / crop);
-    Matrix matrix = new Matrix();
-    matrix.postScale(scale, scale);
-    matrix.postRotate(exifRotation(file));
-    Bitmap square = Bitmap.createBitmap(decoded, (decoded.getWidth() - crop) / 2,
-        (decoded.getHeight() - crop) / 2, crop, crop, matrix, true);
-    ByteArrayOutputStream out = new ByteArrayOutputStream();
-    square.compress(Bitmap.CompressFormat.JPEG, 85, out);
-    if (square != decoded) square.recycle();
-    decoded.recycle();
-    return out.toByteArray();
-  }
-
-  /**
-   * The whole photo turned upright and scaled down to fit inside width x height px, as JPEG: a
-   * slideshow slide. With cover, scaled down to fill width x height instead and cropped to it
-   * from the middle. Decoded at a power-of-two sample like squarePhoto, so it never has to fit in
-   * memory at full size.
-   */
-  private static byte[] wholePhoto(File file, int width, int height, boolean cover) {
-    BitmapFactory.Options options = new BitmapFactory.Options();
-    options.inJustDecodeBounds = true;
-    BitmapFactory.decodeFile(file.getPath(), options);
-    if (options.outWidth <= 0) return null;
-    int rotation = exifRotation(file);
-    boolean sideways = rotation == 90 || rotation == 270;
-    // The box in the photo's own orientation, before it's turned upright.
-    int boxWidth = sideways ? height : width;
-    int boxHeight = sideways ? width : height;
-    float fit = Math.min(1f, pick(cover, (float) boxWidth / options.outWidth, (float) boxHeight / options.outHeight));
-    options.inJustDecodeBounds = false;
-    options.inSampleSize = 1;
-    while (fit * options.inSampleSize * 2 <= 1) options.inSampleSize *= 2;
-    Bitmap decoded = BitmapFactory.decodeFile(file.getPath(), options);
-    if (decoded == null) return null;
-
-    float scale = Math.min(1f,
-        pick(cover, (float) boxWidth / decoded.getWidth(), (float) boxHeight / decoded.getHeight()));
-    Matrix matrix = new Matrix();
-    matrix.postScale(scale, scale);
-    matrix.postRotate(rotation);
-    Bitmap slide = Bitmap.createBitmap(decoded, 0, 0, decoded.getWidth(), decoded.getHeight(), matrix, true);
-    if (slide != decoded) decoded.recycle();
-    if (cover) {
-      // Only what shows on screen: the page centres the slide and covers the screen with it.
-      int cropWidth = Math.min(width, slide.getWidth());
-      int cropHeight = Math.min(height, slide.getHeight());
-      Bitmap cropped = Bitmap.createBitmap(slide, (slide.getWidth() - cropWidth) / 2,
-          (slide.getHeight() - cropHeight) / 2, cropWidth, cropHeight);
-      if (cropped != slide) slide.recycle();
-      slide = cropped;
-    }
-    ByteArrayOutputStream out = new ByteArrayOutputStream();
-    slide.compress(Bitmap.CompressFormat.JPEG, 85, out);
-    slide.recycle();
-    return out.toByteArray();
-  }
-
-  /** The scale that fills the box (cover) or fits inside it, from the scales for each side. */
-  private static float pick(boolean cover, float widthScale, float heightScale) {
-    return cover ? Math.max(widthScale, heightScale) : Math.min(widthScale, heightScale);
-  }
-
-  /** A whole-number query parameter clamped to min..max, or fallback when it's missing or bad. */
-  private static int intParameter(Uri url, String name, int fallback, int min, int max) {
-    try {
-      return Math.max(min, Math.min(max, Integer.parseInt(url.getQueryParameter(name))));
-    } catch (NumberFormatException e) {
-      return fallback;
-    }
-  }
-
-  private static int exifRotation(File file) {
-    try {
-      switch (new ExifInterface(file.getPath()).getAttributeInt(
-          ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
-        case ExifInterface.ORIENTATION_ROTATE_90: return 90;
-        case ExifInterface.ORIENTATION_ROTATE_180: return 180;
-        case ExifInterface.ORIENTATION_ROTATE_270: return 270;
-        default: return 0;
-      }
-    } catch (IOException e) {
-      return 0;
-    }
   }
 
   private static WebResourceResponse json(int status, String reason, String body) {
@@ -514,25 +309,13 @@ public class MainActivity extends Activity {
     startActivity(frameo != null ? frameo : new Intent(Settings.ACTION_SETTINGS));
   }
 
-  /**
-   * "Connect a phone" in the photo picker: Frameo's Add friend gives the code the phone app needs.
-   * Frameo can't open other apps, so ReturnReceiver brings Wish Jar back once the new friend's
-   * first photo arrives, or after a few minutes.
-   */
-  private void connectPhone() {
-    BootReceiver.cancel(this); // ReturnReceiver brings it back instead
-    ReturnReceiver.start(this);
-    openFrameo();
-  }
-
   /** Opening Frameo from the menu is for staying there, so nothing brings Wish Jar back. */
   private void confirmOpenFrameo() {
     new AlertDialog.Builder(this)
         .setTitle("Open Frameo?")
         .setMessage("Frameo can't open other apps, so the frame stays in Frameo until Wish Jar is "
             + "started again (adb shell am start -n com.wishjar.frame/.MainActivity) or the frame "
-            + "restarts. To add a phone, use Connect a phone in Wish Jar's photo picker instead: it "
-            + "comes back by itself.")
+            + "restarts.")
         .setPositiveButton("Open Frameo", (dialog, which) -> {
           BootReceiver.cancel(this);
           openFrameo();
@@ -603,7 +386,6 @@ public class MainActivity extends Activity {
   protected void onResume() {
     super.onResume();
     resumed = true;
-    ReturnReceiver.cancel(this); // back, by the alarm or any other way
     FrameTimeZone.detect(this); // until one is set: a new frame may only now be online
     FrameTimeZone.restore(this); // after Frameo set its own at boot
   }

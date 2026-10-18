@@ -3,21 +3,20 @@ import {
   AppState,
   Image,
   Modal,
-  PixelRatio,
   StyleSheet,
   Text,
-  useWindowDimensions,
   View,
   type PointerEvent,
 } from 'react-native';
 
 import { IconBadge } from '../components/Icons';
 import { ProgressBar } from '../components/ProgressBar';
-import { getKidSavings, listWishes, useFamilyJar, type Kid } from '../db';
+import { getKidSavings, listKids, listWishes, useFamilyJar, type Kid } from '../db';
+import type { FamilyJar } from '../db/jar';
 import { useActiveKid } from '../kids/ActiveKidProvider';
 import { colors, fonts, offsetShadow, radius, spacing, typography } from '../theme';
 import { orderWishes, type WishProgress } from '../wishes/order';
-import { frameoSlideUri, listFrameoPhotos, type FrameoPhoto } from './frameo';
+import { shownPhoto } from './photos';
 
 // How long nobody has to touch the frame before the slideshow starts.
 const IDLE_MS = 3 * 60 * 1000;
@@ -35,13 +34,24 @@ const DOUBLE_TAP_MS = 400;
 // Anything that counts as someone using Wish Jar.
 const ACTIVITY_EVENTS = ['pointerdown', 'keydown', 'wheel'] as const;
 
-// On the frame (frameoPhotos), shows the photos sent to it with Frameo once
-// nobody has used Wish Jar for a while, with each kid's coins and closest wish
-// along the bottom. Swiping goes to the next or previous photo, and a double tap
-// goes back to whatever screen was open. Without
-// photos, or without permission to read them, Wish Jar just stays as it is.
+// The family jar's photos of kids and wishes (not tasks'), newest first, each
+// once: the same on every device of the family.
+async function listSlideshowPhotos(jar: FamilyJar): Promise<string[]> {
+  const [kids, wishes] = await Promise.all([listKids(jar), listWishes(jar)]);
+  const shown = [
+    ...kids.map((kid) => ({ uri: shownPhoto(kid.photoUri), createdAt: kid.createdAt })),
+    ...wishes.map((wish) => ({ uri: shownPhoto(wish.icon.photoUri), createdAt: wish.createdAt })),
+  ].sort((a, b) => b.createdAt - a.createdAt);
+  return [...new Set(shown.flatMap(({ uri }) => (uri ? [uri] : [])))];
+}
+
+// On the frame (onFrame), shows the family jar's photos once nobody has used
+// Wish Jar for a while, with each kid's coins and closest wish along the
+// bottom. Swiping goes to the next or previous photo, and a double tap goes
+// back to whatever screen was open. Without photos, Wish Jar just stays as it is.
 export function IdleSlideshow() {
-  const [photos, setPhotos] = useState<FrameoPhoto[] | null>(null);
+  const jar = useFamilyJar();
+  const [photos, setPhotos] = useState<string[] | null>(null);
 
   useEffect(() => {
     if (photos) return;
@@ -57,17 +67,17 @@ export function IdleSlideshow() {
     }
 
     async function start() {
-      // Not while Frameo is in front (Connect a phone): Wish Jar comes back where it left off.
+      // Not while another app is in front: Wish Jar comes back where it left off.
       if (AppState.currentState !== 'active') return arm();
       const started = generation;
-      let listed;
+      let listed: string[] = [];
       try {
-        listed = await listFrameoPhotos(false);
+        listed = await listSlideshowPhotos(jar);
       } catch {
-        listed = null;
+        // Offline for now: try again after the next idle stretch.
       }
       if (cancelled || started !== generation) return;
-      if (listed?.status === 'ok' && listed.photos.length > 0) setPhotos(listed.photos);
+      if (listed.length > 0) setPhotos(listed);
       else arm();
     }
 
@@ -78,17 +88,17 @@ export function IdleSlideshow() {
       clearTimeout(timer);
       for (const event of ACTIVITY_EVENTS) document.removeEventListener(event, arm, true);
     };
-  }, [photos]);
+  }, [jar, photos]);
 
   return (
     <Modal visible={photos != null} animationType="fade" onRequestClose={() => setPhotos(null)}>
-      {photos ? <Slides photos={photos} onClose={() => setPhotos(null)} /> : null}
+      {photos ? <Slides jar={jar} photos={photos} onClose={() => setPhotos(null)} /> : null}
     </Modal>
   );
 }
 
 type SlideState = {
-  photos: FrameoPhoto[];
+  photos: string[];
   index: number;
   // Counts every slide shown, so the same photo twice in a row still fades in.
   step: number;
@@ -99,9 +109,15 @@ type SlideState = {
   swiped: boolean;
 };
 
-function Slides({ photos, onClose }: { photos: FrameoPhoto[]; onClose: () => void }) {
-  const { width, height } = useWindowDimensions();
-  const ratio = PixelRatio.get();
+function Slides({
+  jar,
+  photos,
+  onClose,
+}: {
+  jar: FamilyJar;
+  photos: string[];
+  onClose: () => void;
+}) {
   const [slide, setSlide] = useState<SlideState>(() => ({
     photos,
     index: 0,
@@ -110,10 +126,10 @@ function Slides({ photos, onClose }: { photos: FrameoPhoto[]; onClose: () => voi
     loaded: false,
     swiped: false,
   }));
-  const uri = frameoSlideUri(slide.photos[slide.index], width * ratio, height * ratio);
+  const uri = slide.photos[slide.index];
 
   // Newest first, and the list is read again at the end of each round, so a
-  // photo sent in the meantime joins the next one. Showing any slide, swiped
+  // photo added in the meantime joins the next one. Showing any slide, swiped
   // to or not, starts its 15 seconds again.
   useEffect(() => {
     let cancelled = false;
@@ -123,8 +139,8 @@ function Slides({ photos, onClose }: { photos: FrameoPhoto[]; onClose: () => voi
       if (index >= next.length) {
         index = 0;
         try {
-          const listed = await listFrameoPhotos(false);
-          if (listed.status === 'ok' && listed.photos.length > 0) next = listed.photos;
+          const listed = await listSlideshowPhotos(jar);
+          if (listed.length > 0) next = listed;
         } catch {
           // Keep going round the photos already listed.
         }
@@ -136,7 +152,7 @@ function Slides({ photos, onClose }: { photos: FrameoPhoto[]; onClose: () => voi
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [slide, uri]);
+  }, [jar, slide, uri]);
 
   function fadeIn() {
     const step = slide.step;
@@ -190,8 +206,9 @@ function Slides({ photos, onClose }: { photos: FrameoPhoto[]; onClose: () => voi
       accessible
       accessibilityLabel="Photos. Swipe for the next one, double tap to go back to Wish Jar"
     >
+      {/* Whole, on black: the jar's photos are square, cropped when picked. */}
       {slide.previous ? (
-        <Image source={{ uri: slide.previous }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+        <Image source={{ uri: slide.previous }} style={StyleSheet.absoluteFill} resizeMode="contain" />
       ) : null}
       <View
         key={slide.step}
@@ -202,7 +219,7 @@ function Slides({ photos, onClose }: { photos: FrameoPhoto[]; onClose: () => voi
           { opacity: slide.loaded ? 1 : 0 },
         ]}
       >
-        <Image source={{ uri }} style={StyleSheet.absoluteFill} resizeMode="cover" onLoad={fadeIn} />
+        <Image source={{ uri }} style={StyleSheet.absoluteFill} resizeMode="contain" onLoad={fadeIn} />
       </View>
       <KidsStrip />
     </View>

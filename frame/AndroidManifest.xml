@@ -2,8 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="com.wishjar.frame">
 
-  <!-- To read the photos Frameo receives, in /sdcard/frameo_files/media. -->
-  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" />
   <!-- To look the frame's timezone up from its IP address (FrameTimeZone). -->
   <uses-permission android:name="android.permission.INTERNET" />
   <!-- To open Wish Jar after the frame restarts (BootReceiver). -->
@@ -25,7 +23,6 @@
         <category android:name="android.intent.category.LAUNCHER" />
       </intent-filter>
     </activity>
-    <receiver android:name=".ReturnReceiver" android:exported="false" />
     <!-- This frame's firmware keeps BOOT_COMPLETED from Wish Jar, so the storage being mounted and
          the network connecting stand in for it (BootReceiver). -->
     <receiver android:name=".BootReceiver">
