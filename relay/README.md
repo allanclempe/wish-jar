@@ -27,8 +27,8 @@ Two WAF rules on the blastin.dev zone turn requests away before they reach the
 Worker, so they don't count toward the 100,000 requests: a rate limiting rule
 for fast floods, and a custom rule for the paths and methods the relay doesn't
 serve. They cover the relay's `wish-jar-api.blastin.dev`, and its paths on
-`wish-jar.blastin.dev`, which the site passes on to it (WJ-63); the
-`workers.dev` address answers almost nothing
+`wish-jar.blastin.dev`, which the site passes on to it (WJ-63). The
+`workers.dev` address answers only the old builds' photo-code paths
 ([below](#the-workersdev-address-wj-58)).
 
 #### The rate limiting rule
@@ -147,18 +147,16 @@ Why this rule and this action:
 
 ### The workers.dev address (WJ-58)
 
-The zone's WAF rules don't reach
-`wish-jar-photo-relay.allan-clempe.workers.dev`, which isn't part of
-blastin.dev, so a flood there would skip them. It stays on (`workers_dev:
-true` in `wrangler.jsonc`) because builds of Wish Jar made while it was
-`PHOTO_RELAY_URL` (WJ-41, until WJ-42 moved the app to `wish-jar.blastin.dev`
-in PR #75 on 2026-10-17) still call it. The frame app bundles the web export
+The relay's `workers.dev` address stays on (`workers_dev: true` in
+`wrangler.jsonc`) because builds of Wish Jar made while it was
+`PHOTO_RELAY_URL` (WJ-41, until WJ-42 moved the app to the blastin.dev
+addresses on 2026-10-17) still call it. The frame app bundles the web export
 it was built with, so a frame built then keeps calling it until it's built
 again.
 
-Those builds only knew the photo codes. On `workers.dev` the Worker answers
-only their paths (`WORKERS_DEV_PATHS` in `src/routes.ts`), and 404 to
-everything else before any Durable Object is woken:
+Those builds only knew the photo codes, so there the Worker answers only their
+paths (`WORKERS_DEV_PATHS` in `src/routes.ts`), and 404 to everything else
+before any Durable Object is woken:
 
 | Who | Calls |
 | --- | --- |
@@ -172,29 +170,19 @@ everything else before any Durable Object is woken:
 - **No family jar** was ever reached through `workers.dev`: the app's
   `JAR_URL` came after WJ-42. So no photo URL kept in a jar (WJ-49) starts
   with it.
-- **A 404 there still counts** as a Worker request toward the day's 100,000,
-  but wakes nothing.
 - **Preview URLs** are `workers.dev` addresses too, each running the version of
-  the Worker it was made for, without this check. `preview_urls` is off.
+  the Worker it was made for. `preview_urls` is off.
 
 **Retiring it:** once no frame or phone build from before WJ-42 is in use, set
 `workers_dev` to `false` in `wrangler.jsonc`, and drop `WORKERS_DEV_PATHS` and
 `isWorkersDev` from `src/routes.ts`.
 
-### What the Origin check can't do
+### The Origin check
 
 The device endpoints check the `Origin` header against `ALLOWED_ORIGINS` in
-`wrangler.jsonc` (`corsReply` in `src/http.ts`). One of them,
-`https://appassets.androidplatform.net`, is the frame app's: its pages are
-served from there (`frame/README.md`). That origin isn't the frame's alone,
-though. It's the one Android sets aside for apps' own files, and
-WebViewAssetLoader's default, so a page in any Android app's WebView passes
-the check as the frame does. And a script or a native app can send any
-`Origin`, or none.
-
-So the Origin check only keeps other websites' pages out. What opens a
-family's jar is a device's token, signed since WJ-55 (below); what keeps one
-caller from using the relay up is the edge rules and the limits here.
+`wrangler.jsonc` (`corsReply` in `src/http.ts`), which keeps other websites'
+pages out. What opens a family's jar is a device's token, signed since WJ-55
+(below).
 
 ### 2. Per-caller limits in the Worker
 

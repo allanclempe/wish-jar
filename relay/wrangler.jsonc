@@ -20,8 +20,8 @@
   "routes": [{ "pattern": "wish-jar-api.blastin.dev", "custom_domain": true }],
   // The workers.dev address stays on for the builds from before WJ-42 that
   // call it, but answers only their photo-code paths (WJ-58,
-  // WORKERS_DEV_PATHS in src/routes.ts): the zone's WAF rules don't reach it.
-  // Turn it off once those builds are gone. Preview URLs are workers.dev
+  // WORKERS_DEV_PATHS in src/routes.ts). Turn it off once those builds are
+  // gone. Preview URLs are workers.dev
   // addresses too, each running an old version of the Worker, so they're off.
   "workers_dev": true,
   "preview_urls": false,

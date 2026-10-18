@@ -67,13 +67,11 @@ export const SITE_FORWARDED_PATHS: readonly string[] = [
 ];
 
 // The paths still answered on the workers.dev address, for the builds of Wish
-// Jar that call it: those made while PHOTO_RELAY_URL was
-// wish-jar-photo-relay.allan-clempe.workers.dev (WJ-41, before WJ-42 moved it
-// to wish-jar.blastin.dev on 2026-10-17). They only knew the photo codes, and
-// the phone opens the address the device called. Everything else there is a
-// 404: the zone's WAF rules don't reach workers.dev, so a flood there would
-// skip them. No family jar was ever reached through it (JAR_URL came after
-// WJ-42), so no photo URL kept in a jar starts with it.
+// Jar made while PHOTO_RELAY_URL was the relay's workers.dev address (WJ-41,
+// before WJ-42 moved it to blastin.dev on 2026-10-17). They only knew the
+// photo codes, and the phone opens the address the device called. Everything
+// else there is a 404. No family jar was ever reached through it (JAR_URL
+// came after WJ-42), so no photo URL kept in a jar starts with it.
 //
 // Retire it once no frame or phone build from before WJ-42 is in use: set
 // `workers_dev` to false in wrangler.jsonc and drop this list and its check in

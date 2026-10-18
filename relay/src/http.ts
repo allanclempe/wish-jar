@@ -6,8 +6,6 @@ export type Reply = (body: BodyInit | null, status: number, headers?: HeadersIni
 // For the device endpoints, which Wish Jar's own pages call cross-origin. A
 // page from anywhere else is turned away (null reply, send the 403); native
 // apps send no Origin and are let through, their token proves who they are.
-// The frame's origin is shared by every Android app's WebViewAssetLoader
-// (wrangler.jsonc), so this keeps out other websites, not other apps.
 export function corsReply(request: Request, env: Env): Reply | null {
   const origin = request.headers.get('Origin');
   const allowed = env.ALLOWED_ORIGINS.split(',').map((entry) => entry.trim());

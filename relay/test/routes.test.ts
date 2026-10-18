@@ -16,7 +16,7 @@ import {
 } from '../src/routes';
 
 const BASE = `https://${RELAY_HOST}`;
-const WORKERS_DEV = 'https://wish-jar-photo-relay.allan-clempe.workers.dev';
+const WORKERS_DEV = 'https://wish-jar-photo-relay.example.workers.dev';
 const APP = 'https://wish-jar.blastin.dev';
 const CODE = 'ABC234';
 const PHOTO = `/photos/${'C'.repeat(43)}/${'D'.repeat(43)}.jpg`;
