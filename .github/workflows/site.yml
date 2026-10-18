@@ -31,7 +31,15 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec expo lint
       - run: pnpm exec tsc --noEmit
-      - run: pnpm exec expo export -p web
+      # The Turnstile widget's site key (src/family/turnstile.ts), a
+      # repository variable: it isn't a secret, and an export without it
+      # couldn't start a family.
+      - name: Export
+        env:
+          EXPO_PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
+        run: |
+          test -n "$EXPO_PUBLIC_TURNSTILE_SITE_KEY" || { echo "Set the TURNSTILE_SITE_KEY repository variable" >&2; exit 1; }
+          pnpm exec expo export -p web
       - uses: actions/upload-artifact@v7
         with:
           name: site

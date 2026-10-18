@@ -39,9 +39,9 @@
   ],
   "vars": {
     // Pages allowed to use codes and the family jar (CORS), comma-separated:
-    // the site, its earlier EAS Hosting address (until every device has
-    // moved), the dev server, and the frame app's own pages (frame/README.md).
-    "ALLOWED_ORIGINS": "https://wish-jar.blastin.dev,https://wish-jar.expo.app,http://localhost:8081,https://appassets.androidplatform.net",
+    // the site, the dev server, and the frame app's own pages
+    // (frame/README.md).
+    "ALLOWED_ORIGINS": "https://wish-jar.blastin.dev,http://localhost:8081,https://appassets.androidplatform.net",
     // Where a join code's QR code sends a phone: Wish Jar with the code
     // filled in (WJ-48). `pnpm dev --var APP_URL:http://localhost:8081` for
     // the dev server.

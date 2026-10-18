@@ -22,6 +22,10 @@ case "$FRAMEO_PHOTOS" in
   *) echo "FRAMEO_PHOTOS must be 0 or 1" >&2; exit 1 ;;
 esac
 
+# The Turnstile widget's site key (src/family/turnstile.ts): without it the
+# frame couldn't start a family.
+: "${EXPO_PUBLIC_TURNSTILE_SITE_KEY:?Set EXPO_PUBLIC_TURNSTILE_SITE_KEY to the Turnstile site key}"
+
 rm -rf build && mkdir -p build/res/mipmap-xxxhdpi build/gen build/classes build/apk/assets
 
 (cd .. && npx expo export --platform web --output-dir frame/build/apk/assets/www)

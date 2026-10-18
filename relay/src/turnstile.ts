@@ -1,11 +1,10 @@
 import { htmlResponse } from './pages';
 
 // Starting a family needs a Turnstile check (WJ-54): POST /families is the
-// only way to get a device token without one already, so without the check a script could start families
-// (5 a day from each address, src/CallerLimits.ts) and use their tokens to
-// flood /jar/call. Wish Jar on the web renders Cloudflare's widget itself; the
-// phone app shows this relay's /turnstile page in a WebView. Either way the
-// widget's token comes in this header, and Cloudflare says whether it's good.
+// only way to get a device token without one already. Wish Jar on the web
+// renders Cloudflare's widget itself; the phone app shows this relay's
+// /turnstile page in a WebView. Either way the widget's token comes in this
+// header, and Cloudflare says whether it's good.
 // relay/README.md says how the widget and its secret key are set up.
 export const TURNSTILE_HEADER = 'Turnstile-Token';
 

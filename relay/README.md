@@ -166,7 +166,7 @@ Joining with a code and the Echo Show's rejoin don't need the check.
    | Setting | Value |
    | --- | --- |
    | Widget name | `Wish Jar: start a family` |
-   | Hostnames | `wish-jar.blastin.dev` (the site and the Echo Show), `wish-jar.expo.app` (the site's earlier EAS Hosting address, until every device has moved), `wish-jar-api.blastin.dev` (the relay's page for the phone app), `appassets.androidplatform.net` (the frame's pages, frame/README.md), `localhost` (dev builds) |
+   | Hostnames | `wish-jar.blastin.dev` (the site and the Echo Show), `wish-jar-api.blastin.dev` (the relay's page for the phone app), `appassets.androidplatform.net` (the frame's pages, frame/README.md), `localhost` (dev builds) |
    | Widget mode | Managed |
    | Pre-clearance | No |
 
@@ -177,9 +177,13 @@ Joining with a code and the Echo Show's rejoin don't need the check.
    `/turnstile` on to the relay (`run_worker_first` in the root
    `wrangler.jsonc`).
 
-2. Put the **site key** in `TURNSTILE_SITE_KEY` in `src/family/turnstile.ts`
-   in the app, in place of Cloudflare's test key. It isn't a secret. The
-   relay's page takes it from the app, so it's only set there.
+2. Put the **site key** in the `TURNSTILE_SITE_KEY` repository variable in
+   GitHub (**Settings → Secrets and variables → Actions → Variables**). It
+   isn't a secret. The site's build passes it to the app as
+   `EXPO_PUBLIC_TURNSTILE_SITE_KEY` (`.github/workflows/site.yml`) and fails
+   without it; build the frame with the same variable set
+   (`frame/build.sh`). The relay's page takes the key from the app, so it's
+   only set there.
 3. Give the Worker the **secret key**:
 
    ```bash
