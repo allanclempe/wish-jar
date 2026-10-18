@@ -3,12 +3,13 @@ import { useState } from 'react';
 import { Alert, StyleSheet, Text } from 'react-native';
 
 import { ScrollScreen } from '../src/components/ScrollScreen';
-import { PIN_LENGTH, setParentPin, useFamilyJar } from '../src/db';
+import { PIN_LENGTH } from '../src/db';
+import { useParentLock } from '../src/parent/ParentLockProvider';
 import { PinPad } from '../src/parent/PinPad';
 import { colors, spacing, typography } from '../src/theme';
 
 export default function ChangePinScreen() {
-  const jar = useFamilyJar();
+  const { savePin } = useParentLock();
   const [first, setFirst] = useState<string | null>(null);
   const [value, setValue] = useState('');
   const [shake, setShake] = useState(0);
@@ -31,7 +32,7 @@ export default function ChangePinScreen() {
       return;
     }
     try {
-      await setParentPin(jar, next);
+      await savePin(next);
     } catch {
       setFirst(null);
       setValue('');

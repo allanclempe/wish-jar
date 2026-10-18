@@ -29,6 +29,7 @@ import {
 import { deleteKid, getKid, insertKid, listKids, setKidPhoto, updateKid } from './kids';
 import { MAX_BONUS_COINS } from './limits';
 import {
+  findParentPin,
   getActiveKidId,
   getParentPin,
   getSoundEnabled,
@@ -314,6 +315,7 @@ export const CALLS: { [F in JarFn]: Call<F> } = {
     arity: 1,
     run: (db, [kidId]) => setActiveKidId(db, id(kidId, 'kidId')),
   },
+  findParentPin: { kind: 'read', arity: 0, run: (db) => findParentPin(db) },
   getParentPin: { kind: 'read', arity: 0, run: (db) => getParentPin(db) },
   setParentPin: {
     kind: 'write',

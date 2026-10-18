@@ -69,7 +69,12 @@ const ConsequencesScreen = memo(function ConsequencesScreen() {
 
   // Kids can see their consequences, but only a grown-up with the PIN can take one back.
   async function remove(consequence: Consequence) {
-    if (kidId == null || !(await requestPin())) return;
+    if (
+      kidId == null ||
+      !(await requestPin({ noPinSubtitle: 'Grown-up: take this one back?', confirm: 'Take it back' }))
+    ) {
+      return;
+    }
     let change: ConsequenceChange;
     try {
       change = await removeConsequence(jar, {

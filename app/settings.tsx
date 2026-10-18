@@ -12,6 +12,7 @@ import {
   useJarVersion,
 } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
+import { useParentLock } from '../src/parent/ParentLockProvider';
 import { useSound } from '../src/sound/SoundProvider';
 import { colors, fonts, radius, shadow, spacing, typography } from '../src/theme';
 
@@ -80,6 +81,7 @@ export default function SettingsScreen() {
   const version = useJarVersion('tasks', 'wishes', 'consequence_types', 'devices');
   const { kids } = useActiveKid();
   const { soundOn, setSoundOn } = useSound();
+  const { pinSet } = useParentLock();
   const [taskCount, setTaskCount] = useState(0);
   const [wishCount, setWishCount] = useState(0);
   const [consequenceCount, setConsequenceCount] = useState(0);
@@ -159,8 +161,8 @@ export default function SettingsScreen() {
         />
         <MenuItem
           emoji="🔢"
-          title="Change PIN"
-          subtitle="The code that opens this page"
+          title={pinSet ? 'Change PIN' : 'Set a PIN'}
+          subtitle={pinSet ? 'The code that opens this page' : 'Anyone can open this page until you do'}
           onPress={() => router.push('/change-pin')}
         />
       </View>

@@ -573,6 +573,7 @@ describe('settings', () => {
   it('has defaults and keeps what is set', async () => {
     const { call, token } = await newJar();
     expect(await call('getActiveKidId')).toBeNull();
+    expect(await call('findParentPin')).toBeNull();
     expect(await call('getParentPin')).toBe('000');
     expect(await call('getSoundEnabled')).toBe(true);
 
@@ -581,6 +582,7 @@ describe('settings', () => {
     await call('setParentPin', '427');
     await call('setSoundEnabled', false);
     expect(await call('getActiveKidId')).toBe(kidId);
+    expect(await call('findParentPin')).toBe('427');
     expect(await call('getParentPin')).toBe('427');
     expect(await call('getSoundEnabled')).toBe(false);
 

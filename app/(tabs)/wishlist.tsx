@@ -80,7 +80,8 @@ const WishBoard = memo(function WishBoard({ coins }: { coins: number }) {
   );
 
   // An unlocked wish is handed over by a grown-up, who confirms with the PIN
-  // before its coins come out of the kid's savings.
+  // (or a tap, while no PIN is set) before its coins come out of the kid's
+  // savings.
   async function claim(wish: Wish) {
     playTap();
     if (!activeKid || claiming) return;
@@ -91,6 +92,8 @@ const WishBoard = memo(function WishBoard({ coins }: { coins: number }) {
         emoji: '🎁',
         title: 'Bring the phone to your grown-up!',
         subtitle: `Grown-up: type the PIN to give ${activeKid.name} "${wish.name}" for 🪙 ${wish.coinAmount}.`,
+        noPinSubtitle: `Grown-up: give ${activeKid.name} "${wish.name}" for 🪙 ${wish.coinAmount}?`,
+        confirm: 'Give it',
       });
       if (!confirmed) return;
       const result = await claimWish(jar, { wishId: wish.id, kidId });
