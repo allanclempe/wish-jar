@@ -3,9 +3,11 @@ import { env, exports } from 'cloudflare:workers';
 import { describe, expect, it } from 'vitest';
 
 import { echoShowHash } from '../src/echoShow';
+import { PHOTO_ORIGINS } from '../src/familyPhotos';
 import { ABANDONED_MS, UNUSED_MS } from '../src/FamilyJar';
 import type { CreateFamilyReply, JoinCode, PhotoUpload } from '../src/jar/api';
 import { fromSomewhere } from './caller';
+import { purgeCalls } from './setup';
 
 const BASE = 'https://relay.example';
 const APP = 'https://wish-jar.blastin.dev';
@@ -116,6 +118,25 @@ describe('cleaning up families', () => {
     expect(await tablesOf(familyId)).toEqual([]);
     expect((await call(token, 'listKids')).status).toBe(401);
     expect((await relay(new URL(url).pathname)).status).toBe(404);
+  });
+
+  it("purges its photos from the edge everywhere, at the relay's and the site's addresses (WJ-59)", async () => {
+    const { token, familyId } = await newFamily();
+    const urls: string[] = [];
+    for (let i = 0; i < 2; i++) {
+      const upload = await relay('/photos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'image/jpeg', ...auth(token) },
+        body: new Uint8Array([0xff, 0xd8, 0xff, 0xe0, i]),
+      });
+      urls.push(((await upload.json()) as PhotoUpload).url);
+    }
+    await call(token, 'insertKid', [{ name: 'Mia', photoUri: urls[0] }]);
+
+    await age(familyId, 400 * DAY_MS, ABANDONED_MS + DAY_MS);
+    expect(await runDurableObjectAlarm(jarOf(familyId))).toBe(true);
+    const paths = PHOTO_ORIGINS.flatMap((origin) => urls.map((url) => `${origin}${new URL(url).pathname}`));
+    expect(purgeCalls.flat().sort()).toEqual(paths.sort());
   });
 
   it('keeps a family whose device is listening, and looks again the next day', async () => {

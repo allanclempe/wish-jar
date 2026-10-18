@@ -1,3 +1,4 @@
+import { purgeUrls } from './cachePurge';
 import { takeLimit, waitHeaders } from './CallerLimits';
 import { parseDeviceToken, refuse } from './families';
 import type { JarOutcome } from './FamilyJar';
@@ -5,6 +6,7 @@ import { readCapped, type Reply } from './http';
 import type { PhotoUpload } from './jar/api';
 import { MAX_JAR_PHOTO_BYTES } from './jar/limits';
 import { isJpeg, PHOTO_ID, PHOTO_SIGNATURE } from './jar/photos';
+import { RELAY_HOST, SITE_HOST } from './routes';
 import { photoSignatureOk, unsignedAllowed } from './signing';
 
 // Kept out of src/index.ts, like src/codes.ts: a Worker's main module may only
@@ -15,17 +17,33 @@ import { photoSignatureOk, unsignedAllowed } from './signing';
 // as an <img> or <Image> can't send a token. The URL's signature (WJ-55) is
 // checked before anything else, so a made-up one wakes no jar.
 
-// A year, and never fetched again: a photo's URL always means the same JPEG.
-const PHOTO_CACHE_CONTROL = 'public, max-age=31536000, immutable';
-// The copy kept at Cloudflare's edge (the Cache API, on the custom domain
-// only), so the family's devices loading the same photos don't each wake the
-// jar. Shorter, as a deleted photo is only forgotten in the data centre that
-// deleted it.
+// A day in the device's own cache, and in no shared one (WJ-59). A photo's URL
+// always means the same JPEG, but a deleted photo should stop being shown:
+// the edge forgets it at once (forgetPhotos), and a device that loaded it
+// within a day at most. Each load after that is a request toward the Free
+// plan's 100,000 a day, answered from the edge copy without waking the jar,
+// so a frame showing 50 photos costs 50 requests a day, not 1,200 as with an
+// hour.
+const PHOTO_CACHE_CONTROL = 'private, max-age=86400';
+// The copy kept at Cloudflare's edge (the Cache API, at the addresses in
+// PHOTO_ORIGINS), so the family's devices loading the same photos don't each
+// wake the jar. A day too: a deleted photo is purged everywhere (src/cachePurge.ts),
+// but only in the data centre that deleted it while the purge token isn't
+// set.
 const EDGE_CACHE_CONTROL = 'public, max-age=86400';
 // A photo the jar doesn't have is remembered at the edge for a minute, so
 // asking again for it doesn't wake the jar every time. No new photo can show
 // up at that URL meanwhile: its id is new and random.
 const MISSING_CACHE_CONTROL = 'public, max-age=60';
+
+// Every address that serves a family's photos (workers.dev serves none since
+// WJ-58), so every one the edge cache may keep them under: the relay's custom
+// domain, and the site's, which passes the relay's paths on to it unchanged
+// (site/worker.js, WJ-63) for the photo URLs kept from when the relay was
+// there. The relay sees the site's URL then, so showPhoto keeps those under
+// the site's host. A deleted photo is forgotten and purged at both, as are a
+// deleted family's (FamilyJar.deleteFamily), which has no request to go by.
+export const PHOTO_ORIGINS: readonly string[] = [`https://${RELAY_HOST}`, `https://${SITE_HOST}`];
 
 // Where the family's photos are served from, the start of every photo URL.
 export function photoBase(request: Request, familyId: string): string {
@@ -34,7 +52,12 @@ export function photoBase(request: Request, familyId: string): string {
 
 // POST /photos: a JPEG from a device of the family, already shrunk to 1024 px
 // at most (src/photos/shrink.ts in the app).
-export async function uploadPhoto(request: Request, env: Env, reply: Reply): Promise<Response> {
+export async function uploadPhoto(
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext,
+  reply: Reply,
+): Promise<Response> {
   // Checked before the body is read, like /jar/call.
   const device = parseDeviceToken(request.headers.get('Authorization'), env);
   if (!device) return reply('Not a device of this family', 401, { 'WWW-Authenticate': 'Bearer' });
@@ -48,7 +71,7 @@ export async function uploadPhoto(request: Request, env: Env, reply: Reply): Pro
   const jar = env.FAMILY_JARS.getByName(device.familyId);
   const outcome = (await jar.addPhoto(device.secret, photo, photoBase(request, device.familyId))) as JarOutcome;
   if (!outcome.ok) return refuse(outcome, reply);
-  await forgetPhotos(request, device.familyId, outcome.dropped);
+  await forgetPhotos(request, env, ctx, device.familyId, outcome.dropped);
   const uploaded: PhotoUpload = { url: outcome.result as string };
   return reply(JSON.stringify(uploaded), 201, { 'Content-Type': 'application/json' });
 }
@@ -94,6 +117,7 @@ export async function showPhoto(
 export async function deletePhoto(
   request: Request,
   env: Env,
+  ctx: ExecutionContext,
   reply: Reply,
   familyId: string,
   photoId: string,
@@ -104,7 +128,7 @@ export async function deletePhoto(
   const jar = env.FAMILY_JARS.getByName(familyId);
   const outcome = (await jar.deletePhoto(device.secret, photoId)) as JarOutcome;
   if (!outcome.ok) return refuse(outcome, reply);
-  await forgetPhotos(request, familyId, outcome.dropped);
+  await forgetPhotos(request, env, ctx, familyId, outcome.dropped);
   return reply(null, 204);
 }
 
@@ -116,10 +140,28 @@ export function parsePhotoPath(pathname: string): { familyId: string; photoId: s
 }
 
 // Photos the jar deleted, dropped from this data centre's edge cache (kept by
-// path, without the signature) so their URLs answer 404 here at once.
-export async function forgetPhotos(request: Request, familyId: string, photoIds: string[] = []): Promise<void> {
-  const base = photoBase(request, familyId);
-  await Promise.all(photoIds.map((id) => caches.default.delete(`${base}${id}.jpg`)));
+// path, without the signature) so their URLs answer 404 here at once, and
+// purged from every other one after the reply (src/cachePurge.ts): at the
+// address the request came to and at every one in PHOTO_ORIGINS, as a photo's
+// URL may start with either.
+export async function forgetPhotos(
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext,
+  familyId: string,
+  photoIds: string[] = [],
+): Promise<void> {
+  const urls = photoKeys(familyId, photoIds, new URL(request.url).origin);
+  if (urls.length === 0) return;
+  ctx.waitUntil(purgeUrls(env, urls));
+  await Promise.all(urls.map((url) => caches.default.delete(url)));
+}
+
+// What the edge cache keeps the photos under: their URLs without the
+// signature, at every address in PHOTO_ORIGINS and at `origin` too.
+export function photoKeys(familyId: string, photoIds: readonly string[], origin?: string): string[] {
+  const origins = new Set([...(origin ? [origin] : []), ...PHOTO_ORIGINS]);
+  return [...origins].flatMap((at) => photoIds.map((id) => `${at}/photos/${familyId}/${id}.jpg`));
 }
 
 function missingPhoto(): Response {

@@ -84,7 +84,12 @@ export async function createFamily(request: Request, env: Env, reply: Reply): Pr
 
 // POST /jar/call: runs { fn, args } in the device's family jar, for the app
 // `client` names.
-export async function callJar(request: Request, env: Env, reply: Reply): Promise<Response> {
+export async function callJar(
+  request: Request,
+  env: Env,
+  ctx: ExecutionContext,
+  reply: Reply,
+): Promise<Response> {
   // Checked before the body is read, so a stranger can't make the relay read
   // megabytes.
   const device = parseDeviceToken(request.headers.get('Authorization'), env);
@@ -106,7 +111,7 @@ export async function callJar(request: Request, env: Env, reply: Reply): Promise
     clientId(client),
   )) as JarOutcome;
   if (!outcome.ok) return refuse(outcome, reply);
-  await forgetPhotos(request, device.familyId, outcome.dropped);
+  await forgetPhotos(request, env, ctx, device.familyId, outcome.dropped);
   return reply(JSON.stringify({ result: outcome.result }), 200, { 'Content-Type': 'application/json' });
 }
 

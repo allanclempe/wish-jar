@@ -1,5 +1,6 @@
 import { DurableObject } from 'cloudflare:workers';
 
+import { purgeUrls } from './cachePurge';
 import type { Device, JarChange, JarTable } from './jar/api';
 import { findCall } from './jar/calls';
 import { DailyWrites } from './jar/dailyWrites';
@@ -22,6 +23,7 @@ import { isJar, migrateJar, STARTER_CONSEQUENCE_TYPES } from './jar/schema';
 import { all, countingWrites, first, insert, run } from './jar/sql';
 import { id, JarError, type JarErrorStatus, label, record } from './jar/validate';
 import { clientId } from './families';
+import { photoKeys } from './familyPhotos';
 import { LIVE_REFUSED, liveResponse, liveToken, PING, PONG, refusedSocket } from './live';
 import { photoSignature } from './signing';
 
@@ -442,6 +444,8 @@ export class FamilyJar extends DurableObject<Env> {
 
   // Everything of the family's goes: its rows and photos, and its Echo Shows'
   // links. Its devices hear they're out (4401) and their tokens open nothing.
+  // Its photos are purged from the edge cache everywhere (src/cachePurge.ts),
+  // at every address that serves them (PHOTO_ORIGINS in src/familyPhotos.ts).
   // Join codes run out by themselves within 10 minutes; one used meanwhile
   // finds the family gone (410), as an Echo Show whose link was missed does
   // (404, and its link is dropped then).
@@ -450,6 +454,7 @@ export class FamilyJar extends DurableObject<Env> {
       this.ctx.storage,
       'SELECT echo_show_hash FROM devices WHERE echo_show_hash IS NOT NULL',
     );
+    const photos = all<{ id: string }>(this.ctx.storage, 'SELECT id FROM photos').map((photo) => photo.id);
     for (const socket of this.ctx.getWebSockets()) {
       try {
         socket.close(LIVE_REFUSED, 'This family jar is gone');
@@ -469,6 +474,7 @@ export class FamilyJar extends DurableObject<Env> {
       await Promise.all(
         shows.map((show) => this.env.ECHO_SHOW_LINKS.getByName(show.echo_show_hash).unlink(familyId)),
       );
+      await purgeUrls(this.env, photoKeys(familyId, photos));
     }
   }
 

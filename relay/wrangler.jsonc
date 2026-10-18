@@ -66,5 +66,14 @@
   // `wrangler secret put SIGNING_KEY` (README.md). Changing it turns away
   // every token and photo URL already handed out. `pnpm dev` and the tests
   // use a key of their own.
+  //
+  // CACHE_PURGE_TOKEN and CACHE_PURGE_ZONE_ID purge a deleted photo from the
+  // edge cache in every data centre (WJ-59, src/cachePurge.ts): a token of
+  // its own allowed only Zone → Cache Purge → Purge on blastin.dev, and that
+  // zone's id. `wrangler secret put CACHE_PURGE_TOKEN` and `wrangler secret
+  // put CACHE_PURGE_ZONE_ID` (README.md). Optional, so they're not listed
+  // here and a deploy goes ahead without them: until they're set, a deleted
+  // photo is only forgotten in the data centre that deleted it. `pnpm dev`
+  // purges nothing; the tests use made-up ones and answer for the purge API.
   "secrets": { "required": ["TURNSTILE_SECRET_KEY", "SIGNING_KEY"] }
 }

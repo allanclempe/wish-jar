@@ -278,8 +278,9 @@ next time their jar is opened.
 Deleting a family removes all of its rows and photos. Its sockets close with
 4401, so its devices see that they're out. Its Echo Shows' links are dropped,
 and a link that was missed answers 404 on rejoin and is dropped then. A join
-code still open (10 minutes at most) answers 410. A photo already in a data
-centre's edge cache can still be served from there for up to a day.
+code still open (10 minutes at most) answers 410. Its photos are purged from
+the edge cache everywhere
+([below](#deleted-photos-stop-being-served-everywhere-wj-59)).
 
 ### 5. Storage that fits in the Free plan's 5 GB (WJ-57)
 
@@ -418,8 +419,10 @@ So the Worker signs what it hands out and checks the signature first
   over the family id and the photo id. A made-up one gets **404** without
   waking the jar. The edge cache keeps a photo by its path only, so a made-up
   query (`?x=1`) is served from the cache like the photo itself. A photo the
-  jar doesn't have is cached as a 404 for a minute. The signature doesn't
-  cover the address: a URL kept from when the relay was
+  jar doesn't have is cached as a 404 for a minute. A deleted photo is purged
+  from it everywhere
+  ([below](#deleted-photos-stop-being-served-everywhere-wj-59)). The
+  signature doesn't cover the address: a URL kept from when the relay was
   `wish-jar.blastin.dev` still works there, where the site passes it on to
   the relay unchanged (`site/worker.js`), and keeps its address when the jar
   signs it.
@@ -460,3 +463,80 @@ old one, and every device would have to join its family again.
 
 `pnpm dev` signs with `wish-jar-dev-signing-key` unless `SIGNING_KEY` is set in
 the environment, and the tests with the fixed key in `test/signingKey.ts`.
+
+## Deleted photos stop being served everywhere (WJ-59)
+
+A photo's URL is all it takes to see it, so a deleted photo (an upload nobody
+saved, the photo a save replaced, a deleted kid's, a deleted family's) should
+stop answering everywhere, not only in the jar:
+
+- **The edge cache.** The Worker keeps a copy of each photo it shows in
+  Cloudflare's edge cache for a day (the Cache API, by the URL's path without
+  the signature), so the family's devices don't each wake the jar.
+  `cache.delete` only reaches the data centre the Worker runs in, so after
+  deleting, the Worker also asks Cloudflare's
+  [purge-by-URL API](https://developers.cloudflare.com/api/resources/cache/methods/purge/)
+  to purge the photo's URL from every data centre (`src/cachePurge.ts`), after
+  the reply. A deleted family's photos are purged by its jar's cleanup. Up to
+  100 URLs go in a request; the Free plan takes 800 URLs a second.
+- **Both addresses.** Photos are served at `https://wish-jar-api.blastin.dev`,
+  the relay's, and at `https://wish-jar.blastin.dev`, where the site passes the
+  relay's paths on to it unchanged (`site/worker.js`, WJ-63) for the photo
+  URLs kept from when the relay was there. The edge keeps a copy under the
+  host each request came to, so a deleted photo is forgotten and purged at
+  both (`PHOTO_ORIGINS` in `src/familyPhotos.ts`), whichever address its URL
+  or the delete used. That's two URLs a photo toward the purge limits.
+  `workers.dev` serves no photos (WJ-58).
+- **Devices.** A photo is `Cache-Control: private, max-age=86400`: a day in
+  the device's own cache, and none in a shared one. It used to be a year and
+  `immutable`. Each load after a day is a request toward the 100,000 a day,
+  answered from the edge copy without waking the jar.
+
+A purge that fails (Cloudflare down, rate limited, a bad token) is logged in
+the Worker's logs and the delete goes ahead: the photo is out of the jar, and
+the data centres that have it serve it until their copy runs out, a day at
+most.
+
+The Cache API keeps a photo under its plain URL, with no custom cache key, so
+purging that URL reaches it. Cloudflare's docs only promise purge everything,
+by tag, by host and by prefix for Cache API entries, so it's worth checking
+once after the token is set. Open a photo's URL on a phone on mobile data,
+so it's cached in that data centre; delete the photo on a device on another
+network (wifi), which may well reach another data centre; then open the URL on
+the phone again, in a private tab so the phone's own copy isn't used: it
+should be **404**. Do it once with the photo's URL at
+`wish-jar-api.blastin.dev` and once with the same path and `?sig=` at
+`wish-jar.blastin.dev` (the site's): Cloudflare's docs don't say which
+zone's cache the Cache API uses behind a service binding, and both hosts are
+on blastin.dev, the zone the token purges. The Worker's logs show any purge
+Cloudflare refused.
+
+### Setting the purge token
+
+The purge needs an API token of its own, apart from the deploy job's
+`CLOUDFLARE_API_TOKEN`, that can do nothing but purge the zone's cache:
+
+1. In the dashboard, go to **My Profile → API Tokens → Create Token → Create
+   Custom Token**, and fill it in like this:
+
+   | Setting | Value |
+   | --- | --- |
+   | Token name | `Wish Jar relay: purge photos` |
+   | Permissions | Zone → Cache Purge → Purge |
+   | Zone Resources | Include → Specific zone → `blastin.dev` |
+
+2. Copy the **Zone ID** from the blastin.dev zone's **Overview** page (API
+   section).
+3. Give the Worker both, as secrets:
+
+   ```bash
+   cd relay
+   pnpm exec wrangler secret put CACHE_PURGE_TOKEN
+   pnpm exec wrangler secret put CACHE_PURGE_ZONE_ID
+   ```
+
+Both are optional: `wrangler.jsonc` doesn't list them as required, so a
+deploy goes ahead without them. Until they're set, a deleted photo is only
+forgotten in the data centre that deleted it, and served from the others for
+up to a day. `pnpm dev` purges nothing; the tests use a made-up token and zone (`test/purgeKeys.ts`), and
+`test/setup.ts` answers for the purge API.

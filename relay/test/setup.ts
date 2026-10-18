@@ -3,9 +3,11 @@ import { env } from 'cloudflare:workers';
 import { afterEach, beforeEach, vi } from 'vitest';
 
 import { FAMILY_STARTS_NAME } from '../src/FamilyStarts';
+import { TEST_PURGE_TOKEN, TEST_PURGE_ZONE } from './purgeKeys';
 import { DUMMY_TOKEN, TEST_SECRET_KEY } from './turnstileKeys';
 
 const SITEVERIFY = 'https://challenges.cloudflare.com/turnstile/v0/siteverify';
+const PURGE_API = `https://api.cloudflare.com/client/v4/zones/${TEST_PURGE_ZONE}/purge_cache`;
 
 // Tokens that make the stand-in below answer like Cloudflare does when a token
 // has been used already, when it has trouble of its own, or can't be reached.
@@ -30,15 +32,39 @@ async function siteverify(form: FormData): Promise<Response> {
   return reply({ success: true, hostname: 'example.com', 'error-codes': [] });
 }
 
+// The URLs the relay asked Cloudflare's purge API to purge, a request each
+// (WJ-59), and how the stand-in below answers: like Cloudflare, with an error
+// Cloudflare gives, or not at all.
+export const purgeCalls: string[][] = [];
+export const purgeAnswer: { now: 'purged' | 'refused' | 'down' } = { now: 'purged' };
+
+// Cloudflare's purge-by-URL API, answered here so the tests need no network.
+async function purgeApi(request: Request): Promise<Response> {
+  if (purgeAnswer.now === 'down') throw new TypeError('Network connection lost');
+  if (request.headers.get('Authorization') !== `Bearer ${TEST_PURGE_TOKEN}`) {
+    return Response.json({ success: false, errors: [{ code: 10000, message: 'Authentication error' }] }, { status: 403 });
+  }
+  const { files } = (await request.json()) as { files: string[] };
+  purgeCalls.push(files);
+  if (purgeAnswer.now === 'refused') {
+    const errors = [{ code: 1134, message: 'Unable to purge, rate limit reached.' }];
+    return Response.json({ success: false, errors, messages: [], result: null }, { status: 429 });
+  }
+  return Response.json({ success: true, errors: [], messages: [], result: { id: crypto.randomUUID() } });
+}
+
 beforeEach(async () => {
   // Every test starts the day with no families started (WJ-57), so the cap
   // for everyone only meets the tests about it.
   await runInDurableObject(env.FAMILY_STARTS.getByName(FAMILY_STARTS_NAME), (_, state) => state.storage.deleteAll());
   siteverifyCalls.length = 0;
+  purgeCalls.length = 0;
+  purgeAnswer.now = 'purged';
   const realFetch = globalThis.fetch;
   vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
     const request = new Request(input, init);
     if (request.url === SITEVERIFY) return siteverify(await request.formData());
+    if (request.url === PURGE_API && request.method === 'POST') return purgeApi(request);
     return realFetch(input, init);
   });
 });
