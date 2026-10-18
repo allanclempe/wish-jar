@@ -3,6 +3,7 @@ import { type Db, first, run } from './sql';
 // Shared by every device in the family, as the whole jar is.
 export const SETTING_KEYS = ['active_kid_id', 'parent_pin', 'sound_enabled'] as const;
 
+// What the builds from before WJ-71 take as the PIN while none is set.
 export const DEFAULT_PARENT_PIN = '000';
 
 function getSetting(db: Db, key: (typeof SETTING_KEYS)[number]): string | null {
@@ -28,8 +29,15 @@ export function setActiveKidId(db: Db, kidId: number): null {
   return setSetting(db, 'active_kid_id', String(kidId));
 }
 
+// The PIN a grown-up set, or null while none is: grown-up screens stay open
+// until one is (WJ-71).
+export function findParentPin(db: Db): string | null {
+  return getSetting(db, 'parent_pin');
+}
+
+// For the builds from before WJ-71, which ask for 000 while no PIN is set.
 export function getParentPin(db: Db): string {
-  return getSetting(db, 'parent_pin') ?? DEFAULT_PARENT_PIN;
+  return findParentPin(db) ?? DEFAULT_PARENT_PIN;
 }
 
 export function setParentPin(db: Db, pin: string): null {

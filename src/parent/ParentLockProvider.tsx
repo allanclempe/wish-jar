@@ -11,15 +11,19 @@ import {
 } from 'react';
 import { AppState, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { getParentPin, PIN_LENGTH, useFamilyJar } from '../db';
-import { colors, fonts, radius, spacing, typography } from '../theme';
+import { getParentPin, PIN_LENGTH, setParentPin, useFamilyJar, useJarVersion } from '../db';
+import { colors, fonts, primaryShadow, radius, spacing, typography } from '../theme';
 import { PinPad } from './PinPad';
 
-// What the PIN prompt says. Without one it reads "Grown-ups only".
+// What the PIN prompt says. Without one it reads "Grown-ups only". While no
+// PIN is set it asks a grown-up to confirm instead, with `noPinSubtitle` and a
+// `confirm` button.
 export type PinPromptText = {
   emoji?: string;
   title?: string;
   subtitle?: string;
+  noPinSubtitle?: string;
+  confirm?: string;
 };
 
 type ParentLockContextValue = {
@@ -28,12 +32,21 @@ type ParentLockContextValue = {
   // Asks for the PIN without unlocking, for a single grown-up action.
   requestPin: (text?: PinPromptText) => Promise<boolean>;
   // Asks for the PIN unless already unlocked, then opens a grown-up screen.
+  // While no PIN is set it opens straight away.
   openParentScreen: (href: Href) => Promise<void>;
+  // False while no grown-up has set a PIN (WJ-71).
+  pinSet: boolean;
+  // Sets the family's PIN.
+  savePin: (pin: string) => Promise<void>;
 };
 
 const ParentLockContext = createContext<ParentLockContextValue | null>(null);
 
 export function ParentLockProvider({ children }: PropsWithChildren) {
+  const jar = useFamilyJar();
+  const pinVersion = useJarVersion('app_settings');
+  // The family's PIN, null while none is set, undefined until it's read.
+  const [pin, setPin] = useState<string | null | undefined>(undefined);
   const [unlocked, setUnlocked] = useState(false);
   const pendingHref = useRef<Href | null>(null);
   const [prompt, setPrompt] = useState<{
@@ -50,6 +63,23 @@ export function ParentLockProvider({ children }: PropsWithChildren) {
     if (inTabs && !wasInTabs.current) setUnlocked(false);
     wasInTabs.current = inTabs;
   }, [inTabs]);
+
+  const readPin = useCallback(
+    () =>
+      getParentPin(jar).then(
+        (value) => {
+          setPin(value);
+          return value;
+        },
+        () => undefined,
+      ),
+    [jar],
+  );
+
+  // `pinVersion` reads it again when another device sets it.
+  useEffect(() => {
+    readPin();
+  }, [readPin, pinVersion]);
 
   useEffect(() => {
     const subscription = AppState.addEventListener('change', (state) => {
@@ -84,11 +114,20 @@ export function ParentLockProvider({ children }: PropsWithChildren) {
         router.push(href);
         return;
       }
-      if (!(await requestPin())) return;
+      const current = pin === undefined ? await readPin() : pin;
+      if (current !== null && !(await requestPin())) return;
       pendingHref.current = href;
       setUnlocked(true);
     },
-    [unlocked, requestPin],
+    [unlocked, pin, readPin, requestPin],
+  );
+
+  const savePin = useCallback(
+    async (next: string) => {
+      await setParentPin(jar, next);
+      setPin(next);
+    },
+    [jar],
   );
 
   const finish = useCallback(
@@ -100,8 +139,8 @@ export function ParentLockProvider({ children }: PropsWithChildren) {
   );
 
   const value = useMemo<ParentLockContextValue>(
-    () => ({ unlocked, requestPin, openParentScreen }),
-    [unlocked, requestPin, openParentScreen],
+    () => ({ unlocked, requestPin, openParentScreen, pinSet: pin !== null, savePin }),
+    [unlocked, requestPin, openParentScreen, pin, savePin],
   );
 
   return (
@@ -113,7 +152,7 @@ export function ParentLockProvider({ children }: PropsWithChildren) {
         animationType="fade"
         onRequestClose={() => finish(false)}
       >
-        {prompt ? <PinPrompt text={prompt.text} onDone={finish} /> : null}
+        {prompt ? <PinPrompt text={prompt.text} pinSet={pin !== null} onDone={finish} /> : null}
       </Modal>
     </ParentLockContext.Provider>
   );
@@ -125,7 +164,15 @@ export function ParentLockProvider({ children }: PropsWithChildren) {
 // opens under that spot (Change PIN, in settings).
 const ACCEPTED_MS = 700;
 
-function PinPrompt({ text, onDone }: { text?: PinPromptText; onDone: (ok: boolean) => void }) {
+type PinPromptProps = {
+  text?: PinPromptText;
+  // Shows the PIN pad; without a PIN, a button to confirm. A PIN not read yet
+  // counts as set.
+  pinSet: boolean;
+  onDone: (ok: boolean) => void;
+};
+
+function PinPrompt({ text, pinSet, onDone }: PinPromptProps) {
   const jar = useFamilyJar();
   const [value, setValue] = useState('');
   const [shake, setShake] = useState(0);
@@ -156,8 +203,19 @@ function PinPrompt({ text, onDone }: { text?: PinPromptText; onDone: (ok: boolea
       <View style={styles.sheet}>
         <Text style={styles.emoji}>{text?.emoji ?? '🔒'}</Text>
         <Text style={styles.title}>{text?.title ?? 'Grown-ups only'}</Text>
-        <Text style={styles.subtitle}>{text?.subtitle ?? 'Enter the PIN to carry on.'}</Text>
-        <PinPad value={value} onChange={change} shake={shake} accepted={accepted} />
+        {pinSet ? (
+          <>
+            <Text style={styles.subtitle}>{text?.subtitle ?? 'Enter the PIN to carry on.'}</Text>
+            <PinPad value={value} onChange={change} shake={shake} accepted={accepted} />
+          </>
+        ) : (
+          <>
+            <Text style={styles.subtitle}>{text?.noPinSubtitle ?? 'Grown-up: tap to carry on.'}</Text>
+            <Pressable style={styles.confirm} onPress={() => onDone(true)} accessibilityRole="button">
+              <Text style={styles.confirmText}>{text?.confirm ?? 'Carry on'}</Text>
+            </Pressable>
+          </>
+        )}
         <Pressable
           onPress={() => onDone(false)}
           disabled={accepted}
@@ -204,5 +262,15 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     textAlign: 'center',
   },
+  confirm: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    ...primaryShadow,
+  },
+  confirmText: { ...typography.heading, color: colors.surface },
   cancel: { ...typography.body, color: colors.textMuted, fontFamily: fonts.semibold, marginTop: spacing.sm },
 });

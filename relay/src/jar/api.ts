@@ -135,6 +135,9 @@ export type JarApi = {
 
   getActiveKidId: Fn<[], number | null>;
   setActiveKidId: Fn<[kidId: number], null>;
+  // The PIN a grown-up set, or null while none is.
+  findParentPin: Fn<[], string | null>;
+  // 000 while none is set, for the builds from before WJ-71.
   getParentPin: Fn<[], string>;
   setParentPin: Fn<[pin: string], null>;
   getSoundEnabled: Fn<[], boolean>;

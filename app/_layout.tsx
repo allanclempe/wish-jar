@@ -107,7 +107,7 @@ function RootStack() {
       {/* Everything a grown-up sets up needs the PIN first. */}
       <Stack.Protected guard={unlocked}>
         <Stack.Screen name="settings" options={page('Grown-ups')} />
-        <Stack.Screen name="change-pin" options={modal('Change PIN')} />
+        <Stack.Screen name="change-pin" options={modal('Grown-up PIN')} />
         <Stack.Screen name="add-kid" options={modal('Add a kid')} />
         <Stack.Screen name="kids" options={page('Kids')} />
         <Stack.Screen name="edit-kid" options={modal('Edit a kid')} />

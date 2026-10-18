@@ -12,11 +12,11 @@ export async function setActiveKidId(kidId: number): Promise<void> {
 }
 
 export const PIN_LENGTH = 3;
-export const DEFAULT_PARENT_PIN = '000';
 
-// The PIN and the sound are the family's, shared by its devices.
-export function getParentPin(jar: FamilyJar): Promise<string> {
-  return jar.call('getParentPin');
+// The PIN and the sound are the family's, shared by its devices. Null while no
+// grown-up has set a PIN: grown-up screens stay open until one does (WJ-71).
+export function getParentPin(jar: FamilyJar): Promise<string | null> {
+  return jar.call('findParentPin');
 }
 
 export async function setParentPin(jar: FamilyJar, pin: string): Promise<void> {
