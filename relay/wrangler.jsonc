@@ -11,15 +11,13 @@
   "main": "src/index.ts",
   "compatibility_date": "2026-10-01",
   "observability": { "enabled": true },
-  // The address parents see and type on their phone (WJ-63). The earlier
-  // wish-jar.blastin.dev and the workers.dev address stay on too, for devices
-  // and photo URLs still holding them. Photo URLs (WJ-49) start with
+  // The address parents see and type on their phone (WJ-63). The site took
+  // over wish-jar.blastin.dev and passes the relay's paths there on to this
+  // Worker (site/worker.js), for photo URLs and devices still holding it. The
+  // workers.dev address stays on too. Photo URLs (WJ-49) start with
   // the address a device called, so `pnpm dev` keeps wrangler from rewriting
   // it to this route (--local-upstream localhost:8787; match it to --port).
-  "routes": [
-    { "pattern": "wish-jar-api.blastin.dev", "custom_domain": true },
-    { "pattern": "wish-jar.blastin.dev", "custom_domain": true }
-  ],
+  "routes": [{ "pattern": "wish-jar-api.blastin.dev", "custom_domain": true }],
   "workers_dev": true,
   "durable_objects": {
     "bindings": [
@@ -43,10 +41,10 @@
     // Pages allowed to use codes and the family jar (CORS), comma-separated:
     // the site, its earlier EAS Hosting address (until every device has
     // moved), the dev server, and the frame app's own pages (frame/README.md).
-    "ALLOWED_ORIGINS": "https://wish-jar-app.blastin.dev,https://wish-jar.expo.app,http://localhost:8081,https://appassets.androidplatform.net",
+    "ALLOWED_ORIGINS": "https://wish-jar.blastin.dev,https://wish-jar.expo.app,http://localhost:8081,https://appassets.androidplatform.net",
     // Where a join code's QR code sends a phone: Wish Jar with the code
     // filled in (WJ-48). `pnpm dev --var APP_URL:http://localhost:8081` for
     // the dev server.
-    "APP_URL": "https://wish-jar-app.blastin.dev"
+    "APP_URL": "https://wish-jar.blastin.dev"
   }
 }

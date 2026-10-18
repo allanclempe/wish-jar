@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 
 // Inside the Echo Show's Alexa skill, which opens the site as
-// https://wish-jar-app.blastin.dev/?host=alexa. Its web view can't pick or take a
+// https://wish-jar.blastin.dev/?host=alexa. Its web view can't pick or take a
 // photo (file inputs and the camera do nothing, and a page can't tell in
 // advance), so photos come from a parent's phone there instead (WJ-40).
 //

@@ -7,7 +7,7 @@ import { fromSomewhere } from './caller';
 import { CODE_LETTERS, MAX_PHOTO_BYTES } from '../src/codes';
 
 const BASE = 'https://relay.example';
-const APP = 'https://wish-jar-app.blastin.dev';
+const APP = 'https://wish-jar.blastin.dev';
 
 type Code = { code: string; token: string; expiresAt: number; url: string };
 

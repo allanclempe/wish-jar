@@ -7,7 +7,7 @@ import type { CreateFamilyReply, Icon, JarApi, JarChange, JarFn, JoinCode } from
 import { CALLS } from '../src/jar/calls';
 
 const BASE = 'https://relay.example';
-const APP = 'https://wish-jar-app.blastin.dev';
+const APP = 'https://wish-jar.blastin.dev';
 const DAY = '2026-10-17';
 const NO_ICON: Icon = { emoji: null, photoUri: null };
 

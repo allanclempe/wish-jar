@@ -7,7 +7,7 @@ import type { CreateFamilyReply, JoinCode } from '../src/jar/api';
 import { fromSomewhere } from './caller';
 
 const BASE = 'https://relay.example';
-const APP = 'https://wish-jar-app.blastin.dev';
+const APP = 'https://wish-jar.blastin.dev';
 const HOUR_S = 60 * 60;
 
 function relay(path: string, init?: RequestInit) {

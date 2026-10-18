@@ -10,7 +10,7 @@ import { FORGOTTEN_AFTER_MS } from '../src/jar/photos';
 import { JAR_VERSION, jarVersion, migrateJar } from '../src/jar/schema';
 
 const BASE = 'https://relay.example';
-const APP = 'https://wish-jar-app.blastin.dev';
+const APP = 'https://wish-jar.blastin.dev';
 const NO_ICON: Icon = { emoji: null, photoUri: null };
 const ID = '[A-Za-z0-9_-]{43}';
 

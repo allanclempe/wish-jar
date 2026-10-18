@@ -64,8 +64,9 @@ Why these paths and this rate:
   Six devices on one home connection still stay under 10 in 10 seconds.
 - Without a host in the expression, the rule matches these paths on every
   hostname of the zone, not only the relay's. Check that nothing else on
-  blastin.dev uses them. The site at `wish-jar-app.blastin.dev` has no page
-  at any of them.
+  blastin.dev uses them. The site at `wish-jar.blastin.dev` has no page at
+  any of them: it passes them on to the relay (`site/worker.js`), so the rule
+  guards them there too.
 - The rule doesn't cover the `workers.dev` address (`workers_dev: true` in
   `wrangler.jsonc`), which isn't part of the zone. The Worker's own limits
   below apply there too.

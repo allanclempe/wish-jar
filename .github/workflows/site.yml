@@ -2,7 +2,7 @@
 # requests run its checks and the export; merges to main also deploy it. The
 # deploy job reads the same secret and variable as relay.yml, from the
 # "production" environment; the token's DNS and Workers Routes permissions on
-# the blastin.dev zone cover wish-jar-app.blastin.dev.
+# the blastin.dev zone cover wish-jar.blastin.dev.
 name: Site
 
 on:
