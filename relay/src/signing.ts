@@ -14,8 +14,8 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 // URLs of photos it moves inside its synchronous transactions.
 
 // Tokens and photo URLs from before the signatures keep working until then,
-// so every device has time to get a signed token (POST /devices/token) and
-// every jar to sign the photo URLs it keeps. 60 days after WJ-55 was merged.
+// so every jar has time to sign the photo URLs it keeps. 60 days after WJ-55
+// was merged. POST /devices/token swaps an unsigned token after it too.
 export const UNSIGNED_UNTIL = Date.UTC(2026, 11, 17);
 
 export function unsignedAllowed(now = Date.now()): boolean {

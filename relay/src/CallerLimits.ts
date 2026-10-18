@@ -26,6 +26,9 @@ export const CALLER_LIMITS = {
   // POST /devices/join, right or wrong (wrong ones have a tighter limit of
   // their own: JoinAttempts).
   joins: { max: 20, windowMs: 60 * 60_000, kept: 'storage' },
+  // POST /devices/token with a token from before WJ-55, past the cut-off:
+  // once per device.
+  tokenSwaps: { max: 20, windowMs: 60 * 60_000, kept: 'storage' },
   // POST /devices/echo-show, at every launch of the skill on every Show.
   echoShows: { max: 60, windowMs: 60 * 60_000, kept: 'storage' },
   // POST /photos. A new family puts up the 7 starter photos at once, and a

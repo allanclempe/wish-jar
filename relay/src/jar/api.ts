@@ -230,10 +230,11 @@ export type CreateFamilyReply = { token: string; familyId: string };
 //   POST   /devices/join  JoinRequest → 201 CreateFamilyReply, 400, 410, 429
 //   GET    /devices              → 200 DeviceList, 401
 //   DELETE /devices/:id          → 204, 401, 404, 409 (the device asking)
-//   POST   /devices/token        → 200 CreateFamilyReply, 401
+//   POST   /devices/token        → 200 CreateFamilyReply, 401, 429
 // /devices/token swaps a token from before WJ-55, which has no signature, for
-// the device's signed one; the relay takes unsigned tokens only until a
-// cut-off date (UNSIGNED_UNTIL in relay/src/signing.ts).
+// the device's signed one (429 when a caller swaps too many); everywhere else
+// the relay takes unsigned tokens only until a cut-off date (UNSIGNED_UNTIL in
+// relay/src/signing.ts).
 export type JoinCode = {
   // 6 letters and digits, typed on the new device.
   code: string;

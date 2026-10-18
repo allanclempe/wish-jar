@@ -6,6 +6,7 @@ import type { JarOutcome } from './FamilyJar';
 import type { Reply } from './http';
 import type { CreateFamilyReply, Device, DeviceList, JoinCode } from './jar/api';
 import { JarError, label } from './jar/validate';
+import { unsignedAllowed } from './signing';
 
 // Kept out of src/index.ts, like src/codes.ts: a Worker's main module may only
 // export handlers and classes.
@@ -26,22 +27,13 @@ export async function devicesApi(request: Request, env: Env, url: URL, reply: Re
     return echoShowApi(request, env, pathname, reply);
   }
 
+  if (pathname === '/devices/token') {
+    return method === 'POST' ? signToken(request, env, reply) : useMethod('POST', reply);
+  }
+
   const device = parseDeviceToken(request.headers.get('Authorization'), env);
   if (!device) return reply('Not a device of this family', 401, { 'WWW-Authenticate': 'Bearer' });
   const jar = env.FAMILY_JARS.getByName(device.familyId);
-
-  // A signed token for this device (WJ-55), for one from before the
-  // signatures: the same secret, so nothing else changes.
-  if (pathname === '/devices/token') {
-    if (method !== 'POST') return useMethod('POST', reply);
-    const checked = (await jar.check(device.secret)) as JarOutcome;
-    if (!checked.ok) return refuse(checked, reply);
-    const signed: CreateFamilyReply = {
-      token: deviceToken(env, device.familyId, device.secret, checked.result as number),
-      familyId: device.familyId,
-    };
-    return reply(JSON.stringify(signed), 200, { 'Content-Type': 'application/json' });
-  }
 
   if (pathname === '/devices') {
     if (method !== 'GET') return useMethod('GET', reply);
@@ -90,6 +82,27 @@ export async function devicesApi(request: Request, env: Env, url: URL, reply: Re
     return reply(null, 204);
   }
   return reply('Not found', 404);
+}
+
+// POST /devices/token: a signed token for this device (WJ-55), for one from
+// before the signatures: the same secret, so nothing else changes. It takes an
+// unsigned token after the cut-off too, so a device that wasn't opened until
+// then still keeps its family; those are counted per caller, as they wake the
+// jar unsigned.
+async function signToken(request: Request, env: Env, reply: Reply): Promise<Response> {
+  const device = parseDeviceToken(request.headers.get('Authorization'), env, true);
+  if (!device) return reply('Not a device of this family', 401, { 'WWW-Authenticate': 'Bearer' });
+  if (!device.signed && !unsignedAllowed()) {
+    const wait = await takeLimit(request, env, 'tokenSwaps');
+    if (wait != null) return reply('Too many tries: wait a little', 429, waitHeaders(wait));
+  }
+  const checked = (await env.FAMILY_JARS.getByName(device.familyId).check(device.secret)) as JarOutcome;
+  if (!checked.ok) return refuse(checked, reply);
+  const signed: CreateFamilyReply = {
+    token: deviceToken(env, device.familyId, device.secret, checked.result as number),
+    familyId: device.familyId,
+  };
+  return reply(JSON.stringify(signed), 200, { 'Content-Type': 'application/json' });
 }
 
 // POST /devices/join: a new device's own token, for the family whose code it

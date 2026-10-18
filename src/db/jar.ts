@@ -22,6 +22,9 @@ export const JAR_URL = process.env.EXPO_PUBLIC_JAR_URL || PHOTO_RELAY_URL;
 // A frame that has just woken up may take a while to get its Wi-Fi back; past
 // this a call counts as lost rather than hanging the screen.
 const CALL_TIMEOUT_MS = 15_000;
+// Swapping a token from before WJ-55 at launch (src/db/open.ts), which waits
+// for it: short, as the old token still works meanwhile.
+const SIGN_TIMEOUT_MS = 3_000;
 // A whole jar going up, photos and all, on the first launch.
 const CREATE_TIMEOUT_MS = 60_000;
 // A photo of a few hundred KB, on a frame's slow Wi-Fi.
@@ -167,7 +170,7 @@ export async function rejoinEchoShow(alexaDeviceId: string): Promise<CreateFamil
 // signature, "<familyId>.<secret>"): the relay takes those only until a
 // cut-off date (relay/src/signing.ts).
 export function signToken(token: string): Promise<CreateFamilyReply> {
-  return request('POST', '/devices/token', undefined, CALL_TIMEOUT_MS, token);
+  return request('POST', '/devices/token', undefined, SIGN_TIMEOUT_MS, token);
 }
 
 // Lets this Echo Show, now a device of the family `token` opens, rejoin it at

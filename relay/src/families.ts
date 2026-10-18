@@ -13,7 +13,7 @@ import { deviceSignature, deviceSignatureOk, unsignedAllowed } from './signing';
 const PART = '[A-Za-z0-9_-]{43}';
 const DEVICE_TOKEN = new RegExp(`^Bearer (${PART})\\.(${PART})(?:\\.(\\d{1,15})\\.(${PART}))?$`);
 
-export type DeviceToken = { familyId: string; secret: string };
+export type DeviceToken = { familyId: string; secret: string; signed: boolean };
 
 // A device's token is "<familyId>.<secret>.<deviceId>.<signature>": the
 // family id says which jar to open, and the jar checks the secret against the
@@ -21,13 +21,20 @@ export type DeviceToken = { familyId: string; secret: string };
 // and the device's id, is checked first, so a made-up token is turned away
 // (null, send the 401) without waking any jar. A token from before WJ-55 is
 // only "<familyId>.<secret>": taken until UNSIGNED_UNTIL, and swapped for a
-// signed one by POST /devices/token.
-export function parseDeviceToken(header: string | null, env: Env): DeviceToken | null {
+// signed one by POST /devices/token, which takes it after the cut-off too
+// (`unsignedOk`).
+export function parseDeviceToken(
+  header: string | null,
+  env: Env,
+  unsignedOk = unsignedAllowed(),
+): DeviceToken | null {
   const match = header?.match(DEVICE_TOKEN);
   if (!match) return null;
   const [, familyId, secret, deviceId, signature] = match;
-  if (signature === undefined) return unsignedAllowed() ? { familyId, secret } : null;
-  return deviceSignatureOk(env, familyId, Number(deviceId), signature) ? { familyId, secret } : null;
+  if (signature === undefined) return unsignedOk ? { familyId, secret, signed: false } : null;
+  return deviceSignatureOk(env, familyId, Number(deviceId), signature)
+    ? { familyId, secret, signed: true }
+    : null;
 }
 
 // The token of the device with this secret and id.

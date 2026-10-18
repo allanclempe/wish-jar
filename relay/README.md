@@ -257,8 +257,11 @@ checked, and so does an unsigned photo URL.
   the family's devices load them again.
 
 After the cut-off, an unsigned token gets 401 and an unsigned photo URL 404,
-without waking any jar. A device that hasn't been opened with the new app
-since then has to join its family again with a code.
+without waking any jar, everywhere but `POST /devices/token`: a device opened
+for the first time since then still swaps its token at launch, and keeps its
+family. Those swaps count toward a limit per caller (`tokenSwaps` in
+`src/CallerLimits.ts`). A build of the app from before the swap has to join
+its family again with a code.
 
 ### Setting the signing key
 

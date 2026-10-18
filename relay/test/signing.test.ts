@@ -240,10 +240,17 @@ describe('tokens from before the signatures (WJ-55)', () => {
     pastTheCutOff();
     opened = [];
     expect((await callJar(unsigned(token), 'listKids')).status).toBe(401);
-    expect((await relay('/devices/token', { method: 'POST', headers: bearer(unsigned(token)) })).status).toBe(401);
     expect(await closeCode(await liveSocket(unsigned(token)))).toBe(4401);
     expect(opened).toEqual([]);
     expect(await jar(token)('listKids')).toEqual([]);
+  });
+
+  it('are still swapped after the cut-off, so a device opened late keeps its family', async () => {
+    const { token, familyId } = await newFamily();
+    pastTheCutOff();
+    const response = await relay('/devices/token', { method: 'POST', headers: bearer(unsigned(token)) });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ token, familyId });
   });
 });
 

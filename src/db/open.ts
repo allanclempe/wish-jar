@@ -44,7 +44,8 @@ export async function openFamilyJar(): Promise<string | null> {
 // A token from before WJ-55 has no signature, and the relay takes it only
 // until a cut-off date (relay/src/signing.ts): it's swapped here for this
 // device's signed token, kept from then on. Tried at every launch until it
-// works; meanwhile the old token still opens the jar.
+// works, with a short timeout (signToken); meanwhile the old token still opens
+// the jar.
 async function withSignature(device: DeviceState, token: string): Promise<string> {
   if (token.split('.').length !== 2) return token;
   try {
