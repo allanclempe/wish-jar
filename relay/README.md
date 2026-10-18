@@ -130,8 +130,7 @@ answered.
   statement's `rowsWritten`, indexes included. A tick is 3 rows. Several kids
   ticking all of their tasks, and a parent setting the jar up on its first
   day, are a few hundred to a thousand rows. 5,000 is 5% of the account's
-  day, so it takes twenty families flat out to use it up, and starting a
-  family needs Turnstile and is limited per caller. 50 MB is a whole jar
+  day. 50 MB is a whole jar
   (`MAX_JAR_BYTES`) a day; a photo is 100 to 300 KB.
 - **The call that reaches the budget** goes through, whatever it brings: one
   call is a few rows, and its photos are capped by `MAX_CALL_BYTES`.
@@ -141,10 +140,8 @@ answered.
   its memory when it sleeps (as soon as 10 seconds after the last call, with
   only sockets open). What's kept is the count rounded up by a step, written
   only when the count gets past it, and a jar that wakes up counts from
-  there. So sleeping never gives a family budget back. Each wake costs it a
-  step at most: 100 wakes with writes in a day is 2,000 rows, and only wakes
-  that put up photos cost bytes. Keeping the count is one row per 20
-  counted, 5% more.
+  there. So sleeping never gives a family budget back; each wake costs it a
+  step at most. Keeping the count is one row per 20 counted, 5% more.
 - **Not counted:** starting a family or importing a jar (limited per caller
   and by Turnstile), joining, Echo Show rejoins, and a device's `last_seen_at`
   (once per 10 minutes).

@@ -1,14 +1,13 @@
 import { first, run, type Db } from './sql';
 
-// What one family may write in a day (WJ-56). Anyone gets a token by starting
-// a family, and every family shares the one Free account's 100,000 rows
-// written a day, so one token must not be able to use them up. The day is the
-// UTC day, as the Free plan's own allowance starts again at 00:00 UTC.
+// What one family may write in a day (WJ-56), as every family shares the one
+// Free account's rows written a day. The day is the UTC day, as the Free
+// plan's own allowance starts again at 00:00 UTC.
 //
 // A real family is nowhere near these: a tick is 3 rows, so several kids
 // ticking all their tasks, a parent setting up the jar on its first day and
 // the photos going up with it are a few hundred to a thousand rows and 10 to
-// 20 MB. It takes twenty families flat out to use up the account's day.
+// 20 MB.
 export const DAILY_WRITES = {
   // Rows the family's writes, removes and uploads write, as the Free plan
   // counts them (each statement's rowsWritten, indexes included). 5% of
@@ -22,13 +21,11 @@ export const DAILY_WRITES = {
 // How far ahead of the count the kept one is. The count lives in memory: a
 // row written for every call counted would add a third to what a tick costs.
 // But the jar forgets its memory whenever it sleeps (as soon as 10 seconds
-// after the last call, with only sockets open), so a script pausing between
-// bursts would start from nothing each time. What's kept instead is the count rounded up by a
-// step, written only when the count gets past it, and a jar that wakes up
-// counts from there. A sleep costs a family a step of its budget at most,
-// never gives one back: with these steps a write in each of 100 wakes a day
-// is 2,000 rows, a kept count every 20 rows is 5% more rows written, and
-// only the wakes that put up photos cost bytes.
+// after the last call, with only sockets open), so what's kept is the count
+// rounded up by a step, written only when the count gets past it, and a jar
+// that wakes up counts from there. A sleep costs a family a step of its
+// budget at most, never gives one back; a kept count every 20 rows is 5% more
+// rows written.
 const STEP = { rows: 20, bytes: 1024 * 1024 } as const;
 
 const KEY = 'daily_writes';
