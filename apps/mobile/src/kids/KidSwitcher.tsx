@@ -41,6 +41,7 @@ export function KidSwitcher({ tabs }: KidSwitcherProps) {
               key={kid.id}
               name={kid.name}
               photoUri={kid.photoUri}
+              emoji={kid.emoji}
               active={kid.id === activeKid?.id}
               large={large}
               onPress={() => switchTo(kid.id)}
@@ -59,12 +60,13 @@ export function KidSwitcher({ tabs }: KidSwitcherProps) {
 type KidAvatarProps = {
   name: string;
   photoUri: string | null;
+  emoji: string | null;
   active: boolean;
   large: boolean;
   onPress: () => void;
 };
 
-function KidAvatar({ name, photoUri, active, large, onPress }: KidAvatarProps) {
+function KidAvatar({ name, photoUri, emoji, active, large, onPress }: KidAvatarProps) {
   const shown = shownPhoto(photoUri);
   return (
     <Pressable
@@ -86,7 +88,7 @@ function KidAvatar({ name, photoUri, active, large, onPress }: KidAvatarProps) {
           />
         ) : (
           <View style={[styles.avatar, large && styles.avatarLarge, styles.avatarEmpty, active && styles.avatarActive]}>
-            <Text style={[styles.avatarEmoji, large && styles.avatarEmojiLarge]}>🙂</Text>
+            <Text style={[styles.avatarEmoji, large && styles.avatarEmojiLarge]}>{emoji ?? '🙂'}</Text>
           </View>
         )}
       </SpringTo>

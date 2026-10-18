@@ -266,7 +266,7 @@ function KidsStrip() {
     <View style={styles.strip} pointerEvents="none">
       {progress.map(({ kid, coins, wish }) => (
         <View key={kid.id} style={styles.kid}>
-          <IconBadge icon={{ emoji: null, photoUri: kid.photoUri }} fallbackEmoji="🙂" size={56} />
+          <IconBadge icon={{ emoji: kid.emoji, photoUri: kid.photoUri }} fallbackEmoji="🙂" size={56} />
           <View style={styles.kidText}>
             <View style={styles.kidHeader}>
               <Text style={styles.name} numberOfLines={1}>

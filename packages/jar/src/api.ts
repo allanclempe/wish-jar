@@ -14,10 +14,12 @@ export type Icon = {
 
 export type Period = 'morning' | 'afternoon' | 'evening';
 
+// A kid shows their photo, else their emoji (a boy or a girl, WJ-74), else 🙂.
 export type Kid = {
   id: number;
   name: string;
   photoUri: string | null;
+  emoji: string | null;
   createdAt: number;
 };
 
@@ -59,7 +61,9 @@ export type Wish = {
   claimedAt: number | null;
 };
 
-export type KidInput = { name: string; photoUri: string | null };
+// `emoji` is left out by app builds from before it (WJ-74), and the jar then
+// keeps the kid's emoji as it is.
+export type KidInput = { name: string; photoUri: string | null; emoji?: string | null };
 export type TaskInput = { name: string; period: Period; coinAmount: number; icon: Icon };
 export type ConsequenceTypeInput = { name: string; coinAmount: number; icon: Icon };
 export type WishInput = { kidId: number; name: string; coinAmount: number; icon: Icon };

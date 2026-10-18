@@ -69,7 +69,7 @@ export function PeriodDoneOverlay({ kid, period, total, coinsToday, onSeeWishes,
                   <View
                     style={[styles.photoEmpty, { width: photoSize, height: photoSize, borderRadius: photoSize / 2 }]}
                   >
-                    <Text style={{ fontSize: photoSize * 0.55 }}>🙂</Text>
+                    <Text style={{ fontSize: photoSize * 0.55 }}>{kid.emoji ?? '🙂'}</Text>
                   </View>
                 )}
               </View>

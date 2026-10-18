@@ -1,11 +1,11 @@
 import { router } from 'expo-router';
 import { useState } from 'react';
-import { Alert, Image, Pressable, StyleSheet, Text, TextInput } from 'react-native';
+import { Alert, Pressable, StyleSheet, Text, TextInput } from 'react-native';
 
+import { IconPicker, KID_EMOJIS } from '../src/components/Icons';
 import { ScrollScreen } from '../src/components/ScrollScreen';
-import { discardPhoto, insertKid, saveProblem, useFamilyJar } from '../src/db';
+import { discardPhoto, insertKid, saveProblem, useFamilyJar, type Icon } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
-import { PhotoSourceButtons, usePickPhoto } from '../src/photos/PhotoPicker';
 import { storePhoto } from '../src/photos/photos';
 import { colors, radius, spacing, typography } from '../src/theme';
 
@@ -13,24 +13,18 @@ export default function AddKidScreen() {
   const jar = useFamilyJar();
   const { refreshKids } = useActiveKid();
   const [name, setName] = useState('');
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
+  const [icon, setIcon] = useState<Icon>({ emoji: null, photoUri: null });
   const [saving, setSaving] = useState(false);
-  const pickPhoto = usePickPhoto();
 
   const canSave = name.trim().length > 0 && !saving;
-
-  async function choosePhoto() {
-    const uri = await pickPhoto();
-    if (uri) setPhotoUri(uri);
-  }
 
   async function save() {
     if (!canSave) return;
     setSaving(true);
     let storedPhotoUri: string | null = null;
     try {
-      storedPhotoUri = photoUri ? await storePhoto(jar, photoUri) : null;
-      await insertKid(jar, { name, photoUri: storedPhotoUri });
+      storedPhotoUri = icon.photoUri ? await storePhoto(jar, icon.photoUri) : null;
+      await insertKid(jar, { name, photoUri: storedPhotoUri, emoji: icon.emoji });
       await refreshKids();
       router.back();
     } catch (error) {
@@ -42,15 +36,7 @@ export default function AddKidScreen() {
 
   return (
     <ScrollScreen>
-      <Pressable style={styles.photo} onPress={choosePhoto} accessibilityRole="button">
-        {photoUri ? (
-          <Image source={{ uri: photoUri }} style={styles.photoImage} />
-        ) : (
-          <Text style={styles.photoPlaceholder}>📷</Text>
-        )}
-      </Pressable>
-      <Text style={styles.caption}>Tap to add a photo</Text>
-      <PhotoSourceButtons onPhoto={setPhotoUri} />
+      <IconPicker value={icon} fallbackEmoji="🙂" onChange={setIcon} emojis={KID_EMOJIS} />
 
       <Text style={styles.label}>Name</Text>
       <TextInput
@@ -78,24 +64,7 @@ export default function AddKidScreen() {
   );
 }
 
-const PHOTO_SIZE = 160;
-
 const styles = StyleSheet.create({
-  photo: {
-    alignSelf: 'center',
-    width: PHOTO_SIZE,
-    height: PHOTO_SIZE,
-    borderRadius: PHOTO_SIZE / 2,
-    borderWidth: 3,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-  },
-  photoImage: { width: '100%', height: '100%' },
-  photoPlaceholder: { fontSize: 56 },
-  caption: { ...typography.caption, color: colors.textMuted, textAlign: 'center' },
   label: { ...typography.caption, color: colors.textMuted, marginTop: spacing.md },
   input: {
     ...typography.body,

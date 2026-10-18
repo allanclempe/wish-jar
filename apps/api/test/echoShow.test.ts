@@ -219,6 +219,7 @@ describe('the Echo Show', () => {
       // Back to version 1, as a jar made before this change is.
       storage.sql.exec('DROP INDEX devices_echo_show_hash');
       storage.sql.exec('ALTER TABLE devices DROP COLUMN echo_show_hash');
+      storage.sql.exec('ALTER TABLE kids DROP COLUMN emoji');
       storage.sql.exec("UPDATE jar_meta SET value = '1' WHERE key = 'version'");
       migrateJar(storage);
       expect(jarVersion(storage)).toBe(JAR_VERSION);

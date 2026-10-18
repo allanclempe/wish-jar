@@ -36,7 +36,7 @@ export default function KidsScreen() {
                   <Image source={{ uri: photoUri }} style={styles.avatar} />
                 ) : (
                   <View style={[styles.avatar, styles.avatarEmpty]}>
-                    <Text style={styles.avatarEmoji}>🙂</Text>
+                    <Text style={styles.avatarEmoji}>{item.emoji ?? '🙂'}</Text>
                   </View>
                 )}
                 <Text style={styles.name}>{item.name}</Text>
