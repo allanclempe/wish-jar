@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wish Jar: Privacy Policy</title>
+<!-- The privacy policy the Alexa skill's store listing links to (WJ-75).
+     Plain HTML and CSS, so it reads on the Echo Show and the Frameo frame. -->
+<style>
+  body { margin: 0; padding: 24px 16px 48px; font: 17px/1.55 sans-serif; background: #fffaf2; color: #2b2b2b; }
+  main { max-width: 720px; margin: 0 auto; }
+  h1 { font-size: 30px; margin: 0 0 4px; }
+  h2 { font-size: 21px; margin: 32px 0 8px; }
+  .updated { color: #666; margin: 0 0 24px; }
+  a { color: #0a5bb5; }
+  li { margin: 4px 0; }
+  @media (prefers-color-scheme: dark) {
+    body { background: #1c1b19; color: #eee; }
+    .updated { color: #aaa; }
+    a { color: #7db4ff; }
+  }
+</style>
+</head>
+<body>
+<main>
+<h1>🫙 Wish Jar Privacy Policy</h1>
+<p class="updated">Last updated 19 October 2026</p>
+
+<p>Wish Jar is an open-source project that helps kids earn their wishes by
+completing daily tasks. It runs as a phone app, on the web at
+wish-jar.blastin.dev, on photo frames, and on Echo Show devices through the
+Wish Jar Alexa skill. This policy says what Wish Jar keeps, why, and how to
+remove it. It covers all of these.</p>
+
+<h2>The short version</h2>
+<ul>
+  <li>There's no sign-in, account or email address. Wish Jar never asks who you are.</li>
+  <li>What you put in Wish Jar is kept in your family's own jar. Only the
+    devices you've joined to your family can read it.</li>
+  <li>There's no advertising and no tracking, and nothing is sold or shared
+    for marketing.</li>
+  <li>Unused families are deleted automatically, with their photos.</li>
+  <li>The code is public, so you can check all of this yourself:
+    <a href="https://github.com/allanclempe/wish-jar">github.com/allanclempe/wish-jar</a>.</li>
+</ul>
+
+<h2>What's in a family's jar</h2>
+<p>A parent sets up the jar. It holds:</p>
+<ul>
+  <li>each kid's first name (or a nickname) and an emoji or, only if a parent
+    chooses to add one, a photo;</li>
+  <li>the tasks, wishes, coins, bonus coins and consequences the family sets
+    up, and which tasks were ticked off on which day;</li>
+  <li>the list of the family's devices, and when each was last seen;</li>
+  <li>a parent PIN, if one is set, to keep grown-up settings away from kids.</li>
+</ul>
+<p>A copy of the jar is also kept on each of the family's devices, so it keeps
+working without a connection.</p>
+
+<h2>On the Echo Show</h2>
+<p>The Echo Show forgets everything at the end of each skill session. So that
+it can reopen your family's jar, the Wish Jar skill gives the page your Echo
+Show's Alexa device ID and a random secret kept for that Echo Show. Wish Jar
+keeps only a one-way hash of each, which can't be turned back into the ID.
+Wish Jar doesn't receive your name, voice recordings, location, contacts or
+Amazon account details. Amazon's own handling of your Alexa use is covered by
+Amazon's privacy notice.</p>
+
+<h2>What Wish Jar doesn't collect</h2>
+<p>No names or email addresses of grown-ups, no phone numbers, no location, no
+contacts, no advertising IDs, and no analytics or tracking scripts. Kids'
+details are only what a parent chooses to type in, and a photo is never
+required.</p>
+
+<h2>Where it's kept, and who handles it</h2>
+<p>Family jars and photos are stored with <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare</a>,
+which runs Wish Jar's servers. Like any website, Cloudflare sees the IP address
+of each request to deliver it. Wish Jar uses it only to limit how often one
+address can start families or ask for join codes, keeps those counts for at
+most an hour, and keeps short-lived error logs for a few days to fix problems.
+Starting a family uses Cloudflare Turnstile, a check that a person (not a
+script) is starting it.</p>
+<p>A family's data is sent over encrypted connections (HTTPS), and each device
+gets its own token. Without one, the jar can't be read.</p>
+
+<h2>Children</h2>
+<p>Wish Jar is made for families, and kids use it to tick off their tasks. A
+parent or guardian sets up the family and decides what goes in it. Wish Jar
+doesn't ask kids for personal information, doesn't show ads, and doesn't let
+kids contact anyone. A parent can change or delete anything about their kids at
+any time.</p>
+
+<h2>Deleting your data</h2>
+<ul>
+  <li><strong>A kid or a photo:</strong> edit the kid and change or remove the
+    photo, or choose "Delete kid". Their photo is deleted with them.</li>
+  <li><strong>A device:</strong> remove it under Devices. It loses access to
+    the jar straight away.</li>
+  <li><strong>The whole family:</strong> a family is deleted automatically,
+    with all its photos, once none of its devices has been used for 6 months,
+    or 7 days after it was started if it was never used again. To have your
+    family deleted sooner, ask us (below).</li>
+</ul>
+
+<h2>Changes</h2>
+<p>If this policy changes, the new version is posted here with a new date.
+Every change is also visible in the project's public history on GitHub.</p>
+
+<h2>Contact</h2>
+<p>Questions or requests, including deleting your family's jar: open an issue at
+<a href="https://github.com/allanclempe/wish-jar/issues">github.com/allanclempe/wish-jar/issues</a>.
+Please don't post your family's details or a join code there.</p>
+
+<p>See also the <a href="/terms.html">Terms of Use</a>.</p>
+</main>
+</body>
+</html>
