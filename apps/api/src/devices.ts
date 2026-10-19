@@ -7,6 +7,7 @@ import type { Reply } from './http';
 import type { CreateFamilyReply, Device, DeviceList, JoinCode } from '@wish-jar/jar';
 import { JarError, label } from './jar/validate';
 import { unsignedAllowed } from './signing';
+import { countUsage } from './usage';
 
 // Kept out of src/index.ts, like src/codes.ts: a Worker's main module may only
 // export handlers and classes.
@@ -140,6 +141,7 @@ async function joinFamily(request: Request, env: Env, reply: Reply): Promise<Res
   const secret = randomToken();
   const outcome = (await env.FAMILY_JARS.getByName(familyId).addDevice(secret, deviceLabel)) as JarOutcome;
   if (!outcome.ok) return refuse(outcome, reply);
+  countUsage(env, 'device_joined');
   const joined: CreateFamilyReply = { token: deviceToken(env, familyId, secret, outcome.result as number), familyId };
   return reply(JSON.stringify(joined), 201, { 'Content-Type': 'application/json' });
 }

@@ -2,6 +2,7 @@ import { DurableObject } from 'cloudflare:workers';
 
 import { purgeUrls } from './cachePurge';
 import type { Device, JarChange, JarTable } from '@wish-jar/jar';
+import { ActiveDay } from './jar/activeDay';
 import { findCall } from './jar/calls';
 import { DailyWrites } from './jar/dailyWrites';
 import { importJar } from './jar/importJar';
@@ -26,6 +27,7 @@ import { clientId } from './families';
 import { photoKeys } from './familyPhotos';
 import { LIVE_REFUSED, liveResponse, liveToken, PING, PONG, refusedSocket } from './live';
 import { photoSignature } from './signing';
+import { countUsage } from './usage';
 
 // What the Worker gets back: the result, or the status and why. `dropped` are
 // the photos the call deleted, for the Worker to forget too (src/familyPhotos.ts).
@@ -84,6 +86,8 @@ function deviceTag(deviceId: number): string {
 //
 // Its writes, removes and photo uploads count toward a daily budget (WJ-56,
 // src/jar/dailyWrites.ts), counted here as the jar is awake for them anyway.
+// The first device it sees on a day counts the family as active that day
+// (WJ-82, src/usage.ts), with nothing that says which family.
 //
 // The family's devices keep a WebSocket open to it (WJ-50), through the
 // Hibernation API: an idle socket costs no duration, the pings the app sends
@@ -96,6 +100,7 @@ export class FamilyJar extends DurableObject<Env> {
   private photosMoved = false;
   private photosSigned = false;
   private writes = new DailyWrites(this.ctx.storage);
+  private active = new ActiveDay(this.ctx.storage);
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -120,8 +125,10 @@ export class FamilyJar extends DurableObject<Env> {
     const storage = this.ctx.storage;
     if (!isJar(storage)) return;
     const next = this.cleanupDue(Date.now());
-    if (next == null) await this.deleteFamily();
-    else await storage.setAlarm(next);
+    if (next == null) {
+      await this.deleteFamily();
+      countUsage(this.env, 'family_expired');
+    } else await storage.setAlarm(next);
   }
 
   // GET /jar/live, from the Worker (src/live.ts): a socket for a device of the
@@ -492,6 +499,7 @@ export class FamilyJar extends DurableObject<Env> {
     this.photosMoved = false;
     this.photosSigned = false;
     this.writes = new DailyWrites(this.ctx.storage);
+    this.active = new ActiveDay(this.ctx.storage);
     // The name it was opened by is the family id; only links to this family
     // are dropped, as a Show may have moved on to another.
     const familyId = this.ctx.id.name;
@@ -516,7 +524,8 @@ export class FamilyJar extends DurableObject<Env> {
   }
 
   // The id of the family's device with this hash, or null, checking every one
-  // in constant time so the reply's timing gives nothing away.
+  // in constant time so the reply's timing gives nothing away. Every device
+  // comes through here, so it's where the family counts as active today.
   private seen(hash: string): number | null {
     const devices = all<{ id: number; secret_hash: string; last_seen_at: number }>(
       this.ctx.storage,
@@ -531,6 +540,7 @@ export class FamilyJar extends DurableObject<Env> {
     if (now - match.last_seen_at >= SEEN_EVERY_MS) {
       run(this.ctx.storage, 'UPDATE devices SET last_seen_at = ? WHERE id = ?', now, match.id);
     }
+    if (this.active.firstToday(now)) countUsage(this.env, 'family_active');
     return match.id;
   }
 }

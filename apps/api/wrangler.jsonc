@@ -40,6 +40,9 @@
       { "name": "FAMILY_STARTS", "class_name": "FamilyStarts" }
     ]
   },
+  // Anonymous usage counts (WJ-82, src/usage.ts): each data point is only an
+  // event's name. Analytics Engine makes the dataset on its first write.
+  "analytics_engine_datasets": [{ "binding": "USAGE", "dataset": "wish_jar_usage" }],
   // SQLite-backed, the only Durable Objects the Free plan has.
   "migrations": [
     { "tag": "v1", "new_sqlite_classes": ["PhotoDrop"] },

@@ -40,7 +40,8 @@ remove it. It covers all of these.</p>
   <li>What you put in Wish Jar is kept in your family's own jar. Only the
     devices you've joined to your family can read it.</li>
   <li>There's no advertising and no tracking, and nothing is sold or shared
-    for marketing.</li>
+    for marketing. Wish Jar only counts how much it's used, in totals that
+    can't tell one family from another.</li>
   <li>Unused families are deleted automatically, with their photos.</li>
   <li>The code is public, so you can check all of this yourself:
     <a href="https://github.com/allanclempe/wish-jar">github.com/allanclempe/wish-jar</a>.</li>
@@ -70,9 +71,23 @@ Amazon's privacy notice.</p>
 
 <h2>What Wish Jar doesn't collect</h2>
 <p>No names or email addresses of grown-ups, no phone numbers, no location, no
-contacts, no advertising IDs, and no analytics or tracking scripts. Kids'
+contacts, no advertising IDs, and no tracking scripts. Kids'
 details are only what a parent chooses to type in, and a photo is never
 required.</p>
+
+<h2>Counting how Wish Jar is used</h2>
+<p>To know whether Wish Jar is useful, it keeps a few anonymous totals, with
+Cloudflare:</p>
+<ul>
+  <li>how many families start, are deleted, or are used on a day, how many
+    devices join a family, and how many tasks get ticked off and wishes
+    claimed. Each is counted as just the event and when it happened, with no
+    family, device, name or IP address attached, so the totals can't be
+    traced back to a family or a kid;</li>
+  <li>how many times the website's pages are viewed, with Cloudflare Web
+    Analytics, which uses no cookies and doesn't follow anyone from site to
+    site.</li>
+</ul>
 
 <h2>Where it's kept, and who handles it</h2>
 <p>Family jars and photos are stored with <a href="https://www.cloudflare.com/privacypolicy/">Cloudflare</a>,
