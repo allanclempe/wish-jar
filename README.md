@@ -2,6 +2,8 @@
 
 A mobile app for kids to earn their wishes by completing daily tasks.
 
+**Try it live: [wish-jar.blastin.dev](https://wish-jar.blastin.dev)**
+
 ## The idea
 
 Kids get a list of daily tasks — brush your teeth, make the bed, and so on. Each
@@ -16,6 +18,17 @@ off and put some cash toward their wishes.
   each one.
 - **Progress** — a visual indicator (like a progress bar) shows how close they
   are to each wish as they complete more activities.
+
+## Screenshots
+
+| | |
+| --- | --- |
+| ![Welcome screen: start a new jar or join a family jar](./docs/screenshots/1.join.png) | ![A kid's morning tasks: brush teeth, make bed and brekky, with the jar filling up](./docs/screenshots/2.tasks.png) |
+| **Welcome** — start a family jar, or join one from another device. | **Tasks** — tick them off to fill the jar. |
+| ![Wishes, each with its price in coins and how many to go](./docs/screenshots/3.wishes.png) | ![Today's consequences for a kid](./docs/screenshots/4.consequences.png) |
+| **Wishes** — how close each one is. | **Consequences** — for the days that don't go to plan. |
+| ![The grown-ups' settings](./docs/screenshots/5.settings.png) | |
+| **Grown-ups** — kids, tasks, wishes, devices and a PIN. | |
 
 ## Getting started
 
