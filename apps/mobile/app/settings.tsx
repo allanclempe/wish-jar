@@ -12,6 +12,7 @@ import {
   useJarVersion,
 } from '../src/db';
 import { useActiveKid } from '../src/kids/ActiveKidProvider';
+import { canOpenLinks, openLegalPage, PRIVACY_URL, TERMS_URL } from '../src/legal/LegalNote';
 import { useParentLock } from '../src/parent/ParentLockProvider';
 import { useSound } from '../src/sound/SoundProvider';
 import { colors, fonts, radius, shadow, spacing, typography } from '../src/theme';
@@ -171,6 +172,23 @@ export default function SettingsScreen() {
           subtitle="Everything in it, for good, on every device"
           onPress={() => router.push('/delete-family')}
         />
+        {/* The Echo Show and the frame can't come back from a page (WJ-78). */}
+        {canOpenLinks ? (
+          <>
+            <MenuItem
+              emoji="🛡️"
+              title="Privacy policy"
+              subtitle="What Wish Jar keeps, and how to delete it"
+              onPress={() => openLegalPage(PRIVACY_URL)}
+            />
+            <MenuItem
+              emoji="📄"
+              title="Terms of use"
+              subtitle="The rules for using Wish Jar"
+              onPress={() => openLegalPage(TERMS_URL)}
+            />
+          </>
+        ) : null}
       </View>
     </ScrollScreen>
   );

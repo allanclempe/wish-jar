@@ -1,11 +1,12 @@
 import { memo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Wiggle } from '../../src/components/Animations';
 import { CurrentPeriodTasks } from '../../src/components/CurrentPeriodTasks';
 import { EmptyState } from '../../src/components/EmptyState';
 import { HiddenWhenBlurred } from '../../src/components/HiddenWhenBlurred';
+import { JarLogo } from '../../src/components/JarLogo';
 import { Sky } from '../../src/components/Sky';
 import { useActiveKid } from '../../src/kids/ActiveKidProvider';
 import { useClock } from '../../src/tasks/useClock';
@@ -38,7 +39,7 @@ const HomeScreen = memo(function HomeScreen() {
           <EmptyState
             emoji={
               <Wiggle active>
-                <Text style={styles.emoji}>🫙</Text>
+                <JarLogo size={96} />
               </Wiggle>
             }
             title="Welcome to Wish Jar!"
@@ -59,5 +60,4 @@ const HomeScreen = memo(function HomeScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   safe: { flex: 1 },
-  emoji: { fontSize: 80 },
 });

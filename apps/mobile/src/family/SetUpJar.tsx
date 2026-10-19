@@ -3,7 +3,9 @@ import { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { JarLogo } from '../components/JarLogo';
 import { KeyboardAwayScrollView } from '../components/KeyboardAwayScrollView';
+import { LegalNote } from '../legal/LegalNote';
 import { colors, fonts, radius, shadow, spacing, typography } from '../theme';
 import { JoinFamilyForm } from './JoinFamilyForm';
 import { TurnstileCheck } from './TurnstileCheck';
@@ -69,7 +71,7 @@ export function SetUpJar({ starting, note, onStart, onJoined }: Props) {
             </>
           ) : (
             <>
-              <Text style={styles.emoji}>🫙</Text>
+              <JarLogo size={88} />
               <Text style={styles.title}>Welcome to Wish Jar!</Text>
               <Text style={styles.subtitle}>
                 Is this the family&apos;s first device, or does the family have a jar already?
@@ -89,6 +91,7 @@ export function SetUpJar({ starting, note, onStart, onJoined }: Props) {
                 onPress={() => setJoining(true)}
               />
               {note ? <Text style={styles.note}>{note}</Text> : null}
+              <LegalNote />
             </>
           )}
         </View>
