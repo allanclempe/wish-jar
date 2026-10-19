@@ -165,6 +165,12 @@ export default function SettingsScreen() {
           subtitle={pinSet ? 'The code that opens this page' : 'Anyone can open this page until you do'}
           onPress={() => router.push('/change-pin')}
         />
+        <MenuItem
+          emoji="🗑️"
+          title="Delete family jar"
+          subtitle="Everything in it, for good, on every device"
+          onPress={() => router.push('/delete-family')}
+        />
       </View>
     </ScrollScreen>
   );

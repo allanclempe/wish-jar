@@ -379,6 +379,15 @@ export class FamilyJar extends DurableObject<Env> {
     return removed;
   }
 
+  // A parent deleting the whole family from one of its devices (WJ-76): the
+  // same as the cleanup of an abandoned one, straight away.
+  async deleteByDevice(secret: string): Promise<JarOutcome> {
+    const hash = await hashSecret(secret);
+    if (!isJar(this.ctx.storage) || this.seen(hash) == null) return NOT_A_DEVICE;
+    const dropped = await this.deleteFamily();
+    return { ok: true, result: null, dropped };
+  }
+
   // A jar from before WJ-49 keeps web photos as data: URIs in its rows; they
   // move into the photos table at its first call since, when the jar knows
   // the URL to give them. A jar a device uploads (WJ-47) moves them as the
@@ -464,8 +473,8 @@ export class FamilyJar extends DurableObject<Env> {
   // at every address that serves them (PHOTO_ORIGINS in src/familyPhotos.ts).
   // Join codes run out by themselves within 10 minutes; one used meanwhile
   // finds the family gone (410), as an Echo Show whose link was missed does
-  // (404, and its link is dropped then).
-  private async deleteFamily(): Promise<void> {
+  // (404, and its link is dropped then). The ids of the photos it deleted.
+  private async deleteFamily(): Promise<string[]> {
     const shows = all<{ echo_show_hash: string }>(
       this.ctx.storage,
       'SELECT echo_show_hash FROM devices WHERE echo_show_hash IS NOT NULL',
@@ -492,6 +501,7 @@ export class FamilyJar extends DurableObject<Env> {
       );
       await purgeUrls(this.env, photoKeys(familyId, photos));
     }
+    return photos;
   }
 
   // Closes the sockets of a device whose token opens nothing any more.

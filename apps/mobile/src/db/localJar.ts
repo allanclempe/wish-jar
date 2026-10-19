@@ -1,4 +1,4 @@
-import { openDatabaseAsync } from 'expo-sqlite';
+import { deleteDatabaseAsync, openDatabaseAsync } from 'expo-sqlite';
 
 import type { JarImport } from './jar';
 import { migrateDatabase } from './migrations';
@@ -55,5 +55,16 @@ export async function readLocalJar(): Promise<LocalJar | null> {
     return { jar, activeKidId: activeKid ? Number(activeKid.value) : null };
   } finally {
     await db.closeAsync().catch(() => {});
+  }
+}
+
+// Deletes the jar this device kept before the family jar went online, once
+// its family is deleted (WJ-76). Best effort: a device that never had one has
+// nothing to delete.
+export async function forgetLocalJar(): Promise<void> {
+  try {
+    await deleteDatabaseAsync(DATABASE_NAME);
+  } catch {
+    // No file, or the browser's SQLite couldn't remove it.
   }
 }

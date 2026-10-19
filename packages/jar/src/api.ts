@@ -223,6 +223,8 @@ export type JarImport = {
 // A family no device has been seen in for 6 months deletes itself, and so does
 // one no device came back to in the week after it was made (FamilyJar.alarm);
 // its devices' tokens then open nothing (401, and 4401 on the socket).
+// A parent can also delete it from any of its devices (WJ-76), the same way:
+//   DELETE /families (device token) → 204, 401
 
 // POST /families → 201 CreateFamilyReply, 400, 403, 413, 429, 503
 // It needs a Turnstile token in the Turnstile-Token header (WJ-54): 403
