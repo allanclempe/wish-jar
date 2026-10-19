@@ -1,4 +1,8 @@
 import type { DropState } from './PhotoDrop';
+import { SITE_HOST } from './routes';
+
+// Wish Jar's icon (WJ-77), from the site, which serves it with the app.
+const FAVICON = `https://${SITE_HOST}/favicon.ico`;
 
 // The pages a parent's phone opens: plain HTML with a little script, in Wish
 // Jar's colours. Everything is inline, so the strict policy below holds.
@@ -6,7 +10,7 @@ const POLICY = [
   "default-src 'none'",
   "style-src 'unsafe-inline'",
   "script-src 'unsafe-inline'",
-  'img-src blob:',
+  `img-src blob: ${FAVICON}`,
   "connect-src 'self'",
   "form-action 'self'",
   "base-uri 'none'",
@@ -210,6 +214,7 @@ function layout(body: string): string {
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
 <title>Send a photo to Wish Jar</title>
+<link rel="icon" href="${FAVICON}">
 <style>
   * { box-sizing: border-box; }
   body {

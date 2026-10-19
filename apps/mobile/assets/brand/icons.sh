@@ -45,3 +45,6 @@ sed -e 's/#3D2C2E/#FFFFFF/g; s/#E0A800/#FFFFFF/g' \
   "$here/jar.svg" >"$tmp/mono.svg"
 rsvg-convert -h 250 "$tmp/mono.svg" -o "$tmp/mono.png"
 magick -size 432x432 xc:none "$tmp/mono.png" -gravity center -composite -strip "$assets/android-icon-monochrome.png"
+
+# The jar for the site's own pages (public/privacy.html, public/terms.html).
+cp "$here/jar.svg" "$assets/../public/jar.svg"
