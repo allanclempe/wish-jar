@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The icon's background (WJ-77): the app's morning sky (src/theme
+     `skies.morning`), with a soft glow behind the jar. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFB86B"/>
+      <stop offset="0.55" stop-color="#FFD9A6"/>
+      <stop offset="1" stop-color="#FFF1DA"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.48" r="0.42">
+      <stop offset="0" stop-color="#FFFBE0" stop-opacity="0.95"/>
+      <stop offset="1" stop-color="#FFFBE0" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="100" height="100" fill="url(#sky)"/>
+  <rect width="100" height="100" fill="url(#glow)"/>
+</svg>
