@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Wish Jar's icon (WJ-77): the full jar from src/components/CoinJar.tsx, in
+     its coordinates, with the lid closed, coins to the top and sparkles. On a
+     transparent background; scripts/icons.sh puts it on the icon's
+     background at every size. -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="2 -4 122 156" width="122" height="156">
+  <defs>
+    <clipPath id="body">
+      <path d="M26 34 h72 a12 12 0 0 1 12 12 v84 a18 18 0 0 1 -18 18 h-60 a18 18 0 0 1 -18 -18 v-84 a12 12 0 0 1 12 -12 z"/>
+    </clipPath>
+    <g id="coin">
+      <ellipse rx="14" ry="8" fill="#FFC93C" stroke="#E0A800" stroke-width="3"/>
+      <ellipse rx="6" ry="2.5" cy="-2" fill="#FFF0B3"/>
+    </g>
+  </defs>
+
+  <!-- The glass, and the coins in it. -->
+  <path d="M26 34 h72 a12 12 0 0 1 12 12 v84 a18 18 0 0 1 -18 18 h-60 a18 18 0 0 1 -18 -18 v-84 a12 12 0 0 1 12 -12 z" fill="#E8F7FD"/>
+  <g clip-path="url(#body)">
+    <use href="#coin" transform="translate(36 136) rotate(-6)"/>
+    <use href="#coin" transform="translate(69 136) rotate(0)"/>
+    <use href="#coin" transform="translate(84 136) rotate(6)"/>
+    <use href="#coin" transform="translate(53 119) rotate(0)"/>
+    <use href="#coin" transform="translate(73 119) rotate(6)"/>
+    <use href="#coin" transform="translate(39 102) rotate(6)"/>
+    <use href="#coin" transform="translate(62 102) rotate(-6)"/>
+    <use href="#coin" transform="translate(86 102) rotate(0)"/>
+    <use href="#coin" transform="translate(48 85) rotate(-6)"/>
+    <use href="#coin" transform="translate(76 85) rotate(0)"/>
+  </g>
+
+  <!-- The outline, shine and grin over the coins. -->
+  <path d="M26 34 h72 a12 12 0 0 1 12 12 v84 a18 18 0 0 1 -18 18 h-60 a18 18 0 0 1 -18 -18 v-84 a12 12 0 0 1 12 -12 z" fill="none" stroke="#3D2C2E" stroke-width="4"/>
+  <path d="M36 52 v62" stroke="#fff" stroke-width="6" stroke-linecap="round" opacity="0.75"/>
+  <g fill="none" stroke="#3D2C2E" stroke-width="4" stroke-linecap="round">
+    <path d="M46 62 q7 -9 14 0"/>
+    <path d="M64 62 q7 -9 14 0"/>
+  </g>
+  <path d="M48 72 q14 16 28 0 z" fill="#3D2C2E" stroke="#3D2C2E" stroke-width="4" stroke-linejoin="round"/>
+  <circle cx="40" cy="72" r="5" fill="#FF9EB5" opacity="0.9"/>
+  <circle cx="84" cy="72" r="5" fill="#FF9EB5" opacity="0.9"/>
+
+  <!-- The lid, closed. -->
+  <rect x="30" y="6" width="64" height="20" rx="7" fill="#FF8A3D" stroke="#3D2C2E" stroke-width="4"/>
+  <rect x="36" y="24" width="52" height="10" fill="#E8F7FD" stroke="#3D2C2E" stroke-width="4"/>
+
+  <!-- Sparkles. -->
+  <g fill="#FFF6C8" stroke="#E0A800" stroke-width="2.5" stroke-linejoin="round">
+    <path d="M112 0 q2 9 10 10 q-8 1 -10 10 q-2 -9 -10 -10 q8 -1 10 -10 z"/>
+    <path d="M11 36 q1.5 7 7.5 7.5 q-6 0.5 -7.5 7.5 q-1.5 -7 -7.5 -7.5 q6 -0.5 7.5 -7.5 z"/>
+  </g>
+</svg>
