@@ -58,7 +58,12 @@
     // Where a join code's QR code sends a phone: Wish Jar with the code
     // filled in (WJ-48). `pnpm dev --var APP_URL:http://localhost:8081` for
     // the dev server.
-    "APP_URL": "https://wish-jar.blastin.dev"
+    "APP_URL": "https://wish-jar.blastin.dev",
+    // The per-caller limits and the daily count of new families (README.md,
+    // "Per-caller limits in the Worker"). `pnpm dev` turns them off, so
+    // starting families over and over while working on the app doesn't lock
+    // the developer out for a day.
+    "LIMITS": "on"
   },
   // The Turnstile widget's secret key, which checks the token a new family
   // brings (WJ-54). The deploy job uploads it and SIGNING_KEY from the
