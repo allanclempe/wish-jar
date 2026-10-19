@@ -38,10 +38,13 @@ jobs:
       - run: pnpm exec tsc --noEmit
       # The Turnstile widget's site key (src/family/turnstile.ts), a
       # repository variable: it isn't a secret, and an export without it
-      # couldn't start a family.
+      # couldn't start a family. The Cloudflare Web Analytics token
+      # (app/+html.tsx, WJ-82) is a repository variable too, and optional:
+      # without it the pages load no beacon.
       - name: Export
         env:
           EXPO_PUBLIC_TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
+          EXPO_PUBLIC_CF_ANALYTICS_TOKEN: ${{ vars.CF_ANALYTICS_TOKEN }}
         run: |
           test -n "$EXPO_PUBLIC_TURNSTILE_SITE_KEY" || { echo "Set the TURNSTILE_SITE_KEY repository variable" >&2; exit 1; }
           pnpm exec expo export -p web

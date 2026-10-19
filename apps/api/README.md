@@ -693,3 +693,57 @@ does the same with `objectKeyGenerator: ObjectKeyGenerators.deviceId` in place
 of `partitionKeyGenerator`. Keep the secret out of the skill's logs, and don't
 reset the table: a Show whose secret is lost asks for a join code once, and
 is linked again in its family with a new secret.
+
+## Usage counts (WJ-82)
+
+To know how much Wish Jar is used without tracking anyone, the API counts a
+few events in [Workers Analytics Engine](https://developers.cloudflare.com/analytics/analytics-engine/)
+(the `USAGE` binding, dataset `wish_jar_usage`, `src/usage.ts`). Each data
+point is only the event's name (`blob1`) and a count of 1 (`double1`), with
+the time Analytics Engine adds: no family or device id, name, IP address or
+anything else that tells one family from another.
+
+| Event | Counted when |
+| --- | --- |
+| `family_started` | A new family is set up (`POST /families`). |
+| `family_deleted` | A grown-up deletes their family (`DELETE /families`). |
+| `family_expired` | A family nobody used any more deletes itself (the cleanup above). |
+| `family_active` | A family's jar sees its first device of the UTC day (`src/jar/activeDay.ts`), so a day's count is that day's active families. |
+| `device_joined` | A device joins a family with a code (`POST /devices/join`). |
+| `task_ticked` | A task is ticked off and wasn't already; un-ticks aren't counted. |
+| `wish_claimed` | A kid gets a wish. |
+
+`family_active` keeps one row in the jar's `jar_meta`, the day it was last
+counted, written once a day; it isn't counted toward the family's daily
+writes. A count that fails to write is logged and the request goes ahead.
+
+The Free plan includes 100,000 data points written and 10,000 queries a day.
+Analytics Engine makes the dataset on its first write. To read it, make an API
+token with **Account → Account Analytics → Read** and query the
+[SQL API](https://developers.cloudflare.com/analytics/analytics-engine/sql-api/)
+(`POST https://api.cloudflare.com/client/v4/accounts/<account id>/analytics_engine/sql`).
+For example, each event's count per day over the last month:
+
+```sql
+SELECT toStartOfDay(timestamp) AS day, blob1 AS event, SUM(_sample_interval * double1) AS count
+FROM wish_jar_usage
+WHERE timestamp > NOW() - INTERVAL '30' DAY
+GROUP BY day, event
+ORDER BY day, event
+```
+
+Weigh by `_sample_interval`, as above, in case Analytics Engine samples.
+`pnpm dev` and the tests write nothing to Cloudflare; `test/usage.test.ts`
+looks at what the API writes.
+
+The site counts page views with Cloudflare Web Analytics, which uses no
+cookies (`apps/mobile/app/+html.tsx`). It's set up by hand once:
+
+1. In the dashboard, go to **Analytics & Logs → Web Analytics → Add a site**,
+   enter `wish-jar.blastin.dev`, and choose the JS snippet (not the
+   automatic setup, so the beacon is in the code you can read).
+2. Copy the `token` from the snippet into a repository variable
+   **CF_ANALYTICS_TOKEN** in GitHub (Settings → Secrets and variables →
+   Actions → Variables). It isn't a secret: anyone can read it from the page.
+3. The next site deploy (`.github/workflows/site.yml`) puts the beacon in.
+   Without the variable, the pages load no beacon.

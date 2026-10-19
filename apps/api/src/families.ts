@@ -7,6 +7,7 @@ import { readCapped, type Reply } from './http';
 import type { CreateFamilyReply } from '@wish-jar/jar';
 import { MAX_CALL_BYTES, MAX_IMPORT_BYTES } from './jar/limits';
 import { deviceSignature, deviceSignatureOk, unsignedAllowed } from './signing';
+import { callUsage, countUsage } from './usage';
 
 // Kept out of src/index.ts, like src/codes.ts: a Worker's main module may only
 // export handlers and classes.
@@ -78,6 +79,7 @@ export async function createFamily(request: Request, env: Env, reply: Reply): Pr
     await giveBackFamilyStart(env);
     return refuse(outcome, reply);
   }
+  countUsage(env, 'family_started');
   const created: CreateFamilyReply = { token: deviceToken(env, familyId, secret, outcome.result as number), familyId };
   return reply(JSON.stringify(created), 201, { 'Content-Type': 'application/json' });
 }
@@ -93,6 +95,7 @@ export async function deleteFamily(request: Request, env: Env, reply: Reply): Pr
   // goes too, for when the purge token isn't set.
   const urls = photoKeys(device.familyId, outcome.dropped ?? [], new URL(request.url).origin);
   await Promise.all(urls.map((url) => caches.default.delete(url)));
+  countUsage(env, 'family_deleted');
   return reply(null, 204);
 }
 
@@ -126,6 +129,8 @@ export async function callJar(
   )) as JarOutcome;
   if (!outcome.ok) return refuse(outcome, reply);
   await forgetPhotos(request, env, ctx, device.familyId, outcome.dropped);
+  const usage = callUsage(fn, args, outcome.result);
+  if (usage) countUsage(env, usage);
   return reply(JSON.stringify({ result: outcome.result }), 200, { 'Content-Type': 'application/json' });
 }
 
