@@ -125,6 +125,7 @@ function RootStack() {
         <Stack.Screen name="devices" options={page('Devices')} />
         <Stack.Screen name="add-device" options={modal('Add a device')} />
         <Stack.Screen name="join-family" options={modal('Join a family jar')} />
+        <Stack.Screen name="delete-family" options={modal('Delete family jar')} />
       </Stack.Protected>
     </Stack>
   );

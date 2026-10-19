@@ -2,7 +2,7 @@ import { CallerLimits, takeLimit, waitHeaders } from './CallerLimits';
 import { CODE_TTL_MS, MAX_PHOTO_BYTES, normaliseCode, randomCode, randomToken } from './codes';
 import { devicesApi } from './devices';
 import { EchoShowLink } from './EchoShowLink';
-import { callJar, createFamily } from './families';
+import { callJar, createFamily, deleteFamily } from './families';
 import { deletePhoto, parsePhotoPath, showPhoto, uploadPhoto } from './familyPhotos';
 import { FamilyJar } from './FamilyJar';
 import { FamilyStarts } from './FamilyStarts';
@@ -160,6 +160,7 @@ async function api(request: Request, env: Env, url: URL): Promise<Response> {
 
 // The family jar (WJ-46), for Wish Jar on any device:
 //   POST /families   { label?, jar? }  → 201 { token, familyId }, 400, 403, 413, 429, 503
+//   DELETE /families                    → 204, 401 (WJ-76)
 //   POST /jar/call   { fn, args }      → 200 { result }, 400, 401, 413, 429, 507
 // A device's token (Authorization: Bearer, signed: src/families.ts) opens its
 // family's jar; packages/jar/src/api.ts lists the functions and their arguments. A new
@@ -175,12 +176,16 @@ async function familyApi(
 
   if (request.method === 'OPTIONS') {
     return reply(null, 204, {
-      'Access-Control-Allow-Methods': 'POST',
+      'Access-Control-Allow-Methods': pathname === '/families' ? 'POST, DELETE' : 'POST',
       'Access-Control-Allow-Headers': `Authorization, Content-Type, ${TURNSTILE_HEADER}`,
       'Access-Control-Max-Age': '600',
     });
   }
-  if (request.method !== 'POST') return reply('Use POST', 405, { Allow: 'POST, OPTIONS' });
+  if (pathname === '/families' && request.method === 'DELETE') return deleteFamily(request, env, reply);
+  if (request.method !== 'POST') {
+    const allow = pathname === '/families' ? 'POST, DELETE, OPTIONS' : 'POST, OPTIONS';
+    return reply('Use POST', 405, { Allow: allow });
+  }
   if (pathname !== '/families') return callJar(request, env, ctx, reply);
   // Before the body is read: a new family may bring a 20 MB jar. And before
   // the caller's limit, so a script without a token doesn't use it up or wake

@@ -1,6 +1,6 @@
 import { waitHeaders } from './CallerLimits';
 import { randomToken } from './codes';
-import { forgetPhotos, photoBase } from './familyPhotos';
+import { forgetPhotos, photoBase, photoKeys } from './familyPhotos';
 import type { JarOutcome } from './FamilyJar';
 import { giveBackFamilyStart, takeFamilyStart } from './FamilyStarts';
 import { readCapped, type Reply } from './http';
@@ -80,6 +80,20 @@ export async function createFamily(request: Request, env: Env, reply: Reply): Pr
   }
   const created: CreateFamilyReply = { token: deviceToken(env, familyId, secret, outcome.result as number), familyId };
   return reply(JSON.stringify(created), 201, { 'Content-Type': 'application/json' });
+}
+
+// DELETE /families: deletes the whole family of the device asking (WJ-76),
+// with its photos and every device's way in. It can't be undone.
+export async function deleteFamily(request: Request, env: Env, reply: Reply): Promise<Response> {
+  const device = parseDeviceToken(request.headers.get('Authorization'), env);
+  if (!device) return reply('Not a device of this family', 401, { 'WWW-Authenticate': 'Bearer' });
+  const outcome = (await env.FAMILY_JARS.getByName(device.familyId).deleteByDevice(device.secret)) as JarOutcome;
+  if (!outcome.ok) return refuse(outcome, reply);
+  // The jar has purged its photos everywhere already; this data centre's copy
+  // goes too, for when the purge token isn't set.
+  const urls = photoKeys(device.familyId, outcome.dropped ?? [], new URL(request.url).origin);
+  await Promise.all(urls.map((url) => caches.default.delete(url)));
+  return reply(null, 204);
 }
 
 // POST /jar/call: runs { fn, args } in the device's family jar, for the app
