@@ -201,6 +201,10 @@ app says how long to wait. The request that is turned away isn't counted.
 | Upload a photo | `POST /photos` | 120 an hour | storage |
 | Live socket | `GET /jar/live` | 120 per 10 minutes | memory |
 
+`pnpm dev` turns these limits off, and the daily count of new families below
+with them (the `LIMITS` var, `on` in `wrangler.jsonc`), so a developer can
+start families over and over. The deployed Worker always has them on.
+
 Wrong join codes still have their own tighter limit (`JoinAttempts`: 10 per 15
 minutes). Each try is counted before the code is checked and given back when
 the code was right, so wrong codes sent all at once can't get past it.

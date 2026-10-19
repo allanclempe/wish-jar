@@ -1,5 +1,7 @@
 import { DurableObject } from 'cloudflare:workers';
 
+import { limitsOn } from './CallerLimits';
+
 // How many new families every caller together may start in a UTC day
 // (WJ-57), so new families fit in the Free plan's 5 GB of storage, shared by
 // every family. Families that start past this get 429 until 00:00 UTC;
@@ -40,9 +42,11 @@ export const FAMILY_STARTS_NAME = 'everyone';
 
 // Null when the family may start, or how many seconds it has to wait.
 export async function takeFamilyStart(env: Env): Promise<number | null> {
+  if (!limitsOn(env)) return null;
   return env.FAMILY_STARTS.getByName(FAMILY_STARTS_NAME).take();
 }
 
 export async function giveBackFamilyStart(env: Env): Promise<void> {
+  if (!limitsOn(env)) return;
   await env.FAMILY_STARTS.getByName(FAMILY_STARTS_NAME).giveBack();
 }

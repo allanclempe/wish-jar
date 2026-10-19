@@ -2,8 +2,8 @@ import { runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test';
 import { env, exports } from 'cloudflare:workers';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { CALLER_LIMITS, callerKey } from '../src/CallerLimits';
-import { FAMILIES_PER_DAY, FAMILY_STARTS_NAME } from '../src/FamilyStarts';
+import { CALLER_LIMITS, callerKey, takeLimit } from '../src/CallerLimits';
+import { FAMILIES_PER_DAY, FAMILY_STARTS_NAME, takeFamilyStart } from '../src/FamilyStarts';
 import type { CreateFamilyReply, JoinCode } from '@wish-jar/jar';
 import { DAILY_WRITES } from '../src/jar/dailyWrites';
 import { MAX_JAR_BYTES } from '../src/jar/limits';
@@ -57,6 +57,25 @@ async function reachLimit(
   expect(refused.status).toBe(429);
   return refused;
 }
+
+describe('the LIMITS var', () => {
+  it('is on in wrangler.jsonc, which the deployed Worker runs with', () => {
+    expect(env.LIMITS).toBe('on');
+  });
+
+  it('off, as `pnpm dev` runs, lets a caller go past every limit', async () => {
+    const off = { ...env, LIMITS: 'off' } as unknown as Env;
+    const request = from(nextIp());
+    for (let count = 0; count <= CALLER_LIMITS.families.max; count++) {
+      expect(await takeLimit(new Request(BASE, { headers: request }), off, 'families')).toBeNull();
+    }
+    await runInDurableObject(env.FAMILY_STARTS.getByName(FAMILY_STARTS_NAME), (_, state) =>
+      state.storage.put('started', { day: Math.floor(Date.now() / (24 * HOUR_S * 1000)), count: FAMILIES_PER_DAY }),
+    );
+    expect(await takeFamilyStart(off)).toBeNull();
+    expect(await takeFamilyStart(env)).not.toBeNull();
+  });
+});
 
 function retryAfter(response: Response): number {
   return Number(response.headers.get('Retry-After'));

@@ -111,8 +111,17 @@ export function callerKey(request: Request): string {
 const waiting = new Map<string, number>();
 const MAX_WAITING = 1000;
 
+// Whether the limits apply: the LIMITS var in wrangler.jsonc, which `pnpm dev`
+// turns off. They cover the per-caller limits here and the daily count of new
+// families (src/FamilyStarts.ts).
+export function limitsOn(env: Env): boolean {
+  const limits: string = env.LIMITS;
+  return limits !== 'off';
+}
+
 // Null when the caller may go on, or how many seconds it has to wait.
 export async function takeLimit(request: Request, env: Env, limit: CallerLimit): Promise<number | null> {
+  if (!limitsOn(env)) return null;
   const caller = callerKey(request);
   const key = `${limit} ${caller}`;
   const until = waiting.get(key);
