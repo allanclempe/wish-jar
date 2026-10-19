@@ -31,8 +31,8 @@ const FamilyJarContext = createContext<FamilyJar | null>(null);
 // What the family's other devices changed (WJ-50), for useJarVersion.
 const JarChangesContext = createContext<JarChanges | null>(null);
 // Switches the app to another family's jar once this device has joined it
-// (WJ-48).
-const SwitchFamilyContext = createContext<((token: string) => void) | null>(null);
+// (WJ-48), or to the setup screen once its family is deleted (WJ-76).
+const SwitchFamilyContext = createContext<((token: string | null) => void) | null>(null);
 
 // The jar is online only (WJ-47): without the API there's a reconnecting
 // screen, never a stale copy. A device with no family yet starts one or joins
@@ -87,8 +87,13 @@ export function FamilyJarProvider({ children }: PropsWithChildren) {
 
   const retryOpening = useCallback(() => setOpening((attempt) => attempt + 1), []);
 
-  const switchFamily = useCallback((joined: string) => {
+  // Null when this device's family is gone (WJ-76): back to the choices.
+  const switchFamily = useCallback((joined: string | null) => {
     setOpenFailure(null);
+    if (joined == null) {
+      setStarting(null);
+      setStartRefused(null);
+    }
     setToken(joined);
   }, []);
 
@@ -270,7 +275,7 @@ function openingMessage(error: unknown): string {
 
 function problemMessage({ error, write }: JarProblem): string {
   if (error.unknownDevice) {
-    return "The family jar doesn't know this device any more. It may have been removed from the family: join it again with a code from another of its devices.";
+    return "The family jar doesn't know this device any more. It may have been removed from the family, or the family jar was deleted: join a family jar with a code from one of its devices.";
   }
   const unsaved = write ? " The last change didn't save." : '';
   return `Wish Jar can't reach the family jar. Check the Wi-Fi — it keeps trying.${unsaved}`;
@@ -351,8 +356,9 @@ export function useJarVersion(...tables: JarTable[]): number {
 }
 
 // Swaps the app over to the family this device has just joined (WJ-48): every
-// screen starts again from the new jar.
-export function useSwitchFamily(): (token: string) => void {
+// screen starts again from the new jar. Null goes back to the setup screen,
+// for a device whose family was just deleted (WJ-76).
+export function useSwitchFamily(): (token: string | null) => void {
   const switchFamily = useContext(SwitchFamilyContext);
   if (!switchFamily) {
     throw new Error('useSwitchFamily must be used inside FamilyJarProvider');

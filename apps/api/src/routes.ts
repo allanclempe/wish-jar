@@ -27,9 +27,9 @@ export const ROUTES: readonly Route[] = [
   { path: '/codes/*', methods: ['GET', 'DELETE', 'OPTIONS'] },
   // The Turnstile page for the phone app's WebView (WJ-54).
   { path: '/turnstile', methods: ['GET'] },
-  // The family jar (WJ-46), its live socket (WJ-50), devices (WJ-48, WJ-45)
-  // and photos (WJ-49). A photo is shown to an <img>, which may ask for HEAD.
-  { path: '/families', methods: ['POST', 'OPTIONS'] },
+  // The family jar (WJ-46) and deleting it (WJ-76), its live socket (WJ-50),
+  // devices (WJ-48, WJ-45) and photos (WJ-49). A photo is shown to an <img>, which may ask for HEAD.
+  { path: '/families', methods: ['POST', 'DELETE', 'OPTIONS'] },
   { path: '/jar/call', methods: ['POST', 'OPTIONS'] },
   { path: '/jar/live', methods: ['GET'] },
   { path: '/devices', methods: ['GET', 'OPTIONS'] },

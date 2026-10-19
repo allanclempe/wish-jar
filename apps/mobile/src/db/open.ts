@@ -8,6 +8,7 @@ import {
   createFamily,
   createJarClient,
   type EchoShowRequest,
+  type FamilyJar,
   JarCallError,
   joinFamily,
   linkEchoShow,
@@ -15,7 +16,7 @@ import {
   signToken,
 } from './jar';
 import { listKids } from './kids';
-import { readLocalJar } from './localJar';
+import { forgetLocalJar, readLocalJar } from './localJar';
 
 // The token of this device's family, or null when it has none yet: then the
 // device starts a family (startFamilyJar) or joins one (joinFamilyJar), as
@@ -188,4 +189,19 @@ export async function joinFamilyJar(code: string): Promise<string> {
   firstLaunchDone();
   await linkThisEchoShow(token);
   return token;
+}
+
+// Deletes this device's whole family for good (WJ-76): the API deletes its
+// jar and photos, and every device of it, this one included, is out. This
+// device then forgets it, and the jar it kept before the family jar went
+// online too, so starting a new family doesn't bring that back.
+export async function deleteFamilyJar(jar: FamilyJar): Promise<void> {
+  await jar.send('DELETE', '/families');
+  try {
+    await saveDevice({ token: null, activeKidId: null });
+  } catch {
+    // The token opens nothing now: the next launch says so, and offers to
+    // join a family.
+  }
+  await forgetLocalJar();
 }

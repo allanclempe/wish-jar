@@ -274,6 +274,11 @@ checked again a day later. A new family's alarm is set for its 7th day, and
 each check sets the next one. Families from before WJ-51 get their alarm the
 next time their jar is opened.
 
+A parent can also delete their family straight away from Settings → Delete
+family jar in the app (WJ-76): `DELETE /families` with a device's token runs
+the same deletion. The rate limiting rule above matches `/families` whatever
+the method, so it counts these too; a family does it once.
+
 Deleting a family removes all of its rows and photos. Its sockets close with
 4401, so its devices see that they're out. Its Echo Shows' links are dropped,
 and a link that was missed answers 404 on rejoin and is dropped then. A join

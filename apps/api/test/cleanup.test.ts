@@ -209,3 +209,62 @@ describe('cleaning up families', () => {
     expect(Math.abs(alarm - (opened + UNUSED_MS))).toBeLessThan(60_000);
   });
 });
+
+describe('a parent deleting the family (WJ-76)', () => {
+  it('deletes everything of the family at once, photos and all', async () => {
+    const { token, familyId } = await newFamily();
+    const upload = await api('/photos', {
+      method: 'POST',
+      headers: { 'Content-Type': 'image/jpeg', ...auth(token) },
+      body: new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 7]),
+    });
+    const { url } = (await upload.json()) as PhotoUpload;
+    await call(token, 'insertKid', [{ name: 'Mia', photoUri: url }]);
+
+    const deleted = await api('/families', { method: 'DELETE', headers: auth(token) });
+    expect(deleted.status).toBe(204);
+    expect(await tablesOf(familyId)).toEqual([]);
+    expect(await alarmAt(familyId)).toBeNull();
+    expect((await call(token, 'listKids')).status).toBe(401);
+    expect((await api(new URL(url).pathname)).status).toBe(404);
+    const paths = PHOTO_ORIGINS.map((origin) => `${origin}${new URL(url).pathname}`);
+    expect(purgeCalls.flat().sort()).toEqual(paths.sort());
+  });
+
+  it("takes every device out, the family's other devices and its Echo Show too", async () => {
+    const alexaDeviceId = `amzn1.ask.device.${crypto.randomUUID()}`;
+    const showSecret = 'S'.repeat(64);
+    const { token } = await newFamily('Echo Show');
+    expect((await postJson('/devices/echo-show/link', { alexaDeviceId, showSecret }, auth(token))).status).toBe(204);
+    const codeReply = await api('/devices/codes', { method: 'POST', headers: auth(token) });
+    const { code } = (await codeReply.json()) as JoinCode;
+    const joined = await postJson('/devices/join', { code, label: 'Phone' });
+    const phone = (await joined.json()) as CreateFamilyReply;
+
+    const response = await api('/jar/live', {
+      headers: { Upgrade: 'websocket', Origin: APP, 'Sec-WebSocket-Protocol': `wish-jar, bearer.${token}` },
+    });
+    const socket = response.webSocket!;
+    socket.accept();
+    const closed = new Promise<number>((resolve) => socket.addEventListener('close', (event) => resolve(event.code)));
+
+    expect((await api('/families', { method: 'DELETE', headers: auth(phone.token) })).status).toBe(204);
+    expect(await closed).toBe(4401);
+    expect((await call(token, 'listKids')).status).toBe(401);
+    expect((await postJson('/devices/echo-show', { alexaDeviceId, showSecret })).status).toBe(404);
+  });
+
+  it('needs a device of the family', async () => {
+    const { token, familyId } = await newFamily();
+    expect((await api('/families', { method: 'DELETE' })).status).toBe(401);
+    const forged = `${familyId}.${'x'.repeat(43)}.1.${'y'.repeat(43)}`;
+    expect((await api('/families', { method: 'DELETE', headers: auth(forged) })).status).toBe(401);
+    expect((await call(token, 'listKids')).status).toBe(200);
+  });
+
+  it("answers 401 once it's gone", async () => {
+    const { token } = await newFamily();
+    expect((await api('/families', { method: 'DELETE', headers: auth(token) })).status).toBe(204);
+    expect((await api('/families', { method: 'DELETE', headers: auth(token) })).status).toBe(401);
+  });
+});
